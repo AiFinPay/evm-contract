@@ -8,15 +8,23 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./errors/Errors.sol";
 
-/// @title B2BSplitter v1.1 — AiFinPay Standalone Payment Splitter
-/// @notice Splits incoming MATIC or ERC-20 payments between merchant, treasury,
-///         and IP creator. Owned by Gnosis Safe multisig.
-/// @dev Owner = Gnosis Safe (4-of-4). No upgradeability — redeploy to change logic.
+/// @title B2BSplitter v1.2 — AiFinPay Standalone Payment Splitter
+/// @notice Splits an incoming native or ERC-20 payment between merchant, treasury,
+///         and IP creator, atomically, once per paymentId. Owned by a Gnosis Safe.
+/// @dev No upgradeability — redeploy to change logic. v1.2 = audit remediation:
+///      - AIFINP-34: stablecoins are per-chain, fixed at deploy (no Polygon hardcodes).
+///      - AIFINP-35: on-chain paymentId idempotency / replay protection.
+///      - AIFINP-33: zero IP-creator value is redirected to the merchant, never
+///                   skipped or stranded. Invariant: merchant + treasury + ip == total.
+///      Function signatures changed (paymentId added; payMatic -> payNative); the
+///      SDK/backend must be updated to match. NOT compiled/tested/deployed here.
 contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
-    address public constant USDC = 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359;
-    address public constant USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+    // AIFINP-34 — set once at deployment to THIS chain's tokens (address(0) = unsupported here).
+    address public immutable USDC;
+    address public immutable USDT;
+
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MIN_PAYMENT = 100_000;
 
@@ -24,10 +32,14 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     uint256 public ipCreatorBps = 1;
     address public treasury;
 
+    // AIFINP-35 — a paymentId can settle at most once.
+    mapping(bytes32 => bool) public consumedPayment;
+
     event Payment(
+        bytes32 indexed paymentId,
         address indexed payer,
         address indexed merchant,
-        address indexed token,
+        address token,
         uint256 totalAmount,
         uint256 merchantAmount,
         uint256 treasuryAmount,
@@ -37,24 +49,38 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     event SplitUpdated(uint256 treasuryBps, uint256 ipCreatorBps);
     event TreasuryUpdated(address newTreasury);
 
-    constructor(address initialOwner, address _treasury) Ownable(initialOwner) {
+    /// @param initialOwner Gnosis Safe multisig
+    /// @param _treasury    AiFinPay treasury (fee recipient)
+    /// @param _usdc        This chain's USDC (or address(0) if not supported here)
+    /// @param _usdt        This chain's USDT (or address(0) if not supported here)
+    constructor(
+        address initialOwner,
+        address _treasury,
+        address _usdc,
+        address _usdt
+    ) Ownable(initialOwner) {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
+        USDC = _usdc;
+        USDT = _usdt;
     }
 
-    /// @notice Pay a merchant in MATIC. Automatically splits on-chain.
-    /// @param _merchant    Merchant wallet address
-    /// @param _ipCreator   IP creator address (receives royalty). Pass address(0) to skip.
-    /// @param _orderId     Off-chain order reference
-    function payMatic(
+    /// @notice Pay a merchant in the native token. Splits on-chain, once per paymentId.
+    /// @param _paymentId Unique payment id (from the signed AIFP-2 quote). Reused id reverts.
+    /// @param _merchant  Merchant wallet address
+    /// @param _ipCreator IP creator address (receives royalty). Pass address(0) to skip.
+    /// @param _orderId   Off-chain order reference (human-readable, not a uniqueness guard)
+    function payNative(
+        bytes32 _paymentId,
         address payable _merchant,
         address _ipCreator,
         string calldata _orderId
     ) external payable nonReentrant whenNotPaused {
+        _consume(_paymentId);
         if (msg.value == 0) revert ZeroNative();
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _split(msg.value);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _split(msg.value, _ipCreator);
 
         (bool s1, ) = _merchant.call{value: merchantAmt}("");
         if (!s1) revert MerchantTransferFailed();
@@ -62,37 +88,46 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         (bool s2, ) = payable(treasury).call{value: treasuryAmt}("");
         if (!s2) revert TreasuryTransferFailed();
 
-        if (ipAmt > 0 && _ipCreator != address(0)) {
+        if (ipAmt > 0) {
             (bool s3, ) = payable(_ipCreator).call{value: ipAmt}("");
             if (!s3) revert IPCreatorTransferFailed();
         }
 
-        emit Payment(msg.sender, _merchant, address(0), msg.value, merchantAmt, treasuryAmt, ipAmt, _orderId);
+        emit Payment(_paymentId, msg.sender, _merchant, address(0), msg.value, merchantAmt, treasuryAmt, ipAmt, _orderId);
     }
 
-    /// @notice Pay a merchant in USDC or USDT. Automatically splits on-chain.
-    /// @dev Caller must approve this contract for `amount` before calling.
+    /// @notice Pay a merchant in THIS chain's USDC or USDT. Splits on-chain, once per paymentId.
+    /// @dev Caller must approve this contract for `_amount` first.
     function payStable(
+        bytes32 _paymentId,
         address _token,
         uint256 _amount,
         address _merchant,
         address _ipCreator,
         string calldata _orderId
     ) external nonReentrant whenNotPaused {
-        if (_token != USDC && _token != USDT) revert UnsupportedToken();
+        _consume(_paymentId);
+        // AIFINP-34 — reject address(0) explicitly so an unset (address(0)) USDT can't be matched.
+        if (_token == address(0) || (_token != USDC && _token != USDT)) revert UnsupportedToken();
         if (_amount == 0) revert ZeroAmount();
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _split(_amount);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _split(_amount, _ipCreator);
 
         IERC20(_token).safeTransferFrom(msg.sender, _merchant, merchantAmt);
         IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
-
-        if (ipAmt > 0 && _ipCreator != address(0)) {
+        if (ipAmt > 0) {
             IERC20(_token).safeTransferFrom(msg.sender, _ipCreator, ipAmt);
         }
 
-        emit Payment(msg.sender, _merchant, _token, _amount, merchantAmt, treasuryAmt, ipAmt, _orderId);
+        emit Payment(_paymentId, msg.sender, _merchant, _token, _amount, merchantAmt, treasuryAmt, ipAmt, _orderId);
+    }
+
+    /// @dev AIFINP-35 — set consumed BEFORE any external transfer (checks-effects-interactions).
+    function _consume(bytes32 _paymentId) internal {
+        if (_paymentId == bytes32(0)) revert ZeroPaymentId();
+        if (consumedPayment[_paymentId]) revert PaymentAlreadyProcessed();
+        consumedPayment[_paymentId] = true;
     }
 
     /// @notice Emergency pause — halts all payments instantly
@@ -119,14 +154,22 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         emit TreasuryUpdated(_treasury);
     }
 
-    function _split(uint256 _total) internal view returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
+    /// @dev AIFINP-33 — if _ipCreator is zero, its share goes to the merchant (no strand).
+    ///      Invariant: merchantAmt + treasuryAmt + ipAmt == _total (fee-inclusive).
+    function _split(
+        uint256 _total,
+        address _ipCreator
+    ) internal view returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
         if (_total < MIN_PAYMENT) revert PaymentBelowMinimum();
 
         treasuryAmt = (_total * treasuryBps) / BPS_DENOMINATOR;
-        ipAmt = (_total * ipCreatorBps) / BPS_DENOMINATOR;
-
         if (treasuryBps > 0 && treasuryAmt == 0) revert PaymentTooSmallForTreasury();
-        if (ipCreatorBps > 0 && ipAmt == 0) revert PaymentTooSmallForRoyalty();
+
+        if (_ipCreator != address(0)) {
+            ipAmt = (_total * ipCreatorBps) / BPS_DENOMINATOR;
+            if (ipCreatorBps > 0 && ipAmt == 0) revert PaymentTooSmallForRoyalty();
+        }
+        // else: ipAmt stays 0 and is absorbed into merchantAmt below (no stranded value).
 
         merchantAmt = _total - treasuryAmt - ipAmt;
         if (merchantAmt == 0) revert PaymentTooSmallForMerchant();

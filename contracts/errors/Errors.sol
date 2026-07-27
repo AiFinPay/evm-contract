@@ -50,3 +50,5 @@ error PaymentTooSmall();
 error PaymentTooSmallForTreasury();
 error PaymentTooSmallForRoyalty();
 error PaymentTooSmallForMerchant();
+error ZeroPaymentId();          // AIFINP-35 — paymentId must be non-zero
+error PaymentAlreadyProcessed(); // AIFINP-35 — replay: paymentId already settled
