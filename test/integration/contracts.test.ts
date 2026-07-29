@@ -51,9 +51,12 @@ describe("Integration: B2BSplitter with Core", function () {
     core = contracts.core;
 
     const B2BSplitterFactory = await ethers.getContractFactory("B2BSplitter");
+    // v1.2: (owner, treasury, usdc, usdt) — per-chain tokens (AIFINP-34).
     splitter = await B2BSplitterFactory.deploy(
       await treasury.getAddress(),
-      await treasury.getAddress()
+      await treasury.getAddress(),
+      "0x1000000000000000000000000000000000000001",
+      "0x1000000000000000000000000000000000000002"
     );
   });
 
@@ -71,9 +74,10 @@ describe("Integration: B2BSplitter with Core", function () {
       expect(await splitter.ipCreatorBps()).to.equal(1);
     });
 
-    it("splitter has correct stablecoin addresses", async function () {
-      expect(await splitter.USDC()).to.equal("0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359");
-      expect(await splitter.USDT()).to.equal("0xc2132D05D31c914a87C6611C10748AEb04B58e8F");
+    it("splitter uses the per-chain tokens set at deployment (AIFINP-34)", async function () {
+      // v1.2: no longer hardcoded Polygon addresses — taken from the constructor.
+      expect(await splitter.USDC()).to.equal("0x1000000000000000000000000000000000000001");
+      expect(await splitter.USDT()).to.equal("0x1000000000000000000000000000000000000002");
     });
   });
 
