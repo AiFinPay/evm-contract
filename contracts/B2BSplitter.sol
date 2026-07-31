@@ -53,12 +53,7 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     /// @param _treasury    AiFinPay treasury (fee recipient)
     /// @param _usdc        This chain's USDC (or address(0) if not supported here)
     /// @param _usdt        This chain's USDT (or address(0) if not supported here)
-    constructor(
-        address initialOwner,
-        address _treasury,
-        address _usdc,
-        address _usdt
-    ) Ownable(initialOwner) {
+    constructor(address initialOwner, address _treasury, address _usdc, address _usdt) Ownable(initialOwner) {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
         USDC = _usdc;
@@ -93,7 +88,17 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
             if (!s3) revert IPCreatorTransferFailed();
         }
 
-        emit Payment(_paymentId, msg.sender, _merchant, address(0), msg.value, merchantAmt, treasuryAmt, ipAmt, _orderId);
+        emit Payment(
+            _paymentId,
+            msg.sender,
+            _merchant,
+            address(0),
+            msg.value,
+            merchantAmt,
+            treasuryAmt,
+            ipAmt,
+            _orderId
+        );
     }
 
     /// @notice Pay a merchant in THIS chain's USDC or USDT. Splits on-chain, once per paymentId.
