@@ -123,7 +123,7 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     // Etherscan v2 unified API — one key for all supported chains (v1 per-chain keys are EOL)
-    apiKey: { avalanche: "verifyContract", polygon: process.env.POLYGONSCAN_API_KEY || "" } as any,
+    apiKey: process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY || "",
     customChains: [
       {
         network: "polygonAmoy",
