@@ -10,14 +10,27 @@ import "./errors/Errors.sol";
 
 /// @title B2BSplitter v1.2 — AiFinPay Standalone Payment Splitter
 /// @notice Splits an incoming native or ERC-20 payment between merchant, treasury,
-///         and IP creator, atomically, once per paymentId. Owned by a Gnosis Safe.
+///         and IP creator, atomically, once per paymentId. Owner is the team Gnosis
+///         Safe on Polygon; on the other chains it is the deployer EOA, since no Safe
+///         exists there yet (migration to multisig is tracked separately).
 /// @dev No upgradeability — redeploy to change logic. v1.2 = audit remediation:
 ///      - AIFINP-34: stablecoins are per-chain, fixed at deploy (no Polygon hardcodes).
 ///      - AIFINP-35: on-chain paymentId idempotency / replay protection.
 ///      - AIFINP-33: zero IP-creator value is redirected to the merchant, never
 ///                   skipped or stranded. Invariant: merchant + treasury + ip == total.
 ///      Function signatures changed (paymentId added; payMatic -> payNative); the
-///      SDK/backend must be updated to match. NOT compiled/tested/deployed here.
+///      SDK/backend must be updated to match.
+///
+///      Status: compiled (solc 0.8.35, optimizer 200, cancun), 138 tests passing, and
+///      deployed to four mainnets on 2026-07-31 — Polygon, Optimism, BOT Chain and
+///      XRPL EVM — all source-verified. The exact bytecode deployed reproduces from the
+///      tag `b2bsplitter-v1.2-mainnet`, not from this branch head: Solidity embeds a
+///      hash of the source, so later edits (including this comment) change the metadata
+///      tail without changing the executable code.
+///
+///      Verified live on Polygon: a 0.01 POL payment split 98.99/1.00/0.01 with nothing
+///      retained by the contract, and the same paymentId resubmitted reverted on-chain
+///      with PaymentAlreadyProcessed.
 contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
