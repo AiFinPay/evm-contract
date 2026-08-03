@@ -84,10 +84,46 @@ const config: HardhatUserConfig = {
       accounts: DEPLOYER_KEY,
       chainId: 999,
     },
+    // ── 8-chain rollout batch (added Jun 2026) ──────────────────────────────
+    optimism: {
+      url: process.env.OPTIMISM_RPC || "https://mainnet.optimism.io",
+      accounts: DEPLOYER_KEY,
+      chainId: 10,
+    },
+    xrplevm: {
+      url: process.env.XRPLEVM_RPC || "https://rpc.xrplevm.org",
+      accounts: DEPLOYER_KEY,
+      chainId: 1440000,
+    },
+    botchain: {
+      url: process.env.BOTCHAIN_RPC || "https://rpc.botchain.ai",
+      accounts: DEPLOYER_KEY,
+      chainId: 677,
+    },
+    hedera: {
+      url: process.env.HEDERA_RPC || "https://mainnet.hashio.io/api",
+      accounts: DEPLOYER_KEY,
+      chainId: 295,
+    },
+    kaia: {
+      url: process.env.KAIA_RPC || "https://public-en.node.kaia.io",
+      accounts: DEPLOYER_KEY,
+      chainId: 8217,
+    },
+    somnia: {
+      url: process.env.SOMNIA_RPC || "https://api.infra.mainnet.somnia.network",
+      accounts: DEPLOYER_KEY,
+      chainId: 5031,
+    },
+    unichain: {
+      url: process.env.UNICHAIN_RPC || "https://mainnet.unichain.org",
+      accounts: DEPLOYER_KEY,
+      chainId: 130,
+    },
   },
   etherscan: {
     // Etherscan v2 unified API — one key for all supported chains (v1 per-chain keys are EOL)
-    apiKey: process.env.POLYGONSCAN_API_KEY || process.env.ETHERSCAN_API_KEY || "",
+    apiKey: process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY || "",
     customChains: [
       {
         network: "polygonAmoy",

@@ -57,10 +57,16 @@ async function deployProtocol(): Promise<ProtocolContracts> {
 async function deployProtocolWithSplitter(): Promise<ProtocolWithSplitter> {
   const base = await deployProtocol();
 
+  // v1.2: constructor now takes per-chain (owner, treasury, usdc, usdt) — AIFINP-34.
+  // Distinct non-zero placeholders; native/idempotency/zero-creator tests don't move ERC-20.
+  const testUsdc = "0x1000000000000000000000000000000000000001";
+  const testUsdt = "0x1000000000000000000000000000000000000002";
   const B2BSplitterFactory = await ethers.getContractFactory("B2BSplitter");
   const splitter = (await B2BSplitterFactory.deploy(
     await base.treasury.getAddress(),
-    await base.treasury.getAddress()
+    await base.treasury.getAddress(),
+    testUsdc,
+    testUsdt
   )) as unknown as B2BSplitter;
 
   return { ...base, splitter };

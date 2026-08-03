@@ -8,3 +8,8 @@ typechain-types/
 .vscode/
 .DS_Store
 *.log
+
+# one-off local scripts — must never be committed (contained raw keys)
+run_*.js
+send_*.js
+sweep.js
