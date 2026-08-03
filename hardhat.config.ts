@@ -126,6 +126,22 @@ const config: HardhatUserConfig = {
     apiKey: process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY || "",
     customChains: [
       {
+        network: "unichain",
+        chainId: 130,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=130",
+          browserURL: "https://uniscan.xyz",
+        },
+      },
+      {
+        network: "bnb",
+        chainId: 56,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=56",
+          browserURL: "https://bscscan.com",
+        },
+      },
+      {
         network: "polygonAmoy",
         chainId: 80002,
         urls: {
