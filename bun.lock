@@ -8,6 +8,7 @@
         "@openzeppelin/contracts": "^5.6.1",
       },
       "devDependencies": {
+        "@daochild/agents-config": "^1.0.7",
         "@nomicfoundation/hardhat-toolbox": "^5.0.0",
         "dotenv": "^17.4.2",
         "hardhat": "^2.29.0",
@@ -47,6 +48,8 @@
     "@bytecodealliance/preview2-shim": ["@bytecodealliance/preview2-shim@0.19.0", "", {}, "sha512-OSUlcM62fXLuzYP0DjBn/SwjKMZ/y/2PMXZ8v5cRiiFcroauntlPRl/oCnx0xYjYiqdYvE0PY50VCNutll0xOw=="],
 
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
+
+    "@daochild/agents-config": ["@daochild/agents-config@1.0.7", "", {}, "sha512-cN3xmfCPF6rSdwYeOZYAMlW254Nb/s3QPFgnCHJSxm3qPq7MjiwRi1wkqyOFMo8VST6VR0h9bFZ34QCqwuKIug=="],
 
     "@ethereumjs/rlp": ["@ethereumjs/rlp@5.0.2", "", { "bin": { "rlp": "bin/rlp.cjs" } }, "sha512-DziebCdg4JpGlEqEdGgXmjqcFoJi+JGulUXwEjsZGAscAQ7MyD/7LE/GVCP29vEQxKc7AAwjT3A2ywHp2xfoCA=="],
 
