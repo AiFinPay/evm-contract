@@ -7,6 +7,12 @@
 
 ## Audit Findings — Resolution Status
 
+### Production remediation — 4 August 2026
+
+| ID | Finding | Status | Fix |
+|----|---------|--------|-----|
+| H-02 | Core deducted the IP-creator share even when the creator address was zero, leaving value in the contract | Fixed in source; redeploy required | Compute the creator share only for a non-zero creator and return the remainder to the merchant; regression tests assert all recipient deltas and a zero Core balance |
+
 ### Critical
 
 | ID | Finding | Status | Fix |

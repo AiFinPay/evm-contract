@@ -23,6 +23,8 @@ AiFinPay is payment and identity infrastructure for the agentic economy. AI agen
    - **98.99%** → merchant wallet
    - **1.00%** → AiFinPay treasury (Gnosis Safe 4-of-4)
    - **0.01%** → IP creator (from passport record)
+   - If the passport has no IP creator, the unallocated creator share remains
+     in the merchant amount. The contract balance must be zero after settlement.
 6. SDK sends tx hash to API as proof of payment
 7. API returns results to agent
 
@@ -69,6 +71,8 @@ merchant     = amount - protocol - ip    (98.99%)
 ```
 
 All splits happen in one atomic transaction — cannot partially fail.
+For a zero IP-creator address, the creator fee is zero and the merchant receives
+the remainder after the protocol fee.
 
 ---
 

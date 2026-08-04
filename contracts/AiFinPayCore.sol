@@ -231,13 +231,14 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         uint64 spendUnits = uint64(rawSpendUnits);
         if (!passport.updateSpendLimit(msg.sender, spendUnits)) revert DailySpendLimitExceeded();
 
+        address ipCreator = passport.getPassport(msg.sender).ipCreator;
         uint256 treasuryAmount = (msg.value * treasuryBps) / BPS_DENOMINATOR;
-        uint256 ipCreatorAmount = (msg.value * ipCreatorBps) / BPS_DENOMINATOR;
+        uint256 ipCreatorAmount = ipCreator == address(0)
+            ? 0
+            : (msg.value * ipCreatorBps) / BPS_DENOMINATOR;
         uint256 merchantAmount = msg.value - treasuryAmount - ipCreatorAmount;
 
         if (treasuryAmount == 0) revert ProtocolFeeFailed();
-
-        address ipCreator = passport.getPassport(msg.sender).ipCreator;
 
         (bool s1, ) = _merchant.call{value: merchantAmount}("");
         if (!s1) revert MerchantTransferFailed();
@@ -245,7 +246,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         (bool s2, ) = treasury.call{value: treasuryAmount}("");
         if (!s2) revert TreasuryTransferFailed();
 
-        if (ipCreatorAmount > 0 && ipCreator != address(0)) {
+        if (ipCreatorAmount > 0) {
             (bool s3, ) = payable(ipCreator).call{value: ipCreatorAmount}("");
             if (!s3) revert IPCreatorTransferFailed();
         }

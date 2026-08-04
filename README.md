@@ -26,6 +26,8 @@ When an AI agent calls a paid API (e.g. Exa AI, io.net), it receives an HTTP 402
 | IP Creator (royalty) | 0.01% |
 
 No custodial holding. No manual forwarding. Settled on-chain in ~2 seconds.
+If an Agent Passport has no IP creator, the creator allocation is included in
+the merchant payout so the settlement contract retains no value.
 
 ---
 

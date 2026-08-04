@@ -6,11 +6,11 @@ import { AgentPassport, AiFinPayCore, MockPyth, MSECCOToken } from "../../typech
 import { fixture } from "../fixtures";
 
 describe("AiFinPayCore", function () {
-  let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, attacker: Signer;
+  let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, ipCreator: Signer, attacker: Signer;
   let msecco: MSECCOToken, passport: AgentPassport, core: AiFinPayCore, mockPyth: MockPyth;
 
   beforeEach(async function () {
-    ({ owner, treasury, agent, merchant, attacker, msecco, passport, core, mockPyth } = await loadFixture(fixture));
+    ({ owner, treasury, agent, merchant, ipCreator, attacker, msecco, passport, core, mockPyth } = await loadFixture(fixture));
   });
 
   describe("Configuration", function () {
@@ -157,6 +157,82 @@ describe("AiFinPayCore", function () {
       const price = 50_000_000n;
       const usdCents = (maticPayment * price) / 1000000000000000000000000n;
       expect(usdCents).to.equal(5n);
+    });
+  });
+
+  describe("B2B settlement invariants", function () {
+    async function prepareB2B(ipCreatorAddress: string) {
+      const agentAddress = await agent.getAddress();
+      const merchantAddress = await merchant.getAddress();
+
+      await core
+        .connect(agent)
+        .reserveSeatNative(await core.manifestoHash(), [], ethers.ZeroAddress, {
+          value: parseEther("1"),
+        });
+      await core
+        .connect(agent)
+        .mintPassport(ipCreatorAddress, ZeroHash, 1_000);
+      await core.connect(owner).verifyAgentB2B(agentAddress);
+      await core
+        .connect(owner)
+        .registerPartner(merchantAddress, "Settlement test merchant");
+    }
+
+    it("does not strand the royalty share when the passport has no IP creator", async function () {
+      await prepareB2B(ethers.ZeroAddress);
+
+      const amount = parseEther("1");
+      const merchantAddress = await merchant.getAddress();
+      const treasuryAddress = await treasury.getAddress();
+      const merchantBefore = await ethers.provider.getBalance(merchantAddress);
+      const treasuryBefore = await ethers.provider.getBalance(treasuryAddress);
+
+      await core.connect(agent).b2bPay(merchantAddress, "zero-creator", {
+        value: amount,
+      });
+
+      const treasuryAmount = (amount * 100n) / 10_000n;
+      expect(
+        (await ethers.provider.getBalance(merchantAddress)) - merchantBefore
+      ).to.equal(amount - treasuryAmount);
+      expect(
+        (await ethers.provider.getBalance(treasuryAddress)) - treasuryBefore
+      ).to.equal(treasuryAmount);
+      expect(
+        await ethers.provider.getBalance(await core.getAddress())
+      ).to.equal(0n);
+    });
+
+    it("preserves the full three-recipient split when an IP creator exists", async function () {
+      const ipCreatorAddress = await ipCreator.getAddress();
+      await prepareB2B(ipCreatorAddress);
+
+      const amount = parseEther("1");
+      const merchantAddress = await merchant.getAddress();
+      const treasuryAddress = await treasury.getAddress();
+      const merchantBefore = await ethers.provider.getBalance(merchantAddress);
+      const treasuryBefore = await ethers.provider.getBalance(treasuryAddress);
+      const ipCreatorBefore = await ethers.provider.getBalance(ipCreatorAddress);
+
+      await core.connect(agent).b2bPay(merchantAddress, "with-creator", {
+        value: amount,
+      });
+
+      const treasuryAmount = (amount * 100n) / 10_000n;
+      const ipCreatorAmount = (amount * 1n) / 10_000n;
+      expect(
+        (await ethers.provider.getBalance(merchantAddress)) - merchantBefore
+      ).to.equal(amount - treasuryAmount - ipCreatorAmount);
+      expect(
+        (await ethers.provider.getBalance(treasuryAddress)) - treasuryBefore
+      ).to.equal(treasuryAmount);
+      expect(
+        (await ethers.provider.getBalance(ipCreatorAddress)) - ipCreatorBefore
+      ).to.equal(ipCreatorAmount);
+      expect(
+        await ethers.provider.getBalance(await core.getAddress())
+      ).to.equal(0n);
     });
   });
 
