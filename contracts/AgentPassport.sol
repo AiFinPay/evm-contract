@@ -77,6 +77,8 @@ contract AgentPassport is ERC721, Ownable {
     }
 
     /// @notice Check and update daily spend limit
+    /// @dev Reverts on limit exhaustion so a caller cannot accidentally ignore
+    ///      a boolean failure and settle an over-limit payment.
     function updateSpendLimit(address _agent, uint64 _amount) external onlyCore returns (bool) {
         uint256 tokenId = agentTokenId[_agent];
         if (tokenId == 0) revert NoPassport();
@@ -88,7 +90,7 @@ contract AgentPassport is ERC721, Ownable {
             p.lastResetDay = today;
         }
 
-        if (p.currentSpent + _amount > p.dailyLimit) return false;
+        if (p.currentSpent + _amount > p.dailyLimit) revert DailySpendLimitExceeded();
         p.currentSpent += _amount;
         return true;
     }
