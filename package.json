@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "hardhat test",
+    "audit:runtime": "npm audit --omit=dev --audit-level=high",
     "build": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.ts --network polygon",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network amoy",
