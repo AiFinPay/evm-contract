@@ -160,6 +160,38 @@ describe("AiFinPayCore", function () {
     });
   });
 
+  describe("Daily spend limit", function () {
+    it("reverts atomically when the daily spend limit is exceeded", async function () {
+      const agentAddress = await agent.getAddress();
+      const merchantAddress = await merchant.getAddress();
+      const treasuryAddress = await treasury.getAddress();
+
+      await core
+        .connect(agent)
+        .reserveSeatNative(await core.manifestoHash(), [], ethers.ZeroAddress, {
+          value: parseEther("1"),
+        });
+      await core.connect(agent).mintPassport(ethers.ZeroAddress, ZeroHash, 1);
+      await core.connect(owner).verifyAgentB2B(agentAddress);
+      await core.connect(owner).registerPartner(merchantAddress, "Limit test merchant");
+
+      const merchantBefore = await ethers.provider.getBalance(merchantAddress);
+      const treasuryBefore = await ethers.provider.getBalance(treasuryAddress);
+
+      await expect(
+        core.connect(agent).b2bPay(merchantAddress, "over-limit", {
+          value: parseEther("0.02"),
+        })
+      ).to.be.revertedWithCustomError(passport, "DailySpendLimitExceeded");
+
+      const state = await passport.getPassport(agentAddress);
+      expect(state.currentSpent).to.equal(0n);
+      expect(await ethers.provider.getBalance(merchantAddress)).to.equal(merchantBefore);
+      expect(await ethers.provider.getBalance(treasuryAddress)).to.equal(treasuryBefore);
+      expect(await ethers.provider.getBalance(await core.getAddress())).to.equal(0n);
+    });
+  });
+
   describe("Pausable Functionality", function () {
     it("owner can pause", async function () {
       await core.connect(owner).pause();
