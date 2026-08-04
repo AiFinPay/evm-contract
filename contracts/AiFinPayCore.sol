@@ -231,13 +231,20 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         uint64 spendUnits = uint64(rawSpendUnits);
         if (!passport.updateSpendLimit(msg.sender, spendUnits)) revert DailySpendLimitExceeded();
 
+        address ipCreator = passport.getPassport(msg.sender).ipCreator;
+
         uint256 treasuryAmount = (msg.value * treasuryBps) / BPS_DENOMINATOR;
-        uint256 ipCreatorAmount = (msg.value * ipCreatorBps) / BPS_DENOMINATOR;
+        // A passport with no IP creator earns no royalty share. The share must be
+        // zeroed BEFORE the merchant amount is derived, otherwise it is deducted
+        // from the payment and stranded in this contract forever — there is no
+        // withdrawal path, by design. Folding it into merchantAmount conserves
+        // value: msg.value == merchant + treasury + ipCreator on every path.
+        uint256 ipCreatorAmount = ipCreator == address(0)
+            ? 0
+            : (msg.value * ipCreatorBps) / BPS_DENOMINATOR;
         uint256 merchantAmount = msg.value - treasuryAmount - ipCreatorAmount;
 
         if (treasuryAmount == 0) revert ProtocolFeeFailed();
-
-        address ipCreator = passport.getPassport(msg.sender).ipCreator;
 
         (bool s1, ) = _merchant.call{value: merchantAmount}("");
         if (!s1) revert MerchantTransferFailed();

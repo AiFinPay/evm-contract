@@ -6,20 +6,29 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Least-privilege token: this workflow builds and tests, nothing else.
+# (DD re-audit M-08 / CodeQL actions/missing-workflow-permissions.)
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Third-party actions pinned by full commit SHA, not by mutable tag
+      # (M-08). The comment records the tag each SHA corresponds to.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
-          bun-version: latest
+          # Exact version, never "latest" — a floating toolchain makes the
+          # build irreproducible and can change compiled output silently.
+          bun-version: 1.2.19
 
-      - name: Install dependencies
-        run: bun install
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
 
       - name: Compile contracts
         run: bun run hardhat compile
