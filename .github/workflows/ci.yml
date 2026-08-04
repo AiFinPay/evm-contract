@@ -3,32 +3,44 @@ name: CI
 on:
   push:
     branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
   pull_request:
     branches: [main, develop]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: 22
+          cache: npm
 
       - name: Install dependencies
-        run: bun install
+        run: npm ci
+
+      - name: Audit production dependency graph
+        run: npm run audit:runtime
 
       - name: Compile contracts
-        run: bun run hardhat compile
+        run: npm run build
 
       - name: Run tests
-        run: bun run hardhat test
+        run: npm test
 
       - name: Run solhint
-        run: bunx solhint 'contracts/**/*.sol' --config .solhint.json
+        run: npm run lint
 
       - name: Check formatting
-        run: bun run prettify:check
+        run: npm run prettify:check
