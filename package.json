@@ -11,6 +11,7 @@
     "build": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.ts --network polygon",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network amoy",
+    "verify:deployment": "hardhat run scripts/verify-deployment.ts",
     "lint": "solhint 'contracts/**/*.sol'",
     "prettify": "prettier --write 'contracts/**/*.sol'",
     "prettify:check": "prettier --check 'contracts/**/*.sol'"
