@@ -93,7 +93,8 @@ bun run deploy:splitter
 > **Note:** `setCore()` is one-time only on all contracts — cannot be changed after setting.
 
 Required environment variables in `.env`:
-- `DEPLOYER_PRIVATE_KEY`
+- Testnets: `DEV_DEPLOYER_KEY`
+- Mainnets: `PROD_DEPLOYER_KEY`
 - `ETHERSCAN_API_KEY` (unified Etherscan v2) or legacy `POLYGONSCAN_API_KEY`
 - `POLYGON_MAINNET_RPC` / `AMOY_RPC` (optional; fallbacks are provided)
 

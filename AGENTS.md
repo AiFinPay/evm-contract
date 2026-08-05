@@ -39,7 +39,10 @@ No separate typecheck step; Hardhat/TypeScript compilation is exercised during `
 - **Type generation**: `hardhat build` writes `typechain-types/`. These are committed/generated locally; tests import from `typechain-types`.
 - **Network configs live in `hardhat.config.ts`**. Many chains are configured; production deploys primarily use `polygon` and `amoy`.
 - **`dotenv` is loaded by Hardhat config** — place `.env` at repo root.
-- Required env for deploy/verify: `DEPLOYER_PRIVATE_KEY`, plus `ETHERSCAN_API_KEY` (unified Etherscan v2) or legacy `POLYGONSCAN_API_KEY`.
+- Required env for deploy/verify:
+  - Testnets: `DEV_DEPLOYER_KEY`
+  - Mainnets: `PROD_DEPLOYER_KEY`
+  - Verification: `ETHERSCAN_API_KEY` (unified Etherscan v2) or legacy `POLYGONSCAN_API_KEY`.
 - Deploy scripts default to the `production` build profile (`--build-profile production`).
 
 ## Running a single test
