@@ -60,5 +60,4 @@ Tests live under `test/`. The fixture in `test/fixtures.ts` deploys `MockPyth`, 
   - `bn.js <4.12.3` — Bun reports this on `bn.js@5.2.5`, which is outside the advisory range; likely scanner noise.
 
 ## Canonical source of truth
-- `CLAUDE.md` holds canonical mainnet addresses, economics constants, and audit-fix history. Treat it as authoritative for deployed state.
 - `hardhat.config.ts` is the authoritative network/verification config.
