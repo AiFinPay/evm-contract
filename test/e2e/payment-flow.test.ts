@@ -1,8 +1,7 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { Signer, ZeroHash } from "ethers";
-import { fixture } from "../fixtures";
+
+import { ethers, loadFixture, fixture } from "../fixtures";
+import { Signer } from "ethers";
 
 describe("E2E: Agent Payment Flow", function () {
   let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, ipCreator: Signer;

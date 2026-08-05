@@ -1,4 +1,6 @@
-import { ethers, network } from "hardhat";
+import { network } from "hardhat";
+
+const { ethers, networkName } = await network.create();
 
 // Deploys ONLY B2BSplitter v1.2 (AIFINP-34/35/33) — not the full core set.
 // owner + treasury = deployer on these splitter-only chains, because the team
@@ -43,10 +45,10 @@ const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const chainId = Number(network.config.chainId);
+  const chainId = Number((await ethers.provider.getNetwork()).chainId);
   const bal = await ethers.provider.getBalance(deployer.address);
 
-  console.log(`Network:  ${network.name} (chainId ${chainId})`);
+  console.log(`Network:  ${networkName} (chainId ${chainId})`);
   console.log(`Deployer: ${deployer.address}`);
   console.log(`Balance:  ${ethers.formatEther(bal)} native`);
 
@@ -58,7 +60,10 @@ async function main() {
   const treasury = gov?.treasury ?? deployer.address;
   if (gov) {
     const code = await ethers.provider.getCode(gov.owner);
-    if (code === "0x") throw new Error(`Owner ${gov.owner} has no code on chain ${chainId} — refusing to hand ownership to a non-contract.`);
+    if (code === "0x")
+      throw new Error(
+        `Owner ${gov.owner} has no code on chain ${chainId} — refusing to hand ownership to a non-contract.`
+      );
     console.log(`Governance: multisig (owner has ${(code.length - 2) / 2} bytes of code)`);
   }
   console.log(`\n${cfg.label}`);
@@ -81,7 +86,7 @@ async function main() {
   console.log(`   treasury()  = ${await splitter.treasury()}`);
   console.log(`   owner()     = ${await splitter.owner()}`);
   console.log(`   treasuryBps = ${await splitter.treasuryBps()}, ipCreatorBps = ${await splitter.ipCreatorBps()}`);
-  console.log(`\nRECORD: ${network.name} B2BSplitter v1.2 = ${addr}`);
+  console.log(`\nRECORD: ${networkName} B2BSplitter v1.2 = ${addr}`);
 }
 
 main().catch((e) => {

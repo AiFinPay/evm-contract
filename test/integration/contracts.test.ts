@@ -1,9 +1,8 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+
+import { ethers, loadFixture, fixture } from "../fixtures";
 import { Signer } from "ethers";
 import { AgentPassport, AiFinPayCore, MSECCOToken } from "../../typechain-types";
-import { fixture } from "../fixtures";
 
 describe("Integration: Core ↔ MSECCOToken", function () {
   let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer;

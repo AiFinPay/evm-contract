@@ -1,9 +1,11 @@
-import { ethers } from "hardhat";
+import { network } from "hardhat";
+
+const { ethers } = await network.create();
 
 async function main() {
   const MSECCO_ADDR   = "0x83936231c80fdF17eC2786BD7DcF09014552182B";
   const PASSPORT_ADDR = "0x66fFe91eE0B80f386EB07F97354e2889CD162185";
-  const CORE_ADDR     = "0x8Ad9830D16b1f10333866a3f38C949CbB19f4BAD";
+  const CORE_ADDR     = "0x8Ad9830D16b1f10333866a3f38C949CbB19F4BAD";
 
   const core     = await ethers.getContractAt("AiFinPayCore",  CORE_ADDR);
   const msecco   = await ethers.getContractAt("MSECCOToken",   MSECCO_ADDR);
@@ -34,4 +36,7 @@ async function main() {
   console.log("\n✅ All checks passed — contracts correctly deployed and wired.");
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

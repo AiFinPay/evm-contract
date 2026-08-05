@@ -1,9 +1,8 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+
+import { ethers, loadFixture, fixture } from "../fixtures";
 import { Signer } from "ethers";
 import { AgentPassport, AiFinPayCore, MSECCOToken } from "../../typechain-types";
-import { fixture } from "../fixtures";
 
 describe("MSECCOToken", function () {
   let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, ipCreator: Signer, attacker: Signer;
@@ -158,12 +157,12 @@ describe("MSECCOToken", function () {
 
     it("approve zero amount is allowed", async function () {
       await expect(msecco.approve(await attacker.getAddress(), 0))
-        .not.to.be.reverted;
+        .not.to.revert(ethers);
     });
 
     it("approve zero amount allows clearing approvals", async function () {
       await expect(msecco.approve(await attacker.getAddress(), 0))
-        .not.to.be.reverted;
+        .not.to.revert(ethers);
     });
 
     it("agent cannot approve attacker", async function () {
@@ -285,7 +284,7 @@ describe("MSECCOToken", function () {
 
     it("_approve hook allows zero amounts", async function () {
       await expect(msecco.approve(await merchant.getAddress(), 0))
-        .not.to.be.reverted;
+        .not.to.revert(ethers);
     });
 
     it("_update hook blocks peer-to-peer transfers", async function () {
@@ -373,7 +372,7 @@ describe("MSECCOToken", function () {
 
     it("approve succeeds only for zero amount", async function () {
       await expect(msecco.approve(await attacker.getAddress(), 0))
-        .not.to.be.reverted;
+        .not.to.revert(ethers);
     });
 
     it("transferFrom fails for all non-zero amounts", async function () {

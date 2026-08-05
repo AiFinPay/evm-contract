@@ -2,6 +2,7 @@ node_modules/
 artifacts/
 cache/
 typechain-types/
+types/
 .env
 *.env.local
 .idea/
