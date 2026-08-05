@@ -34,6 +34,20 @@ export default defineConfig({
   },
 
   networks: {
+    // In-process simulated network (default for tests/node)
+    default: {
+      type: "edr-simulated",
+      chainType: "generic",
+      mining: {
+        auto: true,
+        interval: 1000, // optional block time in ms
+      },
+    },
+    // Standard connection for `npx hardhat node`
+    localhost: {
+      type: "http",
+      url: "http://127.0.0.1:8545",
+    },
     amoy: {
       type: "http",
       url: "https://rpc-amoy.polygon.technology",
