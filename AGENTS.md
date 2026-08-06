@@ -62,12 +62,19 @@ Tests live under `test/`. The fixture in `test/fixtures.ts` deploys `MockPyth`, 
 
 ## Deployment flow
 1. Ensure `config/chains/<network>.json` exists with `pyth`, `usdc`, `usdt`, `nativeUsdId`, and `treasury`.
-2. `bun run deploy` (or `bun run deploy:testnet` for Amoy) deploys `MSECCOToken` → `AgentPassport` → `AiFinPayCore` and wires `setCore()`.
-3. Verify printed Hardhat verify commands.
+2. `bun run deploy` (or `bun run deploy:testnet` for Amoy) deploys `MSECCOToken` → `AgentPassport` → `AiFinPayCore`, wires `setCore()`, and writes a deployment record to `deployments/<network>.json`.
+3. `bun run verify --network <network>` reads the deployment record and source-verifies all recorded contracts on the configured block explorer.
 4. Transfer ownership of all contracts to the Gnosis Safe.
 5. Update `CLAUDE.md` canonical addresses.
 
-`B2BSplitter` is deployed separately via `bun run deploy:splitter` (`scripts/deploy-splitter-v12.ts`); current canonical is `0xE34Fc0E6694821c600Fa0955C0F74720ea6d8440`.
+`B2BSplitter` is deployed separately via `bun run deploy:splitter` (`scripts/deploy-splitter-v12.ts`); the splitter record is appended to `deployments/<network>.json` and verified by the same `bun run verify --network <network>` command. Current canonical is `0xE34Fc0E6694821c600Fa0955C0F74720ea6d8440`.
+
+## Verify command
+```bash
+bun run verify --network polygon   # production (default)
+bun run verify --network amoy      # testnet
+```
+Requires `ETHERSCAN_API_KEY` (or legacy `POLYGONSCAN_API_KEY`) in `.env`. The script uses the canonical constructor arguments from the deployment record and chain config, so no manual address/argument assembly is needed.
 
 ## Dependency security
 - `package.json` contains `overrides` that force patched transitive versions where needed. Running `bun install` after editing overrides regenerates `bun.lock`.

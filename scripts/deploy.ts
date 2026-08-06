@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import * as fs from "fs";
 import * as path from "path";
 import { network } from "hardhat";
+import { DeploymentRecord } from "./types.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -83,6 +84,33 @@ async function main() {
   const passportAddr = await passport.getAddress();
   const coreAddr = await core.getAddress();
 
+  const timestamp = new Date().toISOString();
+  const deploymentRecord = {
+    network: networkName,
+    chainId: Number(chainId),
+    timestamp,
+    core: {
+      msecco: mseccoAddr,
+      passport: passportAddr,
+      core: coreAddr,
+      owner: deployer.address,
+    },
+  } as DeploymentRecord;
+
+  const deploymentsDir = path.join(__dirname, "../deployments");
+  if (!fs.existsSync(deploymentsDir)) {
+    fs.mkdirSync(deploymentsDir, { recursive: true });
+  }
+  const recordFileName = `${networkName}-${timestamp.replace(/[:.]/g, "-")}.json`;
+  fs.writeFileSync(
+    path.join(deploymentsDir, recordFileName),
+    JSON.stringify(deploymentRecord, null, 2) + "\n"
+  );
+  fs.writeFileSync(
+    path.join(deploymentsDir, `${networkName}-latest.json`),
+    JSON.stringify(deploymentRecord, null, 2) + "\n"
+  );
+
   console.log("\n=== DEPLOYMENT COMPLETE ===");
   console.log(`Network:       ${networkName}`);
   console.log(`MSECCOToken:   ${mseccoAddr}`);
@@ -91,14 +119,10 @@ async function main() {
   console.log(`Treasury:      ${treasury}`);
 
   console.log("\n--- Verify commands ---");
-  console.log(`npx hardhat verify --network ${networkName} ${mseccoAddr} ${deployer.address}`);
-  console.log(`npx hardhat verify --network ${networkName} ${passportAddr} ${deployer.address}`);
-  console.log(
-    `npx hardhat verify --network ${networkName} ${coreAddr} ${deployer.address} ${mseccoAddr} ${passportAddr} ${treasury} ${pyth} ${usdc} ${usdt} ${nativeUsdId}`
-  );
+  console.log(`bun run verify --network ${networkName}`);
 
   console.log("\n--- Next steps ---");
-  console.log("1. Run the verify commands above");
+  console.log("1. Run bun run verify --network <network> to source-verify contracts");
   console.log("2. Transfer ownership to Gnosis Safe: core.transferOwnership(<safe_address>)");
   console.log("3. Update CLAUDE.md with new contract addresses");
 }

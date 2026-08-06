@@ -1,4 +1,10 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
+import { DeploymentRecord } from "./types.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const { ethers, networkName } = await network.create();
 
@@ -79,6 +85,30 @@ async function main() {
   await splitter.waitForDeployment();
   const addr = await splitter.getAddress();
 
+  const timestamp = new Date().toISOString();
+  const deploymentsDir = path.join(__dirname, "../deployments");
+  if (!fs.existsSync(deploymentsDir)) {
+    fs.mkdirSync(deploymentsDir, { recursive: true });
+  }
+  const latestRecordPath = path.join(deploymentsDir, `${networkName}-latest.json`);
+  const existing = fs.existsSync(latestRecordPath)
+    ? (JSON.parse(fs.readFileSync(latestRecordPath, "utf8")) as DeploymentRecord)
+    : { network: networkName, chainId, timestamp };
+  const deploymentRecord: DeploymentRecord = {
+    ...existing,
+    timestamp,
+    splitter: {
+      address: addr,
+      owner,
+      treasury,
+      usdc: cfg.usdc,
+      usdt: cfg.usdt,
+    },
+  };
+  const recordFileName = `${networkName}-${timestamp.replace(/[:.]/g, "-")}.json`;
+  fs.writeFileSync(path.join(deploymentsDir, recordFileName), JSON.stringify(deploymentRecord, null, 2) + "\n");
+  fs.writeFileSync(latestRecordPath, JSON.stringify(deploymentRecord, null, 2) + "\n");
+
   console.log(`\n✅ B2BSplitter v1.2 deployed: ${addr}`);
   // read-back sanity check
   console.log(`   USDC()      = ${await splitter.USDC()}`);
@@ -87,6 +117,7 @@ async function main() {
   console.log(`   owner()     = ${await splitter.owner()}`);
   console.log(`   treasuryBps = ${await splitter.treasuryBps()}, ipCreatorBps = ${await splitter.ipCreatorBps()}`);
   console.log(`\nRECORD: ${networkName} B2BSplitter v1.2 = ${addr}`);
+  console.log(`\nVerify: bun run verify --network ${networkName}`);
 }
 
 main().catch((e) => {
