@@ -1,7 +1,6 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { fixtureWithSplitter } from "../fixtures";
+
+import { ethers, loadFixture, fixtureWithSplitter } from "../fixtures";
 
 // B2BSplitter v1.2 — audit-remediation behaviours (AIFINP-34 / 35 / 33).
 // NOTE: authored offline (local build was RAM-constrained). Run `bun run hardhat test`
@@ -56,7 +55,7 @@ describe("B2BSplitter v1.2 — audit remediation", () => {
       await splitter.connect(agent).payNative(ID_A, await merchant.getAddress(), ethers.ZeroAddress, "o1", { value: AMOUNT });
       await expect(
         splitter.connect(agent).payNative(ID_B, await merchant.getAddress(), ethers.ZeroAddress, "o1", { value: AMOUNT })
-      ).to.not.be.reverted;
+      ).to.not.revert(ethers);
     });
   });
 

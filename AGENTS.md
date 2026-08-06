@@ -11,23 +11,39 @@ Follow all instructions from that file unless overridden below.
 
 ## Day-to-day commands
 ```bash
-bun run build              # hardhat compile
-bun test                   # hardhat test (138 tests in the current suite)
+bun run build              # hardhat build (compile contracts)
+bun test                   # hardhat test mocha (138 tests in the current suite)
 bun run lint               # solhint 'contracts/**/*.sol'
 bun run prettify:check     # prettier --check 'contracts/**/*.sol'
 bun run prettify           # prettier --write 'contracts/**/*.sol'
 ```
 
 ## CI order
-CI runs: `bun install` → `bun run hardhat compile` → `bun run hardhat test` → `solhint` → `prettify:check`.
+CI runs: `bun install` → `bun run build` → `bun test` → `bun run lint` → `bun run prettify:check`.
 No separate typecheck step; Hardhat/TypeScript compilation is exercised during `build` and `test`.
 
 ## Toolchain quirks
-- **Hardhat v2.x**, Solidity `0.8.35`, EVM target `cancun`, optimizer `viaIR: true`, `runs: 200`.
-- **Type generation**: `hardhat compile` writes `typechain-types/`. These are committed/generated locally; tests import from `typechain-types`.
+- **Hardhat v3.x**, **Ethers.js v6**, **Mocha**, **Chai 5**, **TypeScript 5.9**, ESM/`"type": "module"`, `NodeNext` resolution.
+- **Solidity `0.8.35`**, EVM target `cancun`, optimizer `viaIR: true`, `runs: 200`.
+- **Tests and scripts must create a network connection** before using `ethers`:
+  ```ts
+  import { network } from "hardhat";
+  const { ethers, networkHelpers } = await network.create();
+  ```
+  See `test/fixtures.ts` for the canonical pattern.
+- `loadFixture` now lives on `networkHelpers` (not `@nomicfoundation/hardhat-toolbox/network-helpers`).
+- Revert assertions use the Hardhat 3 matcher:
+  - `.to.revert(ethers)` / `.not.to.revert(ethers)` (any revert)
+  - `.to.be.revertedWith(...)` (revert reason string)
+  - `.to.be.revertedWithCustomError(contract, "ErrorName")` (custom error)
+- **Type generation**: `hardhat build` writes `typechain-types/`. These are committed/generated locally; tests import from `typechain-types`.
 - **Network configs live in `hardhat.config.ts`**. Many chains are configured; production deploys primarily use `polygon` and `amoy`.
 - **`dotenv` is loaded by Hardhat config** — place `.env` at repo root.
-- Required env for deploy/verify: `DEPLOYER_PRIVATE_KEY`, plus `ETHERSCAN_API_KEY` (unified Etherscan v2) or legacy `POLYGONSCAN_API_KEY`.
+- Required env for deploy/verify:
+  - Testnets: `DEV_DEPLOYER_KEY`
+  - Mainnets: `PROD_DEPLOYER_KEY`
+  - Verification: `ETHERSCAN_API_KEY` (unified Etherscan v2) or legacy `POLYGONSCAN_API_KEY`.
+- Deploy scripts default to the `production` build profile (`--build-profile production`).
 
 ## Running a single test
 ```bash
@@ -46,19 +62,24 @@ Tests live under `test/`. The fixture in `test/fixtures.ts` deploys `MockPyth`, 
 
 ## Deployment flow
 1. Ensure `config/chains/<network>.json` exists with `pyth`, `usdc`, `usdt`, `nativeUsdId`, and `treasury`.
-2. `bun run deploy` (or `bun run deploy:testnet` for Amoy) deploys `MSECCOToken` → `AgentPassport` → `AiFinPayCore` and wires `setCore()`.
-3. Verify printed Hardhat verify commands.
+2. `bun run deploy` (or `bun run deploy:testnet` for Amoy) deploys `MSECCOToken` → `AgentPassport` → `AiFinPayCore`, wires `setCore()`, and writes a deployment record to `deployments/<network>.json`.
+3. `bun run verify --network <network>` reads the deployment record and source-verifies all recorded contracts on the configured block explorer.
 4. Transfer ownership of all contracts to the Gnosis Safe.
 5. Update `CLAUDE.md` canonical addresses.
 
-`B2BSplitter` is deployed separately via `scripts/deploy-splitter-v12.ts`; current canonical is `0xE34Fc0E6694821c600Fa0955C0F74720ea6d8440`.
+`B2BSplitter` is deployed separately via `bun run deploy:splitter` (`scripts/deploy-splitter-v12.ts`); the splitter record is appended to `deployments/<network>.json` and verified by the same `bun run verify --network <network>` command. Current canonical is `0xE34Fc0E6694821c600Fa0955C0F74720ea6d8440`.
+
+## Verify command
+```bash
+bun run verify --network polygon   # production (default)
+bun run verify --network amoy      # testnet
+```
+Requires `ETHERSCAN_API_KEY` (or legacy `POLYGONSCAN_API_KEY`) in `.env`. The script uses the canonical constructor arguments from the deployment record and chain config, so no manual address/argument assembly is needed.
 
 ## Dependency security
-- `package.json` contains `overrides` that force patched transitive versions. Running `bun install` after editing overrides regenerates `bun.lock`.
-- Two low-risk transitive advisories remain (reported by `bun audit`) because they are pinned by Ethers v5 / Hardhat v2 and cannot be resolved without a major toolchain migration:
+- `package.json` contains `overrides` that force patched transitive versions where needed. Running `bun install` after editing overrides regenerates `bun.lock`.
+- A low-risk transitive advisory remains (reported by `bun audit`) because it is pinned by Ethers v6 / Hardhat v3 and cannot be resolved without a major toolchain migration:
   - `elliptic <=6.6.1` — no newer release exists.
-  - `bn.js <4.12.3` — Bun reports this on `bn.js@5.2.5`, which is outside the advisory range; likely scanner noise.
 
 ## Canonical source of truth
-- `CLAUDE.md` holds canonical mainnet addresses, economics constants, and audit-fix history. Treat it as authoritative for deployed state.
 - `hardhat.config.ts` is the authoritative network/verification config.

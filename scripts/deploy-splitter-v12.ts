@@ -1,4 +1,12 @@
-import { ethers, network } from "hardhat";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { network } from "hardhat";
+import { DeploymentRecord } from "./types.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const { ethers, networkName } = await network.create();
 
 // Deploys ONLY B2BSplitter v1.2 (AIFINP-34/35/33) — not the full core set.
 // owner + treasury = deployer on these splitter-only chains, because the team
@@ -43,10 +51,10 @@ const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const chainId = Number(network.config.chainId);
+  const chainId = Number((await ethers.provider.getNetwork()).chainId);
   const bal = await ethers.provider.getBalance(deployer.address);
 
-  console.log(`Network:  ${network.name} (chainId ${chainId})`);
+  console.log(`Network:  ${networkName} (chainId ${chainId})`);
   console.log(`Deployer: ${deployer.address}`);
   console.log(`Balance:  ${ethers.formatEther(bal)} native`);
 
@@ -58,7 +66,10 @@ async function main() {
   const treasury = gov?.treasury ?? deployer.address;
   if (gov) {
     const code = await ethers.provider.getCode(gov.owner);
-    if (code === "0x") throw new Error(`Owner ${gov.owner} has no code on chain ${chainId} — refusing to hand ownership to a non-contract.`);
+    if (code === "0x")
+      throw new Error(
+        `Owner ${gov.owner} has no code on chain ${chainId} — refusing to hand ownership to a non-contract.`
+      );
     console.log(`Governance: multisig (owner has ${(code.length - 2) / 2} bytes of code)`);
   }
   console.log(`\n${cfg.label}`);
@@ -74,6 +85,30 @@ async function main() {
   await splitter.waitForDeployment();
   const addr = await splitter.getAddress();
 
+  const timestamp = new Date().toISOString();
+  const deploymentsDir = path.join(__dirname, "../deployments");
+  if (!fs.existsSync(deploymentsDir)) {
+    fs.mkdirSync(deploymentsDir, { recursive: true });
+  }
+  const latestRecordPath = path.join(deploymentsDir, `${networkName}-latest.json`);
+  const existing = fs.existsSync(latestRecordPath)
+    ? (JSON.parse(fs.readFileSync(latestRecordPath, "utf8")) as DeploymentRecord)
+    : { network: networkName, chainId, timestamp };
+  const deploymentRecord: DeploymentRecord = {
+    ...existing,
+    timestamp,
+    splitter: {
+      address: addr,
+      owner,
+      treasury,
+      usdc: cfg.usdc,
+      usdt: cfg.usdt,
+    },
+  };
+  const recordFileName = `${networkName}-${timestamp.replace(/[:.]/g, "-")}.json`;
+  fs.writeFileSync(path.join(deploymentsDir, recordFileName), JSON.stringify(deploymentRecord, null, 2) + "\n");
+  fs.writeFileSync(latestRecordPath, JSON.stringify(deploymentRecord, null, 2) + "\n");
+
   console.log(`\n✅ B2BSplitter v1.2 deployed: ${addr}`);
   // read-back sanity check
   console.log(`   USDC()      = ${await splitter.USDC()}`);
@@ -81,7 +116,8 @@ async function main() {
   console.log(`   treasury()  = ${await splitter.treasury()}`);
   console.log(`   owner()     = ${await splitter.owner()}`);
   console.log(`   treasuryBps = ${await splitter.treasuryBps()}, ipCreatorBps = ${await splitter.ipCreatorBps()}`);
-  console.log(`\nRECORD: ${network.name} B2BSplitter v1.2 = ${addr}`);
+  console.log(`\nRECORD: ${networkName} B2BSplitter v1.2 = ${addr}`);
+  console.log(`\nVerify: bun run verify --network ${networkName}`);
 }
 
 main().catch((e) => {

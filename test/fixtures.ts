@@ -1,6 +1,19 @@
-import { ethers } from "hardhat";
-import { Signer } from "ethers";
-import { AgentPassport, AiFinPayCore, MockPyth, MSECCOToken, B2BSplitter } from "../typechain-types";
+import { network } from "hardhat";
+import type { HardhatEthers } from "@nomicfoundation/hardhat-ethers/types";
+import type { NetworkHelpers } from "@nomicfoundation/hardhat-network-helpers/types";
+import type { Signer } from "ethers";
+import type {
+  AgentPassport,
+  AiFinPayCore,
+  B2BSplitter,
+  MockPyth,
+  MSECCOToken,
+} from "../typechain-types";
+
+const connection = await network.create();
+export const ethers: HardhatEthers = connection.ethers;
+export const networkHelpers: NetworkHelpers = connection.networkHelpers;
+export const loadFixture = networkHelpers.loadFixture;
 
 export interface ProtocolContracts {
   owner: Signer;
@@ -20,7 +33,14 @@ export interface ProtocolWithSplitter extends ProtocolContracts {
 }
 
 async function deployProtocol(): Promise<ProtocolContracts> {
-  const [owner, treasury, agent, merchant, ipCreator, attacker] = await ethers.getSigners();
+  const [
+    owner,
+    treasury,
+    agent,
+    merchant,
+    ipCreator,
+    attacker,
+  ] = await ethers.getSigners();
 
   const MockPythFactory = await ethers.getContractFactory("MockPyth");
   const mockPyth = (await MockPythFactory.deploy()) as unknown as MockPyth;
@@ -29,13 +49,19 @@ async function deployProtocol(): Promise<ProtocolContracts> {
   const AgentPassportFactory = await ethers.getContractFactory("AgentPassport");
   const AiFinPayCoreFactory = await ethers.getContractFactory("AiFinPayCore");
 
-  const msecco = (await MSECCOTokenFactory.deploy(await owner.getAddress())) as unknown as MSECCOToken;
-  const passport = (await AgentPassportFactory.deploy(await owner.getAddress())) as unknown as AgentPassport;
+  const msecco = (await MSECCOTokenFactory.deploy(
+    await owner.getAddress()
+  )) as unknown as MSECCOToken;
+  const passport = (await AgentPassportFactory.deploy(
+    await owner.getAddress()
+  )) as unknown as AgentPassport;
 
-  // Mock USDC/USDT addresses for testing (any non-zero address works — logic tests don't call stable transfers)
+  // Mock USDC/USDT addresses for testing (any non-zero address works —
+  // logic tests don't call stable transfers).
   const mockUsdc = "0x1000000000000000000000000000000000000001";
   const mockUsdt = "0x1000000000000000000000000000000000000002";
-  const mockNativeUsdId = "0x5de33a9112c2b700b8d30b8a3402c103578ccfa2856a12a2b20d7b0c67b6d82d";
+  const mockNativeUsdId =
+    "0x5de33a9112c2b700b8d30b8a3402c103578ccfa2856a12a2b20d7b0c67b6d82d";
 
   const core = (await AiFinPayCoreFactory.deploy(
     await owner.getAddress(),
@@ -51,14 +77,26 @@ async function deployProtocol(): Promise<ProtocolContracts> {
   await msecco.setCore(await core.getAddress());
   await passport.setCore(await core.getAddress());
 
-  return { owner, treasury, agent, merchant, ipCreator, attacker, msecco, passport, core, mockPyth };
+  return {
+    owner,
+    treasury,
+    agent,
+    merchant,
+    ipCreator,
+    attacker,
+    msecco,
+    passport,
+    core,
+    mockPyth,
+  };
 }
 
 async function deployProtocolWithSplitter(): Promise<ProtocolWithSplitter> {
   const base = await deployProtocol();
 
   // v1.2: constructor now takes per-chain (owner, treasury, usdc, usdt) — AIFINP-34.
-  // Distinct non-zero placeholders; native/idempotency/zero-creator tests don't move ERC-20.
+  // Distinct non-zero placeholders; native/idempotency/zero-creator tests
+  // don't move ERC-20.
   const testUsdc = "0x1000000000000000000000000000000000000001";
   const testUsdt = "0x1000000000000000000000000000000000000002";
   const B2BSplitterFactory = await ethers.getContractFactory("B2BSplitter");

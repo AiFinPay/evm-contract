@@ -1,4 +1,6 @@
-import { ethers } from "hardhat";
+import { network } from "hardhat";
+
+const { ethers } = await network.create();
 
 const MSECCO   = "0x522FAB7dC9c0607c3664969c732b7Bef163B662d";
 const PASSPORT = "0x14Cd0CfD78A8F1DC6002D715d4147448a2DAc1Dd";
@@ -40,4 +42,7 @@ async function main() {
   console.log("AiFinPayCore: ", CORE);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

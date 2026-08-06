@@ -1,9 +1,8 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { Signer, ZeroHash, parseEther } from "ethers";
+
+import { ethers, loadFixture, fixture } from "../fixtures";
+import { Signer, parseEther } from "ethers";
 import { AgentPassport, AiFinPayCore, MockPyth, MSECCOToken } from "../../typechain-types";
-import { fixture } from "../fixtures";
 
 describe("AiFinPayCore", function () {
   let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, attacker: Signer;
@@ -22,7 +21,7 @@ describe("AiFinPayCore", function () {
 
     it("owner (Safe) can update manifestoHash, non-owner cannot", async function () {
       const newHash = "0x1111111111111111111111111111111111111111111111111111111111111111";
-      await expect(core.connect(attacker).setManifestoHash(newHash)).to.be.reverted;
+      await expect(core.connect(attacker).setManifestoHash(newHash)).to.revert(ethers);
       await expect(core.connect(owner).setManifestoHash(newHash))
         .to.emit(core, "ManifestoHashUpdated");
       expect(await core.manifestoHash()).to.equal(newHash);
