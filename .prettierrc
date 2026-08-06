@@ -3,14 +3,19 @@
   "singleQuote": false,
   "printWidth": 100,
   "tabWidth": 2,
+  "endOfLine": "lf",
   "plugins": ["prettier-plugin-solidity"],
   "overrides": [
     {
       "files": "*.sol",
       "options": {
+        "parser": "slang",
         "tabWidth": 4,
         "printWidth": 120,
-        "trailingComma": "none"
+        "trailingComma": "none",
+        "singleQuote": false,
+        "bracketSpacing": false,
+        "compiler": "0.8.35"
       }
     }
   ]
