@@ -1,0 +1,25 @@
+name: format-probe
+
+on:
+  push:
+    branches:
+      - security/fee-on-top-v13-remediation
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - name: Print canonical Prettier output
+        run: |
+          bunx prettier contracts/B2BSplitterV13.sol --write
+          echo '---BEGIN-FORMATTED---'
+          cat contracts/B2BSplitterV13.sol
+          echo '---END-FORMATTED---'
