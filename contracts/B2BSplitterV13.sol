@@ -45,12 +45,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
 
     error IncorrectNativeValue(uint256 expected, uint256 received);
 
-    constructor(
-        address initialOwner,
-        address _treasury,
-        address _usdc,
-        address _usdt
-    ) Ownable(initialOwner) {
+    constructor(address initialOwner, address _treasury, address _usdc, address _usdt) Ownable(initialOwner) {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
         USDC = _usdc;
@@ -70,8 +65,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         _consume(_paymentId);
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) =
-            _feeOnTop(_merchantAmount, _ipCreator);
+        (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) = _feeOnTop(_merchantAmount, _ipCreator);
         if (msg.value != totalAmt) revert IncorrectNativeValue(totalAmt, msg.value);
 
         (bool s1, ) = _merchant.call{value: _merchantAmount}("");
@@ -112,8 +106,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         if (_token == address(0) || (_token != USDC && _token != USDT)) revert UnsupportedToken();
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) =
-            _feeOnTop(_merchantAmount, _ipCreator);
+        (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) = _feeOnTop(_merchantAmount, _ipCreator);
 
         IERC20(_token).safeTransferFrom(msg.sender, _merchant, _merchantAmount);
         IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
@@ -137,14 +130,8 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     function quoteTotal(
         uint256 _merchantAmount,
         address _ipCreator
-    ) external view returns (
-        uint256 merchantAmount,
-        uint256 treasuryAmount,
-        uint256 ipCreatorAmount,
-        uint256 totalAmount
-    ) {
-        (treasuryAmount, ipCreatorAmount, totalAmount) =
-            _feeOnTop(_merchantAmount, _ipCreator);
+    ) external view returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount) {
+        (treasuryAmount, ipCreatorAmount, totalAmount) = _feeOnTop(_merchantAmount, _ipCreator);
         merchantAmount = _merchantAmount;
     }
 
@@ -182,11 +169,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     function _feeOnTop(
         uint256 _merchantAmount,
         address _ipCreator
-    ) internal view returns (
-        uint256 treasuryAmt,
-        uint256 ipAmt,
-        uint256 totalAmt
-    ) {
+    ) internal view returns (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) {
         if (_merchantAmount < MIN_MERCHANT_AMOUNT) revert PaymentBelowMinimum();
 
         treasuryAmt = (_merchantAmount * treasuryBps) / BPS_DENOMINATOR;
