@@ -130,7 +130,11 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     function quoteTotal(
         uint256 _merchantAmount,
         address _ipCreator
-    ) external view returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount) {
+    )
+        external
+        view
+        returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount)
+    {
         (treasuryAmount, ipCreatorAmount, totalAmount) = _feeOnTop(_merchantAmount, _ipCreator);
         merchantAmount = _merchantAmount;
     }
