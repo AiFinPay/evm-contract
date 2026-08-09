@@ -40,11 +40,24 @@ function build(registry) {
     if (!entry.verified) {
       throw new Error(`${name} has never been verified against chain state.`);
     }
+    for (const field of ['treasury', 'treasuryBps', 'ipCreatorBps']) {
+      if (entry[field] === undefined || entry[field] === null) {
+        throw new Error(
+          `${name} has no verified ${field}. Run verify-registry.mjs --pin — the ` +
+            'treasury and fee split decide where money goes and must come from the chain.',
+        );
+      }
+    }
     networks[name] = {
       chainId: entry.chainId,
       version: entry.version,
       splitter: entry.splitter,
       runtimeCodeHash: entry.runtimeCodeHash,
+      treasury: entry.treasury,
+      treasuryBps: entry.treasuryBps,
+      ipCreatorBps: entry.ipCreatorBps,
+      validFrom: entry.validFrom,
+      validUntil: entry.validUntil,
       // Deployed is not the same as payable. Settlement stays off until the
       // route has a v1.3 contract and a clean paid E2E.
       settlementEnabled: entry.settlementEnabled === true,

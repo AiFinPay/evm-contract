@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, develop]
 
+# CodeQL actions/missing-workflow-permissions: an unrestricted GITHUB_TOKEN is
+# write-capable by default, so a compromised action in any step could push to
+# the repository. Nothing here needs more than read.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

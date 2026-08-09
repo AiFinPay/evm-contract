@@ -4,11 +4,15 @@
 /**
  * Verify registry/registry.json against live chain state (§9.1).
  *
- * Chain state is the source of truth. This reads the deployed bytecode at each
- * registered address and checks three things: that there is code there at all,
- * that the payment entrypoint the registry claims is actually present in it,
- * and that its keccak-256 matches the pinned runtimeCodeHash. An address on its
- * own says nothing about what is deployed at it — that is the gap this closes.
+ * Chain state is the source of truth. At each registered address this checks
+ * that code exists, that the payment entrypoint the registry claims is present
+ * in that bytecode, that its keccak-256 matches the pinned runtimeCodeHash, and
+ * that the treasury and fee split the contract reports match what is pinned.
+ *
+ * An address on its own says nothing about what is deployed at it, and a
+ * treasury transcribed into a file by hand is just a second unverified table —
+ * those are the two gaps this closes. Where the money goes is read from the
+ * contract that will send it.
  *
  * It fails closed. An RPC that cannot be reached produces a non-zero exit, not
  * a pass: "we could not check" and "it is fine" must never look the same. That
@@ -25,7 +29,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { keccak256, id, getBytes } from 'ethers';
+import { keccak256, id, getBytes, getAddress } from 'ethers';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REGISTRY = join(ROOT, 'registry/registry.json');
@@ -42,6 +46,41 @@ const ENTRYPOINT = {
 };
 
 const selectorOf = (signature) => id(signature).slice(0, 10);
+
+/**
+ * Configuration the contract itself reports. Reading these from the chain is
+ * the difference between a registry and a second hand-maintained table: the
+ * treasury and the fee split decide where money goes, so they must not be
+ * transcribed by a human into a file that nothing checks.
+ */
+const CONFIG_CALLS = {
+  treasury: { sig: 'treasury()', kind: 'address' },
+  treasuryBps: { sig: 'treasuryBps()', kind: 'uint' },
+  ipCreatorBps: { sig: 'ipCreatorBps()', kind: 'uint' },
+};
+
+function decodeAddress(hex) {
+  if (!hex || hex.length < 66) return null;
+  return getAddress(`0x${hex.slice(-40)}`);
+}
+
+function decodeUint(hex) {
+  if (!hex || hex === '0x') return null;
+  return Number(BigInt(hex));
+}
+
+async function readConfig(url, address) {
+  const out = {};
+  for (const [name, { sig, kind }] of Object.entries(CONFIG_CALLS)) {
+    const data = selectorOf(sig);
+    const raw = await rpcCall(url, 'eth_call', [{ to: address, data }, 'latest']);
+    out[name] = kind === 'address' ? decodeAddress(raw) : decodeUint(raw);
+    if (out[name] === null || out[name] === undefined) {
+      throw new Error(`${sig} returned nothing`);
+    }
+  }
+  return out;
+}
 
 const PIN = process.argv.includes('--pin');
 
@@ -78,7 +117,10 @@ async function fetchCode(entry) {
         continue;
       }
       const code = await rpcCall(url, 'eth_getCode', [entry.splitter, 'latest']);
-      return { code, rpc: url };
+      if (!code || code === '0x') return { code, rpc: url, config: null };
+      // Same RPC, so the config cannot come from a different node than the code.
+      const config = await readConfig(url, entry.splitter);
+      return { code, rpc: url, config };
     } catch (error) {
       failures.push(`${url}: ${error.message}`);
     }
@@ -92,7 +134,7 @@ async function verifyEntry(name, entry) {
     return { name, ok: false, reason: `unknown declared version "${entry.version}"` };
   }
 
-  const { code, rpc, failures } = await fetchCode(entry);
+  const { code, rpc, config, failures } = await fetchCode(entry);
   if (code === null) {
     return {
       name,
@@ -112,6 +154,25 @@ async function verifyEntry(name, entry) {
       ok: false,
       reason: `declared v${entry.version} but ${signature} (0x${selector}) is not in the deployed bytecode`,
     };
+  }
+
+  // Treasury and fee split, as the contract reports them.
+  const mismatches = [];
+  for (const [field, actual] of Object.entries(config ?? {})) {
+    const pinned = entry[field];
+    if (pinned === undefined || pinned === null) {
+      if (PIN) entry[field] = actual;
+      else mismatches.push(`${field} not pinned (chain says ${actual})`);
+      continue;
+    }
+    const same =
+      typeof actual === 'string'
+        ? String(pinned).toLowerCase() === actual.toLowerCase()
+        : Number(pinned) === actual;
+    if (!same) mismatches.push(`${field} pinned ${pinned}, chain says ${actual}`);
+  }
+  if (mismatches.length) {
+    return { name, ok: false, reason: mismatches.join('; ') };
   }
 
   const runtimeCodeHash = keccak256(getBytes(code));

@@ -1,13 +1,13 @@
 {
   "$comment": [
-    "Canonical AiFinPay B2BSplitter registry — the single source of truth for the",
+    "Canonical AiFinPay B2BSplitter registry \u2014 the single source of truth for the",
     "addresses the SDK pays. The SDK's table is GENERATED from this file; never",
     "hand-edit the generated copy, CI compares the two and fails on drift.",
     "",
     "'verified' records what was read FROM THE CHAIN on the stated date: the",
     "deployed bytecode was fetched, the payment entrypoint selector was found in",
     "it, and runtimeCodeHash is the keccak-256 of that exact bytecode. A missing",
-    "or stale runtimeCodeHash fails verification — an address alone says nothing",
+    "or stale runtimeCodeHash fails verification \u2014 an address alone says nothing",
     "about what is deployed at it.",
     "",
     "An unreachable RPC is NOT a pass. verify-registry.mjs exits non-zero when it",
@@ -16,7 +16,7 @@
     "",
     "Version semantics: v1.1 exposes payMatic(address,address,string);",
     "v1.2 payNative(bytes32,address,address,string);",
-    "v1.3 payNative(bytes32,address,uint256,address,string) — fee on top."
+    "v1.3 payNative(bytes32,address,uint256,address,string) \u2014 fee on top."
   ],
   "schemaVersion": 1,
   "updatedAt": "2026-08-09",
@@ -31,9 +31,14 @@
         "https://1rpc.io/matic"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records AiFinPayCore 0x1071Bb1C… on this chain, not this splitter",
+      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records AiFinPayCore 0x1071Bb1C\u2026 on this chain, not this splitter",
       "runtimeCodeHash": "0x9001fbb7ec70097909415325dc70c5b2102c4312dcd8e01e7495cfcaca2edaff",
-      "settlementEnabled": false
+      "settlementEnabled": false,
+      "treasury": "0xD31d82c4b35DABaA2ad7023C89A78A052D1f3c8e",
+      "treasuryBps": 100,
+      "ipCreatorBps": 1,
+      "validFrom": "2026-08-04T00:00:00.000Z",
+      "validUntil": "2026-09-03T00:00:00.000Z"
     },
     "base": {
       "chainId": 8453,
@@ -45,9 +50,14 @@
         "https://base.llamarpc.com"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0xF03B3387… on this chain, not this splitter",
+      "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0xF03B3387\u2026 on this chain, not this splitter",
       "runtimeCodeHash": "0x545b3a4ba195edc6b728df8cc64f28da528c9e7805c15f1aa61ef58c3c562197",
-      "settlementEnabled": false
+      "settlementEnabled": false,
+      "treasury": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
+      "treasuryBps": 100,
+      "ipCreatorBps": 1,
+      "validFrom": "2026-08-04T00:00:00.000Z",
+      "validUntil": "2026-09-03T00:00:00.000Z"
     },
     "optimism": {
       "chainId": 10,
@@ -58,9 +68,14 @@
         "https://optimism.drpc.org"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0xee92807d…",
+      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0xee92807d\u2026",
       "runtimeCodeHash": "0xcdf939fd4f9a189e3dba991c5d538bd77b3d493d2ce4e356b61e5742dbde1899",
-      "settlementEnabled": false
+      "settlementEnabled": false,
+      "treasury": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
+      "treasuryBps": 100,
+      "ipCreatorBps": 1,
+      "validFrom": "2026-08-04T00:00:00.000Z",
+      "validUntil": "2026-09-03T00:00:00.000Z"
     },
     "unichain": {
       "chainId": 130,
@@ -71,9 +86,14 @@
         "https://unichain.drpc.org"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0x493dc0e3… on this chain, not this splitter",
+      "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0x493dc0e3\u2026 on this chain, not this splitter",
       "runtimeCodeHash": "0x545b3a4ba195edc6b728df8cc64f28da528c9e7805c15f1aa61ef58c3c562197",
-      "settlementEnabled": false
+      "settlementEnabled": false,
+      "treasury": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
+      "treasuryBps": 100,
+      "ipCreatorBps": 1,
+      "validFrom": "2026-08-04T00:00:00.000Z",
+      "validUntil": "2026-09-03T00:00:00.000Z"
     },
     "botchain": {
       "chainId": 677,
@@ -83,9 +103,14 @@
         "https://rpc.botchain.ai"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0x271870AB…",
+      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0x271870AB\u2026",
       "runtimeCodeHash": "0xabd084ff64e98bb8ac7db7783d80c6a6bcc69716dfb8f64a4686bed5cf428d96",
-      "settlementEnabled": false
+      "settlementEnabled": false,
+      "treasury": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
+      "treasuryBps": 100,
+      "ipCreatorBps": 1,
+      "validFrom": "2026-08-04T00:00:00.000Z",
+      "validUntil": "2026-09-03T00:00:00.000Z"
     },
     "xrplevm": {
       "chainId": 1440000,
@@ -95,13 +120,18 @@
         "https://rpc.xrplevm.org"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0xeE92807d…",
+      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0xeE92807d\u2026",
       "runtimeCodeHash": "0xeb68cf314d335f888726a527dec10d989c26e2c5d6a8df68d117cc7d4dcec239",
-      "settlementEnabled": false
+      "settlementEnabled": false,
+      "treasury": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
+      "treasuryBps": 100,
+      "ipCreatorBps": 1,
+      "validFrom": "2026-08-04T00:00:00.000Z",
+      "validUntil": "2026-09-03T00:00:00.000Z"
     }
   },
   "notSplitters": {
-    "$comment": "Recorded so nobody mistakes a Core deployment for a payment target. Neither exposes payMatic or payNative — paying these would not settle.",
+    "$comment": "Recorded so nobody mistakes a Core deployment for a payment target. Neither exposes payMatic or payNative \u2014 paying these would not settle.",
     "avalanche": {
       "chainId": 43114,
       "address": "0x147d8ff8c027e24303b5b99cbc8843e1d3df94cc",
@@ -114,5 +144,12 @@
       "contract": "AiFinPayCore",
       "verified": "2026-08-07"
     }
-  }
+  },
+  "$policyFields": [
+    "validFrom and validUntil are a POLICY review window, not chain state. They",
+    "cannot be read from a contract, so they are declared here and must be",
+    "renewed deliberately. An expired window fails validateQuotedNativePayment",
+    "with registry_entry_expired, which is intended: a route nobody has",
+    "re-reviewed in a month should stop settling rather than drift on."
+  ]
 }
