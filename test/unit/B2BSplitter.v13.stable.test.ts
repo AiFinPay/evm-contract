@@ -12,7 +12,7 @@ import { ethers, loadFixture } from "../fixtures";
  * splitter never keeps anything. Fee-inclusive v1.1/v1.2 could round a
  * merchant's share down; fee-on-top must not, at any decimals or size.
  */
-async function fixtureStable(decimals = 6) {
+async function fixtureStable(decimals = 6, treasuryBps = 100, ipCreatorBps = 1) {
   const [owner, treasury, agent, merchant, ipCreator, outsider] = await ethers.getSigners();
   const Token = await ethers.getContractFactory("MockERC20");
   const usdc = await Token.deploy("USD Coin", "USDC", decimals);
@@ -24,9 +24,16 @@ async function fixtureStable(decimals = 6) {
     await owner.getAddress(),
     await treasury.getAddress(),
     await usdc.getAddress(),
-    await usdt.getAddress()
+    await usdt.getAddress(),
+    treasuryBps,
+    ipCreatorBps
   );
   return { owner, treasury, agent, merchant, ipCreator, outsider, usdc, usdt, rogue, splitter };
+}
+
+/** Zero-fee stable route: proves no zero-value ERC-20 transfer is attempted. */
+async function fixtureStableZeroFee() {
+  return fixtureStable(6, 0, 0);
 }
 
 async function fixture6() {
@@ -285,5 +292,38 @@ describe("B2BSplitter v1.3 — decimals and micro amounts", () => {
         );
       expect(await ethers.provider.getBalance(await splitter.getAddress())).to.equal(0n);
     }
+  });
+
+  it("moves the full amount to the merchant and skips the zero-value fee transfers at 0 bps", async () => {
+    const { splitter, usdc, treasury, agent, merchant, ipCreator } = await loadFixture(fixtureStableZeroFee);
+    const merchantAmount = 1_000_000n; // 1.00 USDC
+    const [, treasuryAmt, creatorAmt, total] = await splitter.quoteTotal(
+      merchantAmount,
+      await ipCreator.getAddress()
+    );
+    expect(treasuryAmt).to.equal(0n);
+    expect(creatorAmt).to.equal(0n);
+    expect(total).to.equal(merchantAmount);
+
+    // Approve only the merchant amount. If the contract attempted a zero-value
+    // transfer leg it would still pass, but tokens that revert on zero-value
+    // transfers would break the route — so the legs must be skipped entirely.
+    await usdc.mint(await agent.getAddress(), merchantAmount);
+    await usdc.connect(agent).approve(await splitter.getAddress(), merchantAmount);
+    await splitter
+      .connect(agent)
+      .payStable(
+        paymentId(9001),
+        await usdc.getAddress(),
+        merchantAmount,
+        await merchant.getAddress(),
+        await ipCreator.getAddress(),
+        "order-zero-fee"
+      );
+
+    expect(await usdc.balanceOf(await merchant.getAddress())).to.equal(merchantAmount);
+    expect(await usdc.balanceOf(await treasury.getAddress())).to.equal(0n);
+    expect(await usdc.balanceOf(await ipCreator.getAddress())).to.equal(0n);
+    expect(await usdc.balanceOf(await splitter.getAddress())).to.equal(0n);
   });
 });

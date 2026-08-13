@@ -67,6 +67,45 @@ const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
 };
 
 /**
+ * Fee profiles.
+ *
+ * The economic model is a deployment input, never a compiled-in default. A
+ * splitter carries one split, so the 0 bps agent route and a fee-bearing
+ * monetisation route are separate deployments with separate evidence.
+ *
+ * Selected with FEE_PROFILE=<name>. There is deliberately no default: an
+ * unset profile aborts the deploy rather than silently inheriting a model
+ * that may already have been superseded.
+ */
+const FEE_PROFILES: Record<string, { treasuryBps: number; ipCreatorBps: number; note: string }> = {
+  "agent-x402": {
+    treasuryBps: 0,
+    ipCreatorBps: 0,
+    note: "AIFP-2 / x402 agent payments — no AiFinPay percentage is added to the transaction.",
+  },
+  "merchant-aifp1": {
+    treasuryBps: 100,
+    ipCreatorBps: 1,
+    note: "AIFP-1 merchant monetisation of AI-agent traffic — 1% protocol fee, 0.01% creator leg.",
+  },
+};
+
+function resolveFeeProfile(): { name: string; treasuryBps: number; ipCreatorBps: number; note: string } {
+  const name = process.env.FEE_PROFILE;
+  if (!name) {
+    throw new Error(
+      `FEE_PROFILE is not set — refusing to deploy without an explicit economic model. ` +
+        `Known profiles: ${Object.keys(FEE_PROFILES).join(", ")}.`,
+    );
+  }
+  const profile = FEE_PROFILES[name];
+  if (!profile) {
+    throw new Error(`Unknown FEE_PROFILE "${name}". Known profiles: ${Object.keys(FEE_PROFILES).join(", ")}.`);
+  }
+  return { name, ...profile };
+}
+
+/**
  * Decimals read from each token contract at deploy time.
  *
  * Not asserted against a hardcoded 6: BNB Chain's USDC is 18 decimals, and an
@@ -80,6 +119,9 @@ async function readDecimals(token: string): Promise<number | null> {
 }
 
 async function main() {
+  // Resolved first so a missing or unknown profile fails before any network work.
+  const fee = resolveFeeProfile();
+
   const [deployer] = await ethers.getSigners();
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
   const bal = await ethers.provider.getBalance(deployer.address);
@@ -112,14 +154,24 @@ async function main() {
   const usdtDecimals = await readDecimals(cfg.usdt);
 
   console.log(`\n${cfg.label}`);
+  console.log(`Fee profile: ${fee.name} — ${fee.note}`);
   console.log(`Constructor args:`);
-  console.log(`  owner    = ${gov.owner}`);
-  console.log(`  treasury = ${gov.treasury}`);
-  console.log(`  usdc     = ${cfg.usdc} (decimals: ${usdcDecimals ?? "n/a"})`);
-  console.log(`  usdt     = ${cfg.usdt} (decimals: ${usdtDecimals ?? "n/a"})`);
+  console.log(`  owner          = ${gov.owner}`);
+  console.log(`  treasury       = ${gov.treasury}`);
+  console.log(`  usdc           = ${cfg.usdc} (decimals: ${usdcDecimals ?? "n/a"})`);
+  console.log(`  usdt           = ${cfg.usdt} (decimals: ${usdtDecimals ?? "n/a"})`);
+  console.log(`  treasuryBps    = ${fee.treasuryBps}`);
+  console.log(`  ipCreatorBps   = ${fee.ipCreatorBps}`);
 
   const Factory = await ethers.getContractFactory("B2BSplitterV13");
-  const splitter = await Factory.deploy(gov.owner, gov.treasury, cfg.usdc, cfg.usdt);
+  const splitter = await Factory.deploy(
+    gov.owner,
+    gov.treasury,
+    cfg.usdc,
+    cfg.usdt,
+    fee.treasuryBps,
+    fee.ipCreatorBps,
+  );
   console.log(`\nDeploy tx: ${splitter.deploymentTransaction()?.hash}`);
   await splitter.waitForDeployment();
   const addr = await splitter.getAddress();
@@ -128,6 +180,19 @@ async function main() {
   // than recomputed later from a build that may not match what is on-chain.
   const runtimeCode = await ethers.provider.getCode(addr);
   const runtimeCodeHash = ethers.keccak256(runtimeCode);
+
+  // Read the split back from the chain and assert it matches the profile that
+  // was asked for. A deployment whose economic model does not match its own
+  // evidence is worse than no deployment, so this aborts rather than records.
+  const onChainTreasuryBps = Number(await splitter.treasuryBps());
+  const onChainIpCreatorBps = Number(await splitter.ipCreatorBps());
+  if (onChainTreasuryBps !== fee.treasuryBps || onChainIpCreatorBps !== fee.ipCreatorBps) {
+    throw new Error(
+      `Deployed split does not match profile "${fee.name}": ` +
+        `chain reports ${onChainTreasuryBps}/${onChainIpCreatorBps}, ` +
+        `expected ${fee.treasuryBps}/${fee.ipCreatorBps}.`,
+    );
+  }
 
   const timestamp = new Date().toISOString();
   const deploymentsDir = path.join(__dirname, "../deployments");
@@ -156,8 +221,9 @@ async function main() {
       splitter: addr,
       runtimeCodeHash,
       treasury: gov.treasury,
-      treasuryBps: Number(await splitter.treasuryBps()),
-      ipCreatorBps: Number(await splitter.ipCreatorBps()),
+      feeProfile: fee.name,
+      treasuryBps: onChainTreasuryBps,
+      ipCreatorBps: onChainIpCreatorBps,
       enabled: false,
     },
   };
@@ -181,7 +247,7 @@ async function main() {
 
   console.log(`\nVerify source:`);
   console.log(
-    `  npx hardhat verify --network ${networkName} ${addr} ${gov.owner} ${gov.treasury} ${cfg.usdc} ${cfg.usdt}`
+    `  npx hardhat verify --network ${networkName} ${addr} ${gov.owner} ${gov.treasury} ${cfg.usdc} ${cfg.usdt} ${fee.treasuryBps} ${fee.ipCreatorBps}`
   );
   console.log(`\nRegistry entry is STAGED and disabled. Do not enable it until:`);
   console.log(`  1. source verification succeeded on the explorer,`);

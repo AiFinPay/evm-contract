@@ -22,12 +22,12 @@
    └──────────────────┘           └──────────────────┘
               │
               ▼
-   ┌──────────────────┐
-   │   B2BSplitter    │
-   │  98.99% merchant │
-   │  1.00%  treasury │
-   │  0.01%  creator  │
-   └──────────────────┘
+   ┌──────────────────────────┐
+   │       B2BSplitter        │
+   │  merchant: 100% of quote │
+   │  fees added on top,      │
+   │  per-deployment split    │
+   └──────────────────────────┘
               │
     ┌─────────┴──────────┐
     ▼                    ▼
@@ -63,6 +63,23 @@
 - Receives full payment and splits atomically
 - Uses SafeERC20 for all transfers
 - Connected to treasury (Gnosis Safe)
+
+**Fee model (v1.3).** The merchant receives the quoted amount in full and any
+fee is added on top, so `msg.value == merchantAmount + treasury + creator` is
+enforced exactly. v1.1 and v1.2 are fee-inclusive and split the total instead;
+they are not interchangeable with v1.3 and each route pins its version.
+
+The split is a **deployment parameter, not a protocol constant**, and may be
+zero. One build therefore serves both routes:
+
+| Route | Split | Effect |
+|-------|-------|--------|
+| AIFP-2 / x402 agent payments | `0` bps | No AiFinPay percentage is added |
+| AIFP-1 merchant monetisation | `100` / `1` bps | 1% protocol fee, 0.01% creator |
+
+A splitter carries one split, so these are separate deployments with separate
+evidence. The combined fee can never exceed `MAX_TOTAL_FEE_BPS`, which bounds
+owner authority over merchant funds.
 
 ---
 

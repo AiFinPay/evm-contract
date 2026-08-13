@@ -23,8 +23,15 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MIN_MERCHANT_AMOUNT = 100_000;
 
-    uint256 public treasuryBps = 100;
-    uint256 public ipCreatorBps = 1;
+    /// @notice Hard ceiling on the combined protocol + creator fee.
+    /// @dev Bounds owner authority: the split can never be raised beyond this,
+    ///      so a compromised owner cannot redirect a payment to the treasury.
+    uint256 public constant MAX_TOTAL_FEE_BPS = 500;
+
+    /// @dev Set at deployment and adjustable via setSplit. Zero is permitted:
+    ///      a 0 bps deployment charges no protocol fee at all.
+    uint256 public treasuryBps;
+    uint256 public ipCreatorBps;
     address public treasury;
 
     mapping(bytes32 => bool) public consumedPayment;
@@ -44,12 +51,29 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     event TreasuryUpdated(address newTreasury);
 
     error IncorrectNativeValue(uint256 expected, uint256 received);
+    error FeesExceedMaximum(uint256 provided, uint256 maximum);
 
-    constructor(address initialOwner, address _treasury, address _usdc, address _usdt) Ownable(initialOwner) {
+    /// @param _treasuryBps Protocol fee in bps of the merchant amount. May be 0.
+    /// @param _ipCreatorBps Creator fee in bps of the merchant amount. May be 0.
+    /// @dev The economic model is a deployment parameter, not a compiled-in
+    ///      constant, so one build serves both the 0 bps agent-payment route
+    ///      and a fee-bearing monetisation route.
+    constructor(
+        address initialOwner,
+        address _treasury,
+        address _usdc,
+        address _usdt,
+        uint256 _treasuryBps,
+        uint256 _ipCreatorBps
+    ) Ownable(initialOwner) {
         if (_treasury == address(0)) revert ZeroTreasury();
+        _validateSplit(_treasuryBps, _ipCreatorBps);
         treasury = _treasury;
         USDC = _usdc;
         USDT = _usdt;
+        treasuryBps = _treasuryBps;
+        ipCreatorBps = _ipCreatorBps;
+        emit SplitUpdated(_treasuryBps, _ipCreatorBps);
     }
 
     /// @notice Pay an exact quoted merchant amount in native token.
@@ -71,8 +95,10 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         (bool s1, ) = _merchant.call{value: _merchantAmount}("");
         if (!s1) revert MerchantTransferFailed();
 
-        (bool s2, ) = payable(treasury).call{value: treasuryAmt}("");
-        if (!s2) revert TreasuryTransferFailed();
+        if (treasuryAmt > 0) {
+            (bool s2, ) = payable(treasury).call{value: treasuryAmt}("");
+            if (!s2) revert TreasuryTransferFailed();
+        }
 
         if (ipAmt > 0) {
             (bool s3, ) = payable(_ipCreator).call{value: ipAmt}("");
@@ -109,7 +135,9 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) = _feeOnTop(_merchantAmount, _ipCreator);
 
         IERC20(_token).safeTransferFrom(msg.sender, _merchant, _merchantAmount);
-        IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
+        if (treasuryAmt > 0) {
+            IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
+        }
         if (ipAmt > 0) {
             IERC20(_token).safeTransferFrom(msg.sender, _ipCreator, ipAmt);
         }
@@ -153,12 +181,21 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         _unpause();
     }
 
+    /// @notice Set both fee legs together so the pair is never partially applied.
+    /// @dev Zero is a valid value for either leg. The combined fee is capped at
+    ///      MAX_TOTAL_FEE_BPS, which bounds owner authority over merchant funds.
     function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
-        if (_treasuryBps + _ipCreatorBps >= BPS_DENOMINATOR) revert FeesExceed100();
-        if (_treasuryBps < 1) revert TreasuryFeeTooLow();
+        _validateSplit(_treasuryBps, _ipCreatorBps);
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
         emit SplitUpdated(_treasuryBps, _ipCreatorBps);
+    }
+
+    /// @dev Single validation path shared by the constructor and setSplit, so a
+    ///      deployment cannot start outside the bounds the setter enforces.
+    function _validateSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) internal pure {
+        uint256 total = _treasuryBps + _ipCreatorBps;
+        if (total > MAX_TOTAL_FEE_BPS) revert FeesExceedMaximum(total, MAX_TOTAL_FEE_BPS);
     }
 
     function setTreasury(address _treasury) external onlyOwner {
