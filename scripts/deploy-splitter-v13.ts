@@ -243,7 +243,7 @@ async function main() {
   console.log(
     `   treasuryBps     = ${await splitter.treasuryBps()}, ipCreatorBps = ${await splitter.ipCreatorBps()}`
   );
-  console.log(`   MIN_MERCHANT_AMOUNT = ${await splitter.MIN_MERCHANT_AMOUNT()}`);
+
 
   console.log(`\nVerify source:`);
   console.log(

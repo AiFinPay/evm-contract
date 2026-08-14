@@ -24,8 +24,27 @@ merchant + treasury + creator == total received
 ```
 
 If the creator is the zero address, the creator fee is **not taken at all** —
-no amount is deducted and stranded. `MIN_MERCHANT_AMOUNT` (100,000 base units)
-exists so neither fee can round to zero.
+no amount is deducted and stranded.
+
+There is **no blanket minimum payment**. The only universal floor is that the
+merchant amount must be non-zero. Beyond that, a payment is rejected only when a
+fee leg that is actually charged would round to zero, so the effective floor
+follows the configured split:
+
+| Profile | Effective minimum | On a 6-decimal stablecoin |
+|---|---|---|
+| `agent-x402` (0/0) | 1 base unit | any amount |
+| `merchant-aifp1` (100/0) | 100 base units | $0.0001 |
+| any profile with a non-zero creator leg (1 bps) | 10,000 base units | $0.01 |
+
+The `merchant-aifp1` figure matters: the AIFP-1 per-request tiers start at
+$0.0005, which the old blanket floor rejected outright. At 100/0 the binding
+constraint is the 1% treasury leg, so the lowest tier settles.
+
+A fixed raw-unit minimum was removed deliberately (AIFINP-119): the same 100,000
+base units is $0.10 on a 6-decimal token and dust on an 18-decimal one, so it was
+never a meaningful economic threshold — and at 0 bps there are no fee legs to
+round, so no minimum is needed at all.
 
 Verified by `test/unit/B2BSplitter.v13.test.ts` and
 `test/unit/B2BSplitter.v13.stable.test.ts`: zero creator, non-zero creator,

@@ -229,23 +229,95 @@ describe("B2BSplitter v1.3 — decimals and micro amounts", () => {
     });
   }
 
-  it("rejects an amount below the minimum rather than rounding a fee to zero", async () => {
+  it("rejects only the amounts where a CHARGED fee would round to zero", async () => {
+    // The floor is per fee leg, not a blanket minimum. With 100/1 bps the
+    // creator leg is the binding constraint: it rounds to zero below 10,000
+    // base units, so that is where the rejection comes from.
     const { splitter, ipCreator } = await loadFixture(fixture6);
-    const min = await splitter.MIN_MERCHANT_AMOUNT();
     await expect(
-      splitter.quoteTotal(min - 1n, await ipCreator.getAddress())
-    ).to.be.revertedWithCustomError(splitter, "PaymentBelowMinimum");
+      splitter.quoteTotal(9_999n, await ipCreator.getAddress())
+    ).to.be.revertedWithCustomError(splitter, "PaymentTooSmallForRoyalty");
+
+    // With no creator supplied, only the 1% treasury leg applies, so the
+    // binding constraint drops to 100 base units — well below the old blanket
+    // 100,000 floor, and low enough for the AIFP-1 per-request tiers.
+    await expect(splitter.quoteTotal(99n, ethers.ZeroAddress)).to.be.revertedWithCustomError(
+      splitter,
+      "PaymentTooSmallForTreasury"
+    );
+    const [, treasuryAmt] = await splitter.quoteTotal(100n, ethers.ZeroAddress);
+    expect(treasuryAmt).to.equal(1n);
+  });
+
+  it("rejects a zero merchant amount on any profile", async () => {
+    const { splitter, ipCreator } = await loadFixture(fixture6);
     await expect(splitter.quoteTotal(0n, await ipCreator.getAddress())).to.be.revertedWithCustomError(
       splitter,
-      "PaymentBelowMinimum"
+      "ZeroAmount"
+    );
+    const zero = await loadFixture(fixtureStableZeroFee);
+    await expect(zero.splitter.quoteTotal(0n, ethers.ZeroAddress)).to.be.revertedWithCustomError(
+      zero.splitter,
+      "ZeroAmount"
     );
   });
 
-  it("still pays every party a non-zero amount at exactly the minimum", async () => {
-    // The smallest accepted payment is where a fee would round to zero if the
-    // minimum were any lower. Both fees must survive it.
+  it("settles a 0/0 micropayment far below the old 100,000 floor", async () => {
+    // AIFINP-119: at 0 bps there are no fee legs to round, so no minimum is
+    // needed. AIFP-1 per-request tiers start at $0.0005, which is 500 base
+    // units on a 6-decimal stablecoin — the old floor rejected all of them.
+    const { splitter, usdc, treasury, agent, merchant, ipCreator } =
+      await loadFixture(fixtureStableZeroFee);
+    const merchantAmount = 500n; // $0.0005 at 6 decimals
+
+    const [, treasuryAmt, creatorAmt, total] = await splitter.quoteTotal(
+      merchantAmount,
+      await ipCreator.getAddress()
+    );
+    expect(treasuryAmt).to.equal(0n);
+    expect(creatorAmt).to.equal(0n);
+    expect(total).to.equal(merchantAmount);
+
+    await usdc.mint(await agent.getAddress(), merchantAmount);
+    await usdc.connect(agent).approve(await splitter.getAddress(), merchantAmount);
+    await splitter
+      .connect(agent)
+      .payStable(
+        paymentId(9100),
+        await usdc.getAddress(),
+        merchantAmount,
+        await merchant.getAddress(),
+        await ipCreator.getAddress(),
+        "micro-zero-fee"
+      );
+
+    expect(await usdc.balanceOf(await merchant.getAddress())).to.equal(merchantAmount);
+    expect(await usdc.balanceOf(await treasury.getAddress())).to.equal(0n);
+    expect(await usdc.balanceOf(await splitter.getAddress())).to.equal(0n);
+  });
+
+  it("settles a single base unit at 0/0", async () => {
+    const { splitter, usdc, agent, merchant } = await loadFixture(fixtureStableZeroFee);
+    await usdc.mint(await agent.getAddress(), 1n);
+    await usdc.connect(agent).approve(await splitter.getAddress(), 1n);
+    await splitter
+      .connect(agent)
+      .payStable(
+        paymentId(9101),
+        await usdc.getAddress(),
+        1n,
+        await merchant.getAddress(),
+        ethers.ZeroAddress,
+        "one-base-unit"
+      );
+    expect(await usdc.balanceOf(await merchant.getAddress())).to.equal(1n);
+  });
+
+  it("still pays every party a non-zero amount at the fee-rounding boundary", async () => {
+    // With 100/1 bps the binding constraint is the creator leg at 10,000 base
+    // units. Both fees must survive exactly that amount.
     const { splitter, usdc, treasury, agent, merchant, ipCreator } = await loadFixture(fixture6);
-    const merchantAmount = await splitter.MIN_MERCHANT_AMOUNT();
+    const merchantAmount = 10_000n;
     const [, treasuryAmt, creatorAmt, total] = await splitter.quoteTotal(
       merchantAmount,
       await ipCreator.getAddress()

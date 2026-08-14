@@ -1,5 +1,21 @@
 # Polygon B2BSplitter v1.3 — deployment runbook and E2E checklist
 
+> ## ⛔ STALE — DO NOT EXECUTE (AIFINP-119)
+>
+> This runbook was written against the 100/1 merchant profile and a SHA that has
+> since changed. Every one of the following is now wrong:
+>
+> - expects `treasuryBps` 100 / `ipCreatorBps` 1 — the AIFP-2 deployment is **0/0**
+> - asserts `MIN_MERCHANT_AMOUNT` = 100000 — **that constant no longer exists**
+> - deploy command omits the now-mandatory `FEE_PROFILE` — the script will abort
+> - verify command omits the fee bps arguments — the constructor tuple is incomplete
+> - paid-E2E deltas expect a 100bp treasury and 1bp creator leg — at 0/0 both are zero
+> - test count is stale
+>
+> Per the 14 August founder review this must be **regenerated wholesale against
+> the final post-fix release-candidate SHA**, not patched line by line. Leaving
+> the text below for reference only.
+
 **Status: not authorised.** Dmitry's instruction is a separate approval for
 **one specific Polygon mainnet transaction**, given after the gates in §0 are
 closed. Nothing in this document may be executed before that.

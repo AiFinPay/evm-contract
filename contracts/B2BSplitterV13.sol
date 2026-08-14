@@ -21,7 +21,6 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     address public immutable USDT;
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
-    uint256 public constant MIN_MERCHANT_AMOUNT = 100_000;
 
     /// @notice Hard ceiling on the combined protocol + creator fee.
     /// @dev Bounds owner authority: the split can never be raised beyond this,
@@ -211,7 +210,12 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         uint256 _merchantAmount,
         address _ipCreator
     ) internal view returns (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) {
-        if (_merchantAmount < MIN_MERCHANT_AMOUNT) revert PaymentBelowMinimum();
+        // The only universal floor is that a payment must move something. Any
+        // larger minimum is a fee-rounding concern, and is enforced below only
+        // for the legs that actually charge a fee — a fixed raw-unit floor is
+        // not a meaningful economic threshold, because the same 100,000 base
+        // units is $0.10 on a 6-decimal token and dust on an 18-decimal one.
+        if (_merchantAmount == 0) revert ZeroAmount();
 
         treasuryAmt = (_merchantAmount * treasuryBps) / BPS_DENOMINATOR;
         if (treasuryBps > 0 && treasuryAmt == 0) revert PaymentTooSmallForTreasury();
