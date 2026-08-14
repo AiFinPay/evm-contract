@@ -85,8 +85,8 @@ const FEE_PROFILES: Record<string, { treasuryBps: number; ipCreatorBps: number; 
   },
   "merchant-aifp1": {
     treasuryBps: 100,
-    ipCreatorBps: 1,
-    note: "AIFP-1 merchant monetisation of AI-agent traffic — 1% protocol fee, 0.01% creator leg.",
+    ipCreatorBps: 0,
+    note: "AIFP-1 merchant AI-traffic monetisation — exactly 1% AiFinPay protocol fee, no creator fee.",
   },
 };
 
