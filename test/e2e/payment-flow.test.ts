@@ -95,7 +95,7 @@ describe("E2E: Agent Payment Flow", function () {
 
 describe("E2E: Full User Journey", function () {
   let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, ipCreator: Signer;
-  let core: any, msecco: any, passport: any;
+  let core: any, msecco: any, passport: any, usdc: any, usdt: any;
 
   beforeEach(async function () {
     const contracts = await loadFixture(fixture);
@@ -107,6 +107,8 @@ describe("E2E: Full User Journey", function () {
     core = contracts.core;
     msecco = contracts.msecco;
     passport = contracts.passport;
+    usdc = contracts.usdc;
+    usdt = contracts.usdt;
   });
 
   describe("Protocol Configuration", function () {
@@ -135,11 +137,11 @@ describe("E2E: Full User Journey", function () {
 
   describe("Token Addresses", function () {
     it("USDC is set from constructor", async function () {
-      expect(await core.USDC()).to.equal("0x1000000000000000000000000000000000000001");
+      expect(await core.USDC()).to.equal(await usdc.getAddress());
     });
 
     it("USDT is set from constructor", async function () {
-      expect(await core.USDT()).to.equal("0x1000000000000000000000000000000000000002");
+      expect(await core.USDT()).to.equal(await usdt.getAddress());
     });
 
     it("Pyth contract is set from constructor", async function () {

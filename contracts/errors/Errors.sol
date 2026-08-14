@@ -15,6 +15,7 @@ error InvalidPythPrice();
 error UnexpectedPriceExponent();
 error BelowMinimum();
 error UnsupportedToken();
+error UnsupportedTokenDecimals();
 error NoSeatFound();
 error PartnerNotActive();
 error AgentNotVerifiedB2B();

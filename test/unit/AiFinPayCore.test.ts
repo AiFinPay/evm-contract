@@ -2,14 +2,15 @@ import { expect } from "chai";
 
 import { ethers, loadFixture, fixture } from "../fixtures";
 import { Signer, parseEther } from "ethers";
-import { AgentPassport, AiFinPayCore, MockPyth, MSECCOToken } from "../../typechain-types";
+import { AgentPassport, AiFinPayCore, MockERC20, MockPyth, MSECCOToken } from "../../typechain-types";
 
 describe("AiFinPayCore", function () {
   let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, attacker: Signer;
   let msecco: MSECCOToken, passport: AgentPassport, core: AiFinPayCore, mockPyth: MockPyth;
+  let usdc: MockERC20, usdt: MockERC20;
 
   beforeEach(async function () {
-    ({ owner, treasury, agent, merchant, attacker, msecco, passport, core, mockPyth } = await loadFixture(fixture));
+    ({ owner, treasury, agent, merchant, attacker, msecco, passport, core, mockPyth, usdc, usdt } = await loadFixture(fixture));
   });
 
   describe("Configuration", function () {
@@ -51,11 +52,11 @@ describe("AiFinPayCore", function () {
     });
 
     it("USDC is set from constructor", async function () {
-      expect(await core.USDC()).to.equal("0x1000000000000000000000000000000000000001");
+      expect(await core.USDC()).to.equal(await usdc.getAddress());
     });
 
     it("USDT is set from constructor", async function () {
-      expect(await core.USDT()).to.equal("0x1000000000000000000000000000000000000002");
+      expect(await core.USDT()).to.equal(await usdt.getAddress());
     });
 
     it("Pyth contract is set from constructor", async function () {

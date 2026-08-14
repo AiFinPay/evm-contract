@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -42,7 +43,12 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     ///         owner (Gnosis Safe) via setManifestoHash so a wrong/changed hash
     ///         never requires a redeploy again. Initialised to the real hash.
     bytes32 public manifestoHash = 0x27b28e3044b56df3332a60c27604686a634f922a184f62398a4e2f85df19c699;
-    uint256 public constant STABLE_DECIMALS_DIVISOR = 10_000;
+    /// @notice Per-token divisor converting stablecoin base units to USD cents,
+    ///         derived from each token's own decimals() at deployment (AIFINP-120).
+    ///         The former fixed 10_000 divisor assumed 6-decimal tokens and
+    ///         over-credited 18-decimal BNB USDC/USDT by a factor of 10^12.
+    uint256 public immutable USDC_CENTS_DIVISOR;
+    uint256 public immutable USDT_CENTS_DIVISOR;
     uint256 public constant PYTH_MAX_AGE = 60;
     uint256 public constant USD_CENTS_PER_MSECCO = 1;
     uint256 public constant MIN_USD_CENTS = 10;
@@ -103,6 +109,8 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         PYTH = IPyth(_pyth);
         USDC = _usdc;
         USDT = _usdt;
+        USDC_CENTS_DIVISOR = _centsDivisor(_usdc);
+        USDT_CENTS_DIVISOR = _centsDivisor(_usdt);
         NATIVE_USD_ID = _nativeUsdId;
     }
 
@@ -145,9 +153,8 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         address _referrer
     ) external notPaused nonReentrant {
         if (_agreementHash != manifestoHash) revert InvalidAgreementHash();
-        if (_token != USDC && _token != USDT) revert UnsupportedToken();
 
-        uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
+        uint256 usdCents = _stableToUsdCents(_token, _amount);
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
         _createOrUpdateSeat(msg.sender, usdCents, _token == USDC ? 1 : 2, _referrer);
@@ -183,8 +190,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     }
 
     function topUpStable(address _token, uint256 _amount) external notPaused nonReentrant hasSeat {
-        if (_token != USDC && _token != USDT) revert UnsupportedToken();
-        uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
+        uint256 usdCents = _stableToUsdCents(_token, _amount);
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
         seats[msg.sender].usdCentsPaid += usdCents;
@@ -195,6 +201,22 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         IERC20(_token).safeTransferFrom(msg.sender, treasury, _amount);
 
         emit TopUp(msg.sender, usdCents, usdCents);
+    }
+
+    /// @dev 10^(decimals-2) scales base units of a $1-pegged token to USD cents.
+    ///      Tokens that cannot represent a whole cent, or whose decimals exceed
+    ///      the sanity bound, fail closed at deployment instead of mis-crediting.
+    function _centsDivisor(address _token) private view returns (uint256) {
+        uint8 tokenDecimals = IERC20Metadata(_token).decimals();
+        if (tokenDecimals < 2 || tokenDecimals > 30) revert UnsupportedTokenDecimals();
+        return 10 ** (uint256(tokenDecimals) - 2);
+    }
+
+    /// @dev The single stablecoin→cents conversion rule; both reserveSeatStable
+    ///      and topUpStable must route through it (AIFINP-120).
+    function _stableToUsdCents(address _token, uint256 _amount) private view returns (uint256) {
+        if (_token != USDC && _token != USDT) revert UnsupportedToken();
+        return _amount / (_token == USDC ? USDC_CENTS_DIVISOR : USDT_CENTS_DIVISOR);
     }
 
     function mintPassport(

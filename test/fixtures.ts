@@ -6,6 +6,7 @@ import type {
   AgentPassport,
   AiFinPayCore,
   B2BSplitter,
+  MockERC20,
   MockPyth,
   MSECCOToken,
 } from "../typechain-types";
@@ -26,6 +27,8 @@ export interface ProtocolContracts {
   passport: AgentPassport;
   core: AiFinPayCore;
   mockPyth: MockPyth;
+  usdc: MockERC20;
+  usdt: MockERC20;
 }
 
 export interface ProtocolWithSplitter extends ProtocolContracts {
@@ -56,10 +59,11 @@ async function deployProtocol(): Promise<ProtocolContracts> {
     await owner.getAddress()
   )) as unknown as AgentPassport;
 
-  // Mock USDC/USDT addresses for testing (any non-zero address works —
-  // logic tests don't call stable transfers).
-  const mockUsdc = "0x1000000000000000000000000000000000000001";
-  const mockUsdt = "0x1000000000000000000000000000000000000002";
+  // Real mock tokens: the Core constructor now reads decimals() from each
+  // token (AIFINP-120), so a codeless placeholder address no longer deploys.
+  const MockERC20Factory = await ethers.getContractFactory("MockERC20");
+  const usdc = (await MockERC20Factory.deploy("USD Coin", "USDC", 6)) as unknown as MockERC20;
+  const usdt = (await MockERC20Factory.deploy("Tether USD", "USDT", 6)) as unknown as MockERC20;
   const mockNativeUsdId =
     "0x5de33a9112c2b700b8d30b8a3402c103578ccfa2856a12a2b20d7b0c67b6d82d";
 
@@ -69,8 +73,8 @@ async function deployProtocol(): Promise<ProtocolContracts> {
     await passport.getAddress(),
     await treasury.getAddress(),
     await mockPyth.getAddress(),
-    mockUsdc,
-    mockUsdt,
+    await usdc.getAddress(),
+    await usdt.getAddress(),
     mockNativeUsdId
   )) as unknown as AiFinPayCore;
 
@@ -88,6 +92,8 @@ async function deployProtocol(): Promise<ProtocolContracts> {
     passport,
     core,
     mockPyth,
+    usdc,
+    usdt,
   };
 }
 
