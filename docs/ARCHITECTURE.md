@@ -70,16 +70,20 @@ enforced exactly. v1.1 and v1.2 are fee-inclusive and split the total instead;
 they are not interchangeable with v1.3 and each route pins its version.
 
 The split is a **deployment parameter, not a protocol constant**, and may be
-zero. One build therefore serves both routes:
+zero. One build therefore serves both routes. The founder-approved production
+economics as of 14 August 2026 are:
 
 | Route | Split | Effect |
 |-------|-------|--------|
-| AIFP-2 / x402 agent payments | `0` bps | No AiFinPay percentage is added |
-| AIFP-1 merchant monetisation | `100` / `1` bps | 1% protocol fee, 0.01% creator |
+| AIFP-2 / x402 agent payments | `0 / 0` bps | AiFinPay takes 0%; agent pays the merchant/provider amount plus chain gas only |
+| AIFP-1 merchant AI-traffic monetisation | `100 / 0` bps | Exactly 1% AiFinPay protocol fee; no creator fee |
 
 A splitter carries one split, so these are separate deployments with separate
-evidence. The combined fee can never exceed `MAX_TOTAL_FEE_BPS`, which bounds
-owner authority over merchant funds.
+evidence. The combined fee can never exceed `MAX_TOTAL_FEE_BPS` (5%), which is
+a **security ceiling only**, not a production pricing rule.
+
+Legacy v1.1/v1.2 fee-bearing deployments remain historical deployment evidence
+only. They must not be selected for new AIFP-2 traffic.
 
 ---
 
@@ -98,7 +102,7 @@ owner authority over merchant funds.
 | Polygon Mainnet | AiFinPayCore, AgentPassport, MSECCOToken, B2BSplitter | Gnosis Safe 4-of-4 |
 | Solana Mainnet | aifinpay_contract (Anchor) | Squads 3-of-4 |
 
-Both chains share same economics. SDK handles chain routing transparently.
+All supported chains must implement the same route economics: AIFP-2 `0/0`, AIFP-1 `100/0`. SDK routing must enforce the route class explicitly and fail closed on cross-routing.
 
 ---
 
