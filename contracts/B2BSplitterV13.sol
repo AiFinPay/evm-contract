@@ -8,12 +8,12 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./errors/Errors.sol";
 
-/// @title B2BSplitter v1.3 — explicit fee-on-top settlement
-/// @notice The merchant amount is the quoted commercial price. AiFinPay and
-///         optional creator fees are calculated from that merchant amount and
-///         paid on top, so the merchant receives the full quote exactly.
-/// @dev This contract intentionally changes the v1.2 ABI. It must be deployed
-///      under a new address and SDK/backend routes must opt into version 1.3.
+/// @title B2BSplitter v1.3 — gross-inclusive route-specific settlement
+/// @notice The payer supplies one gross settlement amount. Configured protocol
+///         and optional creator fees are deducted from that gross amount and the
+///         merchant receives the remainder. No configured fee is added on top.
+/// @dev This contract intentionally changes the v1.2 ABI/semantics. It must be
+///      deployed under a new address and SDK/backend routes must opt into v1.3.
 contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
@@ -23,8 +23,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant BPS_DENOMINATOR = 10_000;
 
     /// @notice Hard ceiling on the combined protocol + creator fee.
-    /// @dev Bounds owner authority: the split can never be raised beyond this,
-    ///      so a compromised owner cannot redirect a payment to the treasury.
+    /// @dev Bounds owner authority over the gross payer amount.
     uint256 public constant MAX_TOTAL_FEE_BPS = 500;
 
     /// @dev Set at deployment and adjustable via setSplit. Zero is permitted:
@@ -52,11 +51,10 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     error IncorrectNativeValue(uint256 expected, uint256 received);
     error FeesExceedMaximum(uint256 provided, uint256 maximum);
 
-    /// @param _treasuryBps Protocol fee in bps of the merchant amount. May be 0.
-    /// @param _ipCreatorBps Creator fee in bps of the merchant amount. May be 0.
-    /// @dev The economic model is a deployment parameter, not a compiled-in
-    ///      constant, so one build serves both the 0 bps agent-payment route
-    ///      and a fee-bearing monetisation route.
+    /// @param _treasuryBps Protocol fee in bps of the gross payer amount. May be 0.
+    /// @param _ipCreatorBps Creator fee in bps of the gross payer amount. May be 0.
+    /// @dev One build serves both AIFP-2 0/0 and AIFP-1 100/0 profiles. A splitter
+    ///      carries one active profile at a time; route selection remains external.
     constructor(
         address initialOwner,
         address _treasury,
@@ -75,23 +73,23 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         emit SplitUpdated(_treasuryBps, _ipCreatorBps);
     }
 
-    /// @notice Pay an exact quoted merchant amount in native token.
-    /// @param _merchantAmount Amount the merchant quoted and must receive in full.
-    /// @dev msg.value must equal merchantAmount + protocol fee + creator fee.
+    /// @notice Settle one exact gross amount in native token.
+    /// @param _grossAmount Full payer settlement amount, excluding network gas.
+    /// @dev msg.value must equal _grossAmount exactly. Fees are split from gross.
     function payNative(
         bytes32 _paymentId,
         address payable _merchant,
-        uint256 _merchantAmount,
+        uint256 _grossAmount,
         address _ipCreator,
         string calldata _orderId
     ) external payable nonReentrant whenNotPaused {
         _consume(_paymentId);
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) = _feeOnTop(_merchantAmount, _ipCreator);
-        if (msg.value != totalAmt) revert IncorrectNativeValue(totalAmt, msg.value);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
+        if (msg.value != _grossAmount) revert IncorrectNativeValue(_grossAmount, msg.value);
 
-        (bool s1, ) = _merchant.call{value: _merchantAmount}("");
+        (bool s1, ) = _merchant.call{value: merchantAmt}("");
         if (!s1) revert MerchantTransferFailed();
 
         if (treasuryAmt > 0) {
@@ -109,20 +107,20 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
             msg.sender,
             _merchant,
             address(0),
-            totalAmt,
-            _merchantAmount,
+            _grossAmount,
+            merchantAmt,
             treasuryAmt,
             ipAmt,
             _orderId
         );
     }
 
-    /// @notice Pay an exact quoted merchant amount in configured USDC/USDT.
-    /// @dev Caller approves the calculated totalAmount, not merely merchantAmount.
+    /// @notice Settle one exact gross amount in configured USDC/USDT.
+    /// @dev Caller approves exactly _grossAmount. The three transfers conserve gross.
     function payStable(
         bytes32 _paymentId,
         address _token,
-        uint256 _merchantAmount,
+        uint256 _grossAmount,
         address _merchant,
         address _ipCreator,
         string calldata _orderId
@@ -131,9 +129,9 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         if (_token == address(0) || (_token != USDC && _token != USDT)) revert UnsupportedToken();
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) = _feeOnTop(_merchantAmount, _ipCreator);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
 
-        IERC20(_token).safeTransferFrom(msg.sender, _merchant, _merchantAmount);
+        IERC20(_token).safeTransferFrom(msg.sender, _merchant, merchantAmt);
         if (treasuryAmt > 0) {
             IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
         }
@@ -146,24 +144,26 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
             msg.sender,
             _merchant,
             _token,
-            totalAmt,
-            _merchantAmount,
+            _grossAmount,
+            merchantAmt,
             treasuryAmt,
             ipAmt,
             _orderId
         );
     }
 
+    /// @notice Return the deterministic split of one gross payer amount.
+    /// @dev totalAmount always equals grossAmount; this function never adds a fee on top.
     function quoteTotal(
-        uint256 _merchantAmount,
+        uint256 _grossAmount,
         address _ipCreator
     )
         external
         view
         returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount)
     {
-        (treasuryAmount, ipCreatorAmount, totalAmount) = _feeOnTop(_merchantAmount, _ipCreator);
-        merchantAmount = _merchantAmount;
+        (merchantAmount, treasuryAmount, ipCreatorAmount) = _splitGross(_grossAmount, _ipCreator);
+        totalAmount = _grossAmount;
     }
 
     function _consume(bytes32 _paymentId) internal {
@@ -181,8 +181,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     }
 
     /// @notice Set both fee legs together so the pair is never partially applied.
-    /// @dev Zero is a valid value for either leg. The combined fee is capped at
-    ///      MAX_TOTAL_FEE_BPS, which bounds owner authority over merchant funds.
+    /// @dev Zero is valid for either leg. Combined fee remains security-capped.
     function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
         _validateSplit(_treasuryBps, _ipCreatorBps);
         treasuryBps = _treasuryBps;
@@ -190,8 +189,6 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         emit SplitUpdated(_treasuryBps, _ipCreatorBps);
     }
 
-    /// @dev Single validation path shared by the constructor and setSplit, so a
-    ///      deployment cannot start outside the bounds the setter enforces.
     function _validateSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) internal pure {
         uint256 total = _treasuryBps + _ipCreatorBps;
         if (total > MAX_TOTAL_FEE_BPS) revert FeesExceedMaximum(total, MAX_TOTAL_FEE_BPS);
@@ -203,28 +200,23 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         emit TreasuryUpdated(_treasury);
     }
 
-    /// @dev Fees are percentages of merchantAmount, never percentages of total.
-    ///      If no creator is supplied, no creator fee is charged; the merchant
-    ///      still receives exactly merchantAmount.
-    function _feeOnTop(
-        uint256 _merchantAmount,
+    /// @dev Split configured fee legs from gross. If no creator address is supplied,
+    ///      the creator leg is zero and remains part of the merchant remainder.
+    function _splitGross(
+        uint256 _grossAmount,
         address _ipCreator
-    ) internal view returns (uint256 treasuryAmt, uint256 ipAmt, uint256 totalAmt) {
-        // The only universal floor is that a payment must move something. Any
-        // larger minimum is a fee-rounding concern, and is enforced below only
-        // for the legs that actually charge a fee — a fixed raw-unit floor is
-        // not a meaningful economic threshold, because the same 100,000 base
-        // units is $0.10 on a 6-decimal token and dust on an 18-decimal one.
-        if (_merchantAmount == 0) revert ZeroAmount();
+    ) internal view returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
+        if (_grossAmount == 0) revert ZeroAmount();
 
-        treasuryAmt = (_merchantAmount * treasuryBps) / BPS_DENOMINATOR;
+        treasuryAmt = (_grossAmount * treasuryBps) / BPS_DENOMINATOR;
         if (treasuryBps > 0 && treasuryAmt == 0) revert PaymentTooSmallForTreasury();
 
         if (_ipCreator != address(0)) {
-            ipAmt = (_merchantAmount * ipCreatorBps) / BPS_DENOMINATOR;
+            ipAmt = (_grossAmount * ipCreatorBps) / BPS_DENOMINATOR;
             if (ipCreatorBps > 0 && ipAmt == 0) revert PaymentTooSmallForRoyalty();
         }
 
-        totalAmt = _merchantAmount + treasuryAmt + ipAmt;
+        merchantAmt = _grossAmount - treasuryAmt - ipAmt;
+        if (merchantAmt == 0) revert ZeroAmount();
     }
 }
