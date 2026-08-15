@@ -81,8 +81,13 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         _validateDeadline(_validUntil);
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
-        if (msg.value != _grossAmount) revert IncorrectNativeValue(_grossAmount, msg.value);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
+            _grossAmount,
+            _ipCreator
+        );
+        if (msg.value != _grossAmount) {
+            revert IncorrectNativeValue(_grossAmount, msg.value);
+        }
 
         (bool s1, ) = _merchant.call{value: merchantAmt}("");
         if (!s1) revert MerchantTransferFailed();
@@ -121,14 +126,23 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     ) external nonReentrant whenNotPaused {
         _consume(_paymentId);
         _validateDeadline(_validUntil);
-        if (_token == address(0) || (_token != USDC && _token != USDT)) revert UnsupportedToken();
+        if (_token == address(0) || (_token != USDC && _token != USDT)) {
+            revert UnsupportedToken();
+        }
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
+            _grossAmount,
+            _ipCreator
+        );
 
         IERC20(_token).safeTransferFrom(msg.sender, _merchant, merchantAmt);
-        if (treasuryAmt > 0) IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
-        if (ipAmt > 0) IERC20(_token).safeTransferFrom(msg.sender, _ipCreator, ipAmt);
+        if (treasuryAmt > 0) {
+            IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
+        }
+        if (ipAmt > 0) {
+            IERC20(_token).safeTransferFrom(msg.sender, _ipCreator, ipAmt);
+        }
 
         emit Payment(
             _paymentId,
@@ -147,13 +161,20 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     function quoteTotal(
         uint256 _grossAmount,
         address _ipCreator
-    ) external view returns (
-        uint256 merchantAmount,
-        uint256 treasuryAmount,
-        uint256 ipCreatorAmount,
-        uint256 totalAmount
-    ) {
-        (merchantAmount, treasuryAmount, ipCreatorAmount) = _splitGross(_grossAmount, _ipCreator);
+    )
+        external
+        view
+        returns (
+            uint256 merchantAmount,
+            uint256 treasuryAmount,
+            uint256 ipCreatorAmount,
+            uint256 totalAmount
+        )
+    {
+        (merchantAmount, treasuryAmount, ipCreatorAmount) = _splitGross(
+            _grossAmount,
+            _ipCreator
+        );
         totalAmount = _grossAmount;
     }
 
@@ -169,19 +190,32 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         }
     }
 
-    function pause() external onlyOwner { _pause(); }
-    function unpause() external onlyOwner { _unpause(); }
+    function pause() external onlyOwner {
+        _pause();
+    }
 
-    function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    function setSplit(
+        uint256 _treasuryBps,
+        uint256 _ipCreatorBps
+    ) external onlyOwner {
         _validateSplit(_treasuryBps, _ipCreatorBps);
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
         emit SplitUpdated(_treasuryBps, _ipCreatorBps);
     }
 
-    function _validateSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) internal pure {
+    function _validateSplit(
+        uint256 _treasuryBps,
+        uint256 _ipCreatorBps
+    ) internal pure {
         uint256 total = _treasuryBps + _ipCreatorBps;
-        if (total > MAX_TOTAL_FEE_BPS) revert FeesExceedMaximum(total, MAX_TOTAL_FEE_BPS);
+        if (total > MAX_TOTAL_FEE_BPS) {
+            revert FeesExceedMaximum(total, MAX_TOTAL_FEE_BPS);
+        }
     }
 
     function setTreasury(address _treasury) external onlyOwner {
@@ -193,15 +227,23 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     function _splitGross(
         uint256 _grossAmount,
         address _ipCreator
-    ) internal view returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
+    )
+        internal
+        view
+        returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt)
+    {
         if (_grossAmount == 0) revert ZeroAmount();
 
         treasuryAmt = (_grossAmount * treasuryBps) / BPS_DENOMINATOR;
-        if (treasuryBps > 0 && treasuryAmt == 0) revert PaymentTooSmallForTreasury();
+        if (treasuryBps > 0 && treasuryAmt == 0) {
+            revert PaymentTooSmallForTreasury();
+        }
 
         if (_ipCreator != address(0)) {
             ipAmt = (_grossAmount * ipCreatorBps) / BPS_DENOMINATOR;
-            if (ipCreatorBps > 0 && ipAmt == 0) revert PaymentTooSmallForRoyalty();
+            if (ipCreatorBps > 0 && ipAmt == 0) {
+                revert PaymentTooSmallForRoyalty();
+            }
         }
 
         merchantAmt = _grossAmount - treasuryAmt - ipAmt;
