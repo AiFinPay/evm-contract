@@ -1,20 +1,10 @@
 # Polygon B2BSplitter v1.3 — deployment runbook and E2E checklist
 
-> ## ⛔ STALE — DO NOT EXECUTE (AIFINP-119)
->
-> This runbook was written against the 100/1 merchant profile and a SHA that has
-> since changed. Every one of the following is now wrong:
->
-> - expects `treasuryBps` 100 / `ipCreatorBps` 1 — the AIFP-2 deployment is **0/0**
-> - asserts `MIN_MERCHANT_AMOUNT` = 100000 — **that constant no longer exists**
-> - deploy command omits the now-mandatory `FEE_PROFILE` — the script will abort
-> - verify command omits the fee bps arguments — the constructor tuple is incomplete
-> - paid-E2E deltas expect a 100bp treasury and 1bp creator leg — at 0/0 both are zero
-> - test count is stale
->
-> Per the 14 August founder review this must be **regenerated wholesale against
-> the final post-fix release-candidate SHA**, not patched line by line. Leaving
-> the text below for reference only.
+**Regenerated 2026-08-15 against release-candidate SHA `e96306b` per the
+14 August founder review (AIFINP-119 P0-4).** This deployment is the
+**AIFP-2 agent-x402 profile: 0/0** — no treasury fee, no creator fee. The
+AIFP-1 merchant profile (100/0) is a **separate deployment with its own
+approval**; nothing in this document authorises it.
 
 **Status: not authorised.** Dmitry's instruction is a separate approval for
 **one specific Polygon mainnet transaction**, given after the gates in §0 are
@@ -29,59 +19,71 @@ precisely specified rather than an open-ended "go ahead".
 
 | Gate | Owner | Status |
 |---|---|---|
-| Independent review of EVM v1.3 | reviewer who did not author it | ❌ **open** |
-| EVM CodeQL alert | me | ✅ closed — `permissions: contents: read` added |
-| Registry → SDK propagation | me | ✅ closed — SDK builds its table from the canonical registry, drift fails CI |
-| Versions 2.0.0 + correct MCP dependency | me | ✅ closed — both at 2.0.0, clean install resolves one SDK |
-| Clean tarball install test | me | ✅ closed — `sdk/docs/CLEAN_MACHINE_EVIDENCE.md` |
-| This runbook / E2E checklist | me | ✅ closed — this document |
+| Independent human review of the post-fix SHAs | reviewer who did not author them | ❌ **open** |
+| Contract P0-1: blanket `MIN_MERCHANT_AMOUNT` | me | ✅ closed — removed in `e96306b`, floor now follows the split |
+| SDK P0-2: zero-fee quotes rejected | me | ✅ closed — fee floor gated on BPS > 0 (sdk `cb090c3`) |
+| SDK P0-3: AIFP-1/AIFP-2 route policy | me | ✅ closed — entry-point-declared route class, fail-closed both ways (sdk `9730e57`, ADR-001) — **ADR needs founder sign-off** |
+| AIFINP-118: bridges send `pay_native`, SDK read `pay_matic` | me | ✅ closed — both keys read, captured live fixture, legacy quotes still refused (sdk `6af342d`) |
+| This runbook against the frozen candidate | me | ✅ closed — this document, SHA `e96306b`, 167 tests |
 
-**One gate remains: the independent review.** Everything else is done.
+**One gate remains: the independent review — and it must approve the SHAs
+above, not any earlier state.**
 
 ---
 
 ## 1. What the transaction actually is
 
-A single `CREATE` deploying `B2BSplitterV13` to Polygon mainnet.
+A single `CREATE` deploying `B2BSplitterV13` to Polygon mainnet **at 0/0**.
 
 | | Value |
 |---|---|
 | Contract | `B2BSplitterV13` |
 | Chain | Polygon mainnet, chainId 137 |
+| Candidate SHA | `e96306b` (branch `security/fee-on-top-v13-remediation`) |
+| Fee profile | **`agent-x402` → `treasuryBps 0`, `ipCreatorBps 0`** |
 | Constructor `initialOwner` | `0xD31d82c4b35DABaA2ad7023C89A78A052D1f3c8e` (Safe) |
 | Constructor `_treasury` | `0xD31d82c4b35DABaA2ad7023C89A78A052D1f3c8e` (Safe) |
 | Constructor `_usdc` | `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359` (6dp) |
 | Constructor `_usdt` | `0xc2132D05D31c914a87C6611C10748AEb04B58e8F` (6dp) |
+| Constructor `_treasuryBps` | `0` |
+| Constructor `_ipCreatorBps` | `0` |
 | Cost | Polygon gas only, paid by the deployer key |
 
 **It is a new address.** Nothing is upgraded, replaced or migrated. The
 existing v1.2 splitter at `0xbD1fa5453f212F096c0213788a645eC597FB4DDe` keeps
 working for anything already pointing at it, and its funds are untouched.
 
-Owner and treasury are the Safe **from the constructor**, not transferred
-afterwards. There is no window in which a single key controls the contract.
-The script refuses to deploy if the owner address has no code, which is what
-stops a repeat of v1.2 falling back to the deployer EOA on chains without a
-Safe.
+The split is a **constructor parameter** — nothing is compiled in. The deploy
+script requires `FEE_PROFILE` (no default), reads the split back from the
+chain after `CREATE`, and **aborts if it disagrees** with the profile. Owner
+and treasury are the Safe from the constructor; the script refuses any chain
+whose owner address has no code. `MAX_TOTAL_FEE_BPS = 500` bounds any later
+`setSplit` by the owner.
+
+There is no `MIN_MERCHANT_AMOUNT`. At 0/0 the only floor is
+`_merchantAmount > 0` — one base unit settles, which is what makes the
+sub-cent AIFP tiers representable.
 
 ---
 
 ## 2. Pre-flight
 
-Run against a fork before mainnet:
+Run at the candidate SHA before mainnet:
 
 ```
 npx hardhat compile
-npx hardhat test                        # expect 154 passing
-npx solhint 'contracts/**/*.sol' --config .solhint.json
+npx hardhat test                        # expect 167 passing / 0 failing
+node_modules/.bin/solhint 'contracts/**/*.sol'   # 0 errors
 npm run prettify:check
 node scripts/verify-registry.mjs        # 6/6 against live chain state
 ```
 
 Confirm before proceeding:
 
-- [ ] Independent review of v1.3 signed off, with the reviewer named
-- [ ] `git status` clean, and the commit SHA recorded
+- [ ] Independent review signed off **on `e96306b` (contract) and `6af342d`
+      (SDK branch head)**, with the reviewer named
+- [ ] ADR-001 (route policy) confirmed by Dmitry
+- [ ] `git status` clean, HEAD = `e96306b`
 - [ ] Deployer key funded with POL for gas
 - [ ] Safe `0xD31d82c4…` confirmed to have code on Polygon (the script checks)
 - [ ] Dmitry's explicit approval **for this specific transaction**
@@ -91,51 +93,64 @@ Confirm before proceeding:
 ## 3. Deploy
 
 ```
-npx hardhat run scripts/deploy-splitter-v13.ts --network polygon
+FEE_PROFILE=agent-x402 npx hardhat run scripts/deploy-splitter-v13.ts --network polygon
 ```
 
 The script reads each token's `decimals()` from the chain rather than assuming
-6, then writes `deployments/polygon-v13-latest.json` containing the address,
-constructor arguments, runtime code hash, token decimals and a **staged**
-registry entry with `enabled: false`.
+6, re-reads `treasuryBps`/`ipCreatorBps` from the deployed contract and aborts
+on any mismatch with the profile, then writes
+`deployments/polygon-v13-latest.json` containing the address, the full
+constructor argument tuple, runtime code hash, token decimals, the
+`feeProfile` name, and a **staged** registry entry with `enabled: false`.
 
 Record from the output:
 
 - [ ] Deploy transaction hash
 - [ ] Contract address
 - [ ] Runtime code hash
-- [ ] `treasuryBps` = 100, `ipCreatorBps` = 1, `MIN_MERCHANT_AMOUNT` = 100000
+- [ ] `treasuryBps` = **0**, `ipCreatorBps` = **0**, read back from the chain
+- [ ] `feeProfile` = `agent-x402` in the staged registry entry
 
 ---
 
 ## 4. Verify the source
+
+The verify command carries the **full six-argument constructor tuple** —
+omitting the two bps arguments makes verification fail against the deployed
+bytecode:
 
 ```
 npx hardhat verify --network polygon <address> \
   0xD31d82c4b35DABaA2ad7023C89A78A052D1f3c8e \
   0xD31d82c4b35DABaA2ad7023C89A78A052D1f3c8e \
   0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359 \
-  0xc2132D05D31c914a87C6611C10748AEb04B58e8F
+  0xc2132D05D31c914a87C6611C10748AEb04B58e8F \
+  0 \
+  0
 ```
 
 - [ ] Polygonscan shows verified source
 - [ ] `owner()` and `treasury()` both return the Safe
-- [ ] The selector `0x894eb1f3` is present in the deployed bytecode
+- [ ] `treasuryBps()` = 0 and `ipCreatorBps()` = 0 on-chain
+- [ ] The v1.3 selector `0x894eb1f3` is present in the deployed bytecode
 
 ---
 
 ## 5. Promote the registry entry — still not payable
 
 ```
-# in registry/registry.json, set polygon to version 1.3 and the new address,
-# clear runtimeCodeHash so it is re-pinned from the chain rather than assumed
+# in registry/registry.json, add the polygon v1.3 entry with the new address
+# and feeProfile agent-x402; clear runtimeCodeHash so it is re-pinned from
+# the chain rather than assumed
 node scripts/verify-registry.mjs --pin
 node scripts/generate-sdk-table.mjs
 ```
 
-- [ ] `verify-registry.mjs` passes 6/6 with polygon now v1.3
+- [ ] `verify-registry.mjs` passes with polygon v1.3 present — note a 0 bps
+      fee verifies as **0**, not as "missing" (strict null checks, not falsy)
 - [ ] The pinned runtime code hash equals the one recorded at deploy
-- [ ] `treasury`, `treasuryBps` and `ipCreatorBps` re-read from the new contract
+- [ ] `treasury`, `treasuryBps` (0) and `ipCreatorBps` (0) re-read from the
+      new contract
 - [ ] `settlementEnabled` still **false**
 
 Then propagate to the SDK:
@@ -146,6 +161,9 @@ cd ../sdk/node && npm run registry:sync && npm run build && npm test
 
 - [ ] SDK tests pass with the new entry
 - [ ] `npm run registry:check` passes
+- [ ] The entry satisfies the `agent-x402` route class in
+      `ROUTE_FEE_PROFILES` — `call()` payments route to it; `fetchPaid()`
+      (AIFP-1) must still refuse it (`route_fee_profile_mismatch`)
 
 **Settlement stays off at this point.** A deployed, verified contract is still
 not a payable route.
@@ -154,22 +172,27 @@ not a payable route.
 
 ## 6. Paid balance-delta E2E — the actual gate
 
-One real payment, small, on mainnet. Requires its own approval.
+One real payment, small, on mainnet, through the full zero-fee path:
+**bridge 402 (`pay_native` block, per AIFINP-118) → SDK validation under the
+`agent-x402` route → local signing → contract → protected response → replay
+rejection.** Requires its own approval.
 
 Before:
 
 - [ ] Record merchant, treasury and creator balances
 - [ ] Record the payer balance
 
-Execute a single `payNative` with a merchant amount just above
-`MIN_MERCHANT_AMOUNT`, then assert **exactly**:
+Execute a single `payNative` with a small merchant amount (below the old
+$0.10 floor on purpose — e.g. the $0.0005 tier equivalent), then assert
+**exactly**:
 
 - [ ] merchant balance increased by **exactly** `merchantAmount` — not
-      approximately, and not less. The whole point of v1.3 is that the merchant
-      is not short-paid.
-- [ ] treasury increased by exactly `merchantAmount × 100 / 10000`
-- [ ] creator increased by exactly `merchantAmount × 1 / 10000`
-- [ ] payer decreased by `total + gas`, where `total` is the sum of the three
+      approximately, and not less
+- [ ] treasury delta is **exactly 0** — this is the 0% claim, measured
+- [ ] creator delta is **exactly 0**
+- [ ] payer decreased by `merchantAmount + gas` and nothing more
+- [ ] `msg.value` equalled `merchantAmount` exactly (`IncorrectNativeValue`
+      guards this)
 - [ ] contract balance is **zero** — nothing retained
 - [ ] the `Payment` event carries the same components
 - [ ] replaying the same `paymentId` **reverts**
@@ -183,15 +206,21 @@ which is the entire reason v1.3 exists.
 
 Only after §6 passes:
 
-- [ ] `settlementEnabled: true` for polygon in `registry/registry.json`
+- [ ] `settlementEnabled: true` for the polygon v1.3 entry in
+      `registry/registry.json`
 - [ ] regenerate, re-sync to the SDK, re-run tests
-- [ ] backend and SDK rollout
+- [ ] backend and SDK rollout — **publish the SDK only after this**, and
+      announce 0% publicly only after a clean-install check of the published
+      package
 - [ ] support matrix updated: Polygon moves to settlement enabled + paid E2E
       verified. **Every other network stays disabled.**
 
 That takes us to **1 of 13**, and no further. Base, Optimism, Unichain, BOT
-Chain and XRPL EVM remain on fee-inclusive v1.1/v1.2 and keep refusing. The
-three EOA-owned chains cannot be deployed at all until they have Safes.
+Chain and XRPL EVM remain on fee-inclusive v1.1/v1.2 and keep refusing — for
+**both** route classes, per ADR-001. The EOA-owned chains cannot be deployed
+at all until they have Safes. The AIFP-1 100/0 deployment, when approved, is
+a second `CREATE` with `FEE_PROFILE=merchant-aifp1` and its own copy of this
+checklist.
 
 ---
 
@@ -201,8 +230,10 @@ There is no upgrade path and no admin key that can move funds — v1.3 has no
 sweep function, which is deliberate.
 
 - **Deploy fails:** nothing happened beyond spent gas. Fix and re-run.
-- **Verification fails:** the contract exists but stays out of the registry. It
-  is unreferenced and harmless.
+- **Profile read-back mismatch:** the script aborts before writing evidence.
+  Nothing to roll back; investigate before retrying.
+- **Verification fails:** the contract exists but stays out of the registry.
+  It is unreferenced and harmless.
 - **A balance delta is wrong in §6:** do **not** enable settlement. Leave
   `settlementEnabled: false`; the route stays refused and the only loss is the
   test payment.
