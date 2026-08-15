@@ -81,10 +81,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         _validateDeadline(_validUntil);
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
-            _grossAmount,
-            _ipCreator
-        );
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
         if (msg.value != _grossAmount) {
             revert IncorrectNativeValue(_grossAmount, msg.value);
         }
@@ -131,10 +128,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         }
         if (_merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
-            _grossAmount,
-            _ipCreator
-        );
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
 
         IERC20(_token).safeTransferFrom(msg.sender, _merchant, merchantAmt);
         if (treasuryAmt > 0) {
@@ -164,17 +158,9 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     )
         external
         view
-        returns (
-            uint256 merchantAmount,
-            uint256 treasuryAmount,
-            uint256 ipCreatorAmount,
-            uint256 totalAmount
-        )
+        returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount)
     {
-        (merchantAmount, treasuryAmount, ipCreatorAmount) = _splitGross(
-            _grossAmount,
-            _ipCreator
-        );
+        (merchantAmount, treasuryAmount, ipCreatorAmount) = _splitGross(_grossAmount, _ipCreator);
         totalAmount = _grossAmount;
     }
 
@@ -198,20 +184,14 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         _unpause();
     }
 
-    function setSplit(
-        uint256 _treasuryBps,
-        uint256 _ipCreatorBps
-    ) external onlyOwner {
+    function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
         _validateSplit(_treasuryBps, _ipCreatorBps);
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
         emit SplitUpdated(_treasuryBps, _ipCreatorBps);
     }
 
-    function _validateSplit(
-        uint256 _treasuryBps,
-        uint256 _ipCreatorBps
-    ) internal pure {
+    function _validateSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) internal pure {
         uint256 total = _treasuryBps + _ipCreatorBps;
         if (total > MAX_TOTAL_FEE_BPS) {
             revert FeesExceedMaximum(total, MAX_TOTAL_FEE_BPS);
@@ -227,11 +207,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     function _splitGross(
         uint256 _grossAmount,
         address _ipCreator
-    )
-        internal
-        view
-        returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt)
-    {
+    ) internal view returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
         if (_grossAmount == 0) revert ZeroAmount();
 
         treasuryAmt = (_grossAmount * treasuryBps) / BPS_DENOMINATOR;
