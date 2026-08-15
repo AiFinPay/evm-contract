@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { ethers, networkName } = await network.create();
 
 /**
- * Deploys B2BSplitter v1.3 (fee-on-top).
+ * Deploys B2BSplitter v1.3 (gross-inclusive settlement).
  *
  * Two things are deliberately stricter than the v1.2 script.
  *
@@ -24,6 +24,9 @@ const { ethers, networkName } = await network.create();
  *    arguments are written to `deployments/` as evidence; promoting that into
  *    the SDK's payment-target registry is a separate reviewed step that
  *    happens after on-chain verification.
+ *
+ * The selected profile splits its configured fee legs FROM the one gross payer
+ * amount. This script does not deploy fee-on-top semantics.
  *
  * Run against a fork first:
  *   npx hardhat run scripts/deploy-splitter-v13.ts --network <name>
@@ -72,6 +75,7 @@ const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
  * The economic model is a deployment input, never a compiled-in default. A
  * splitter carries one split, so the 0 bps agent route and a fee-bearing
  * monetisation route are separate deployments with separate evidence.
+ * All configured fee legs are deducted from gross; none is added above gross.
  *
  * Selected with FEE_PROFILE=<name>. There is deliberately no default: an
  * unset profile aborts the deploy rather than silently inheriting a model
@@ -81,12 +85,12 @@ const FEE_PROFILES: Record<string, { treasuryBps: number; ipCreatorBps: number; 
   "agent-x402": {
     treasuryBps: 0,
     ipCreatorBps: 0,
-    note: "AIFP-2 / x402 agent payments — no AiFinPay percentage is added to the transaction.",
+    note: "AIFP-2 / x402 agent payments — provider receives 100% of gross; AiFinPay percentage is 0%.",
   },
   "merchant-aifp1": {
     treasuryBps: 100,
     ipCreatorBps: 0,
-    note: "AIFP-1 merchant AI-traffic monetisation — exactly 1% AiFinPay protocol fee, no creator fee.",
+    note: "AIFP-1 merchant AI-traffic monetisation — 1% AiFinPay is split from gross, merchant receives 99%, creator fee is 0%.",
   },
 };
 
@@ -243,7 +247,6 @@ async function main() {
   console.log(
     `   treasuryBps     = ${await splitter.treasuryBps()}, ipCreatorBps = ${await splitter.ipCreatorBps()}`
   );
-
 
   console.log(`\nVerify source:`);
   console.log(
