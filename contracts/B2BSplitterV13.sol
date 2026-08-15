@@ -21,13 +21,8 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     address public immutable USDT;
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
-
-    /// @notice Hard ceiling on the combined protocol + creator fee.
-    /// @dev Bounds owner authority over the gross payer amount.
     uint256 public constant MAX_TOTAL_FEE_BPS = 500;
 
-    /// @dev Set at deployment and adjustable via setSplit. Zero is permitted:
-    ///      a 0 bps deployment charges no protocol fee at all.
     uint256 public treasuryBps;
     uint256 public ipCreatorBps;
     address public treasury;
@@ -43,6 +38,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         uint256 merchantAmount,
         uint256 treasuryAmount,
         uint256 ipCreatorAmount,
+        uint256 validUntil,
         string orderId
     );
     event SplitUpdated(uint256 treasuryBps, uint256 ipCreatorBps);
@@ -50,11 +46,8 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
 
     error IncorrectNativeValue(uint256 expected, uint256 received);
     error FeesExceedMaximum(uint256 provided, uint256 maximum);
+    error PaymentExpired(uint256 validUntil, uint256 currentTime);
 
-    /// @param _treasuryBps Protocol fee in bps of the gross payer amount. May be 0.
-    /// @param _ipCreatorBps Creator fee in bps of the gross payer amount. May be 0.
-    /// @dev One build serves both AIFP-2 0/0 and AIFP-1 100/0 profiles. A splitter
-    ///      carries one active profile at a time; route selection remains external.
     constructor(
         address initialOwner,
         address _treasury,
@@ -75,15 +68,17 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
 
     /// @notice Settle one exact gross amount in native token.
     /// @param _grossAmount Full payer settlement amount, excluding network gas.
-    /// @dev msg.value must equal _grossAmount exactly. Fees are split from gross.
+    /// @param _validUntil Last block timestamp at which this quote may move value.
     function payNative(
         bytes32 _paymentId,
         address payable _merchant,
         uint256 _grossAmount,
         address _ipCreator,
+        uint256 _validUntil,
         string calldata _orderId
     ) external payable nonReentrant whenNotPaused {
         _consume(_paymentId);
+        _validateDeadline(_validUntil);
         if (_merchant == address(0)) revert ZeroMerchant();
 
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
@@ -91,12 +86,10 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
 
         (bool s1, ) = _merchant.call{value: merchantAmt}("");
         if (!s1) revert MerchantTransferFailed();
-
         if (treasuryAmt > 0) {
             (bool s2, ) = payable(treasury).call{value: treasuryAmt}("");
             if (!s2) revert TreasuryTransferFailed();
         }
-
         if (ipAmt > 0) {
             (bool s3, ) = payable(_ipCreator).call{value: ipAmt}("");
             if (!s3) revert IPCreatorTransferFailed();
@@ -111,33 +104,31 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
             merchantAmt,
             treasuryAmt,
             ipAmt,
+            _validUntil,
             _orderId
         );
     }
 
     /// @notice Settle one exact gross amount in configured USDC/USDT.
-    /// @dev Caller approves exactly _grossAmount. The three transfers conserve gross.
     function payStable(
         bytes32 _paymentId,
         address _token,
         uint256 _grossAmount,
         address _merchant,
         address _ipCreator,
+        uint256 _validUntil,
         string calldata _orderId
     ) external nonReentrant whenNotPaused {
         _consume(_paymentId);
+        _validateDeadline(_validUntil);
         if (_token == address(0) || (_token != USDC && _token != USDT)) revert UnsupportedToken();
         if (_merchant == address(0)) revert ZeroMerchant();
 
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
 
         IERC20(_token).safeTransferFrom(msg.sender, _merchant, merchantAmt);
-        if (treasuryAmt > 0) {
-            IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
-        }
-        if (ipAmt > 0) {
-            IERC20(_token).safeTransferFrom(msg.sender, _ipCreator, ipAmt);
-        }
+        if (treasuryAmt > 0) IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
+        if (ipAmt > 0) IERC20(_token).safeTransferFrom(msg.sender, _ipCreator, ipAmt);
 
         emit Payment(
             _paymentId,
@@ -148,20 +139,20 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
             merchantAmt,
             treasuryAmt,
             ipAmt,
+            _validUntil,
             _orderId
         );
     }
 
-    /// @notice Return the deterministic split of one gross payer amount.
-    /// @dev totalAmount always equals grossAmount; this function never adds a fee on top.
     function quoteTotal(
         uint256 _grossAmount,
         address _ipCreator
-    )
-        external
-        view
-        returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount)
-    {
+    ) external view returns (
+        uint256 merchantAmount,
+        uint256 treasuryAmount,
+        uint256 ipCreatorAmount,
+        uint256 totalAmount
+    ) {
         (merchantAmount, treasuryAmount, ipCreatorAmount) = _splitGross(_grossAmount, _ipCreator);
         totalAmount = _grossAmount;
     }
@@ -172,16 +163,15 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         consumedPayment[_paymentId] = true;
     }
 
-    function pause() external onlyOwner {
-        _pause();
+    function _validateDeadline(uint256 _validUntil) internal view {
+        if (_validUntil == 0 || block.timestamp > _validUntil) {
+            revert PaymentExpired(_validUntil, block.timestamp);
+        }
     }
 
-    function unpause() external onlyOwner {
-        _unpause();
-    }
+    function pause() external onlyOwner { _pause(); }
+    function unpause() external onlyOwner { _unpause(); }
 
-    /// @notice Set both fee legs together so the pair is never partially applied.
-    /// @dev Zero is valid for either leg. Combined fee remains security-capped.
     function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
         _validateSplit(_treasuryBps, _ipCreatorBps);
         treasuryBps = _treasuryBps;
@@ -200,8 +190,6 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         emit TreasuryUpdated(_treasury);
     }
 
-    /// @dev Split configured fee legs from gross. If no creator address is supplied,
-    ///      the creator leg is zero and remains part of the merchant remainder.
     function _splitGross(
         uint256 _grossAmount,
         address _ipCreator
