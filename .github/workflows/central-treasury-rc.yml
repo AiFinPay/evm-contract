@@ -1,0 +1,31 @@
+name: central-treasury-rc
+
+on:
+  pull_request:
+  push:
+    branches: [release/central-treasury-collector-rc]
+
+permissions:
+  contents: read
+
+jobs:
+  source-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Compile
+        run: bun run hardhat compile
+      - name: Contract and deployment conformance tests
+        run: bun run hardhat test test/unit/B2BSplitter.v13.test.ts test/unit/B2BSplitter.v13.stable.test.ts test/unit/CentralTreasuryDeploy.conformance.test.ts
+      - name: Solhint
+        run: bunx solhint 'contracts/**/*.sol' --config .solhint.json
+      - name: Formatting
+        run: bun run prettify:check
