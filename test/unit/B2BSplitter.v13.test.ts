@@ -106,13 +106,29 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
       .to.be.revertedWithCustomError(splitter, "PaymentAlreadyProcessed");
   });
 
-  it("bounds owner fee authority and permits zero", async () => {
-    const { splitter, owner, agent } = await loadFixture(fixtureAifp1);
-    const max = await splitter.MAX_TOTAL_FEE_BPS();
-    await expect(splitter.connect(owner).setSplit(0, 0)).to.emit(splitter, "SplitUpdated").withArgs(0n, 0n);
-    await expect(splitter.connect(owner).setSplit(Number(max) + 1, 0))
-      .to.be.revertedWithCustomError(splitter, "FeesExceedMaximum");
-    await expect(splitter.connect(agent).setSplit(100, 0))
-      .to.be.revertedWithCustomError(splitter, "OwnableUnauthorizedAccount");
+  it("makes route economics immutable and rejects every non-production constructor profile", async () => {
+    const { splitter } = await loadFixture(fixtureAifp1);
+    expect(await splitter.treasuryBps()).to.equal(100n);
+    expect(await splitter.ipCreatorBps()).to.equal(0n);
+    expect(splitter.interface.hasFunction("setSplit(uint256,uint256)")).to.equal(false);
+
+    const [owner, treasury] = await ethers.getSigners();
+    const Factory = await ethers.getContractFactory("B2BSplitterV13");
+    await expect(Factory.deploy(
+      await owner.getAddress(),
+      await treasury.getAddress(),
+      USDC_PLACEHOLDER,
+      USDT_PLACEHOLDER,
+      1,
+      0
+    )).to.be.revertedWithCustomError(Factory, "InvalidProductionSplit").withArgs(1n, 0n);
+    await expect(Factory.deploy(
+      await owner.getAddress(),
+      await treasury.getAddress(),
+      USDC_PLACEHOLDER,
+      USDT_PLACEHOLDER,
+      100,
+      1
+    )).to.be.revertedWithCustomError(Factory, "InvalidProductionSplit").withArgs(100n, 1n);
   });
 });
