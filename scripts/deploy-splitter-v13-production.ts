@@ -26,6 +26,11 @@ const FEE_PROFILES: Record<string, { treasuryBps: number; ipCreatorBps: number; 
   },
 };
 
+const SAFE_ABI = [
+  "function getOwners() view returns (address[])",
+  "function getThreshold() view returns (uint256)",
+] as const;
+
 function feeProfile() {
   const name = process.env.FEE_PROFILE?.trim();
   if (!name || !FEE_PROFILES[name]) {
@@ -39,6 +44,27 @@ async function assertContractAddress(label: string, address: string): Promise<st
   const code = await ethers.provider.getCode(normalized);
   if (code === "0x") throw new Error(`${label} ${normalized} has no code on ${networkName}`);
   return normalized;
+}
+
+async function inspectSafe(label: string, raw: string) {
+  const address = await assertContractAddress(label, raw);
+  const safe = new ethers.Contract(address, SAFE_ABI, ethers.provider);
+  let owners: string[];
+  let threshold: number;
+  try {
+    owners = (await safe.getOwners()).map((value: string) => ethers.getAddress(value));
+    threshold = Number(await safe.getThreshold());
+  } catch (error) {
+    throw new Error(`${label} ${address} does not expose the required Safe getOwners()/getThreshold() interface: ${String(error)}`);
+  }
+  const uniqueOwners = new Set(owners.map((value) => value.toLowerCase()));
+  if (owners.length < 2 || uniqueOwners.size !== owners.length) {
+    throw new Error(`${label} ${address} must have at least 2 unique Safe owners; observed ${owners.length}`);
+  }
+  if (!Number.isInteger(threshold) || threshold < 2 || threshold > owners.length) {
+    throw new Error(`${label} ${address} has unsafe/invalid threshold ${threshold} for ${owners.length} owners; production requires threshold >= 2`);
+  }
+  return { address, owners, threshold };
 }
 
 async function inspectStable(symbol: "USDC" | "USDT", raw: string) {
@@ -72,8 +98,12 @@ async function main() {
   if (balance === 0n) throw new Error(`Deployer ${deployer.address} has zero native balance`);
 
   const govRaw = governanceEnv(chainId);
-  const owner = await assertContractAddress("Safe owner", govRaw.owner);
-  const treasury = await assertContractAddress("treasury", govRaw.treasury);
+  const ownerSafe = await inspectSafe("Safe owner", govRaw.owner);
+  const treasurySafe = govRaw.treasury.toLowerCase() === govRaw.owner.toLowerCase()
+    ? ownerSafe
+    : await inspectSafe("treasury Safe", govRaw.treasury);
+  const owner = ownerSafe.address;
+  const treasury = treasurySafe.address;
 
   const usdc = await inspectStable("USDC", configuredStableAddress(chainId, "USDC"));
   const usdt = await inspectStable("USDT", configuredStableAddress(chainId, "USDT"));
@@ -81,8 +111,8 @@ async function main() {
   console.log(`AiFinPay B2BSplitter v1.3 production deployment`);
   console.log(`network=${cfg.name} chainId=${chainId} hardhat=${networkName}`);
   console.log(`deployer=${deployer.address}`);
-  console.log(`owner=${owner}`);
-  console.log(`treasury=${treasury}`);
+  console.log(`owner=${owner} threshold=${ownerSafe.threshold} owners=${ownerSafe.owners.join(",")}`);
+  console.log(`treasury=${treasury} threshold=${treasurySafe.threshold} owners=${treasurySafe.owners.join(",")}`);
   console.log(`profile=${profile.name} treasuryBps=${profile.treasuryBps} creatorBps=${profile.ipCreatorBps}`);
   console.log(`USDC=${usdc.address} decimals=${usdc.decimals ?? "unsupported"} symbol=${usdc.symbol ?? "n/a"}`);
   console.log(`USDT=${usdt.address} decimals=${usdt.decimals ?? "unsupported"} symbol=${usdt.symbol ?? "n/a"}`);
@@ -147,6 +177,10 @@ async function main() {
       usdc: usdc.address,
       usdt: usdt.address,
     },
+    governance: {
+      ownerSafe: { address: owner, owners: ownerSafe.owners, threshold: ownerSafe.threshold },
+      treasurySafe: { address: treasury, owners: treasurySafe.owners, threshold: treasurySafe.threshold },
+    },
     tokenDecimals: { usdc: usdc.decimals, usdt: usdt.decimals },
     tokenSymbolsObserved: { usdc: usdc.symbol, usdt: usdt.symbol },
     runtimeCodeHash,
@@ -154,6 +188,7 @@ async function main() {
       grossInclusive: true,
       treasuryBps: profile.treasuryBps,
       ipCreatorBps: profile.ipCreatorBps,
+      immutable: true,
       description: profile.description,
     },
     registryEntryStaged: {
