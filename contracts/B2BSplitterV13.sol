@@ -9,9 +9,10 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./errors/Errors.sol";
 
 /// @title B2BSplitter v1.3 — gross-inclusive route-specific settlement
-/// @notice The payer supplies one gross settlement amount. Configured protocol
-///         and optional creator fees are deducted from that gross amount and the
-///         merchant receives the remainder. No configured fee is added on top.
+/// @notice The payer supplies one gross settlement amount. The route profile is
+///         fixed forever at deployment: either AIFP-2/x402 0/0 or AIFP-1 100/0.
+///         The merchant receives the remainder from the gross amount. No fee is
+///         ever added on top of the quoted gross settlement amount.
 /// @dev This contract intentionally changes the v1.2 ABI/semantics. It must be
 ///      deployed under a new address and SDK/backend routes must opt into v1.3.
 contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
@@ -21,10 +22,12 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     address public immutable USDT;
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
-    uint256 public constant MAX_TOTAL_FEE_BPS = 500;
+    uint256 public constant AIFP1_TREASURY_BPS = 100;
 
-    uint256 public treasuryBps;
-    uint256 public ipCreatorBps;
+    /// @notice Immutable production economics. Valid profiles are exactly:
+    ///         AIFP-2/x402 = 0/0; AIFP-1 merchant monetization = 100/0.
+    uint256 public immutable treasuryBps;
+    uint256 public immutable ipCreatorBps;
     address public treasury;
 
     mapping(bytes32 => bool) public consumedPayment;
@@ -41,11 +44,11 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         uint256 validUntil,
         string orderId
     );
-    event SplitUpdated(uint256 treasuryBps, uint256 ipCreatorBps);
+    event SplitConfigured(uint256 treasuryBps, uint256 ipCreatorBps);
     event TreasuryUpdated(address newTreasury);
 
     error IncorrectNativeValue(uint256 expected, uint256 received);
-    error FeesExceedMaximum(uint256 provided, uint256 maximum);
+    error InvalidProductionSplit(uint256 treasuryBps, uint256 ipCreatorBps);
     error PaymentExpired(uint256 validUntil, uint256 currentTime);
 
     constructor(
@@ -57,13 +60,13 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         uint256 _ipCreatorBps
     ) Ownable(initialOwner) {
         if (_treasury == address(0)) revert ZeroTreasury();
-        _validateSplit(_treasuryBps, _ipCreatorBps);
+        _validateProductionSplit(_treasuryBps, _ipCreatorBps);
         treasury = _treasury;
         USDC = _usdc;
         USDT = _usdt;
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
-        emit SplitUpdated(_treasuryBps, _ipCreatorBps);
+        emit SplitConfigured(_treasuryBps, _ipCreatorBps);
     }
 
     /// @notice Settle one exact gross amount in native token.
@@ -184,17 +187,13 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         _unpause();
     }
 
-    function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
-        _validateSplit(_treasuryBps, _ipCreatorBps);
-        treasuryBps = _treasuryBps;
-        ipCreatorBps = _ipCreatorBps;
-        emit SplitUpdated(_treasuryBps, _ipCreatorBps);
-    }
-
-    function _validateSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) internal pure {
-        uint256 total = _treasuryBps + _ipCreatorBps;
-        if (total > MAX_TOTAL_FEE_BPS) {
-            revert FeesExceedMaximum(total, MAX_TOTAL_FEE_BPS);
+    /// @dev Production profiles are deliberately closed: no owner action can
+    ///      change route economics after deployment.
+    function _validateProductionSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) internal pure {
+        bool isAifp2 = _treasuryBps == 0 && _ipCreatorBps == 0;
+        bool isAifp1 = _treasuryBps == AIFP1_TREASURY_BPS && _ipCreatorBps == 0;
+        if (!isAifp1 && !isAifp2) {
+            revert InvalidProductionSplit(_treasuryBps, _ipCreatorBps);
         }
     }
 
@@ -215,6 +214,8 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
             revert PaymentTooSmallForTreasury();
         }
 
+        // Production profiles pin ipCreatorBps to zero. Keep the field/event
+        // shape for ABI continuity and explicit proof that creator fees are zero.
         if (_ipCreator != address(0)) {
             ipAmt = (_grossAmount * ipCreatorBps) / BPS_DENOMINATOR;
             if (ipCreatorBps > 0 && ipAmt == 0) {
