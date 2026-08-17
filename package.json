@@ -13,7 +13,7 @@
     "build": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.ts --network polygon --build-profile production",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network amoy --build-profile production",
-    "deploy:splitter": "hardhat run scripts/deploy-splitter-v12.ts --network polygon --build-profile production",
+    "deploy:splitter": "hardhat run scripts/deploy-splitter-v13-production.ts --network polygon --build-profile production",
     "verify": "hardhat run scripts/verify.ts --network polygon --build-profile production",
     "lint": "solhint 'contracts/**/*.sol'",
     "prettify": "bun scripts/prettier-write.ts",
