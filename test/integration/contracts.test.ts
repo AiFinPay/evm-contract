@@ -35,60 +35,39 @@ describe("Integration: Core ↔ MSECCOToken", function () {
   });
 });
 
-describe("Integration: B2BSplitter with Core", function () {
-  let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer;
-  let msecco: MSECCOToken, passport: AgentPassport, core: AiFinPayCore, splitter: any;
+describe("Integration: B2BSplitterV13 release profile", function () {
+  let treasury: Signer;
+  let splitter: any;
 
   beforeEach(async function () {
     const contracts = await loadFixture(fixture);
-    owner = contracts.owner;
     treasury = contracts.treasury;
-    agent = contracts.agent;
-    merchant = contracts.merchant;
-    msecco = contracts.msecco;
-    passport = contracts.passport;
-    core = contracts.core;
 
-    const B2BSplitterFactory = await ethers.getContractFactory("B2BSplitter");
-    // v1.2: (owner, treasury, usdc, usdt) — per-chain tokens (AIFINP-34).
-    splitter = await B2BSplitterFactory.deploy(
+    const factory = await ethers.getContractFactory("B2BSplitterV13");
+    splitter = await factory.deploy(
       await treasury.getAddress(),
       await treasury.getAddress(),
       "0x1000000000000000000000000000000000000001",
-      "0x1000000000000000000000000000000000000002"
+      "0x1000000000000000000000000000000000000002",
+      100,
+      0,
     );
   });
 
-  describe("Splitter Configuration", function () {
-    it("splitter has correct owner", async function () {
-      expect(await splitter.owner()).to.equal(await treasury.getAddress());
-    });
-
-    it("splitter has correct treasury address", async function () {
-      expect(await splitter.treasury()).to.equal(await treasury.getAddress());
-    });
-
-    it("splitter has correct default fee split", async function () {
-      expect(await splitter.treasuryBps()).to.equal(100);
-      expect(await splitter.ipCreatorBps()).to.equal(1);
-    });
-
-    it("splitter uses the per-chain tokens set at deployment (AIFINP-34)", async function () {
-      // v1.2: no longer hardcoded Polygon addresses — taken from the constructor.
-      expect(await splitter.USDC()).to.equal("0x1000000000000000000000000000000000000001");
-      expect(await splitter.USDT()).to.equal("0x1000000000000000000000000000000000000002");
-    });
+  it("has the approved AIFP-1 immutable 100/0 profile", async function () {
+    expect(await splitter.owner()).to.equal(await treasury.getAddress());
+    expect(await splitter.treasury()).to.equal(await treasury.getAddress());
+    expect(await splitter.treasuryBps()).to.equal(100);
+    expect(await splitter.ipCreatorBps()).to.equal(0);
   });
 
-  describe("Fee Distribution", function () {
-    it("default fees are set correctly", async function () {
-      expect(await core.treasuryBps()).to.equal(100);
-      expect(await core.ipCreatorBps()).to.equal(1);
-    });
+  it("uses only constructor-pinned stable token addresses", async function () {
+    expect(await splitter.USDC()).to.equal("0x1000000000000000000000000000000000000001");
+    expect(await splitter.USDT()).to.equal("0x1000000000000000000000000000000000000002");
+  });
 
-    it("fees sum to less than 100%", async function () {
-      const total = await core.treasuryBps() + await core.ipCreatorBps();
-      expect(total).to.be.lessThan(10000);
-    });
+  it("does not expose the retired mutable setSplit selector", async function () {
+    const fn = splitter.interface.fragments.find((fragment: any) => fragment.type === "function" && fragment.name === "setSplit");
+    expect(fn).to.equal(undefined);
   });
 });
