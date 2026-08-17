@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main, develop]
+  # Payment/security remediation PRs often target reviewed release branches.
+  # Run the same baseline for every PR instead of silently skipping them because
+  # their base is not main/develop.
   pull_request:
-    branches: [main, develop]
   schedule:
     - cron: "23 4 * * 1"
   workflow_dispatch:
