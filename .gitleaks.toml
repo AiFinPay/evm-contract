@@ -1,0 +1,14 @@
+title = "AiFinPay EVM gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# Historical Polygon contract address, not a credential. Keep the exception
+# exact to both line content and path so generic-api-key remains active for
+# every other high-entropy value in the full repository history.
+[[allowlists]]
+description = "Public MSECCOToken Polygon contract address in historical implementation docs"
+condition = "AND"
+regexTarget = "line"
+regexes = ['''MSECCOToken:\s+0x83936231c80fdF17eC2786BD7DcF09014552182B''']
+paths = ['''docs/IMPLEMENTATION\.md''']
