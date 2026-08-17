@@ -1,0 +1,30 @@
+name: Dependency lock remediation once
+on:
+  push:
+    branches: [ci/pin-toolchain-security-baseline]
+    paths: [.github/workflows/dependency-lock-remediation-once.yml]
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: ci/pin-toolchain-security-baseline }
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.14 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: bun install
+      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - run: bun run hardhat compile && bun run hardhat test
+      - name: Commit lockfiles and remove helper
+        run: |
+          set -euo pipefail
+          rm .github/workflows/dependency-lock-remediation-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bun.lock package-lock.json .github/workflows/dependency-lock-remediation-once.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(deps): lock patched serialize-javascript 7.0.3"
+          git push origin HEAD:ci/pin-toolchain-security-baseline
