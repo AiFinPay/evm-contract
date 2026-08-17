@@ -5,37 +5,35 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
 
-# CodeQL actions/missing-workflow-permissions: an unrestricted GITHUB_TOKEN is
-# write-capable by default, so a compromised action in any step could push to
-# the repository. Nothing here needs more than read.
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-
+          # Exact version observed on the last green PR #9 build.
+          bun-version: 1.3.14
       - name: Install dependencies
-        run: bun install
-
+        run: bun install --frozen-lockfile
       - name: Compile contracts
         run: bun run hardhat compile
-
       - name: Run tests
         run: bun run hardhat test
-
       - name: Run solhint
         run: bunx solhint 'contracts/**/*.sol' --config .solhint.json
-
       - name: Check formatting
         run: bun run prettify:check
 
@@ -44,21 +42,72 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-
+          node-version: 22
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-
-      # The generated table is a derived artifact. Hand-editing it would change
-      # where the SDK sends money without touching the registry, so the gate is
-      # a regenerate-and-compare rather than a review convention.
       - name: Generated splitter table matches the registry
         run: node scripts/generate-sdk-table.mjs --check
-
-      # Chain state is the source of truth. This fails when a required chain is
-      # unreachable, on purpose: "could not check" must not pass as "verified".
       - name: Registry matches live chain state
         run: node scripts/verify-registry.mjs
+
+  secrets:
+    name: Secrets — full history scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source=/repo --redact --verbose --exit-code=1
+
+  dependencies:
+    name: Dependencies — Bun audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Production dependency audit
+        run: bun audit --production
+
+  osv:
+    name: Dependencies — OSV database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned OSV scanner
+        run: |
+          curl -sSfL -o osv-scanner \
+            https://github.com/google/osv-scanner/releases/download/v2.0.2/osv-scanner_linux_amd64
+          chmod +x osv-scanner
+      - name: Scan repository dependency manifests
+        run: ./osv-scanner scan source --format=json . > osv.json || true
+      - name: Fail on high or critical only
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          BAD = {"HIGH", "CRITICAL"}
+          try:
+              data = json.load(open("osv.json"))
+          except Exception as e:
+              print(f"could not read OSV output: {e}")
+              sys.exit(1)
+          hits = []
+          for res in data.get("results", []):
+              for pkg in res.get("packages", []):
+                  name = pkg.get("package", {}).get("name", "?")
+                  for vuln in pkg.get("vulnerabilities", []):
+                      sev = str(vuln.get("database_specific", {}).get("severity", "")).upper()
+                      if sev in BAD:
+                          hits.append(f"{sev:9} {name:24} {vuln.get('id')}")
+          for hit in sorted(set(hits)):
+              print(hit)
+          print(f"{len(set(hits))} high/critical finding(s)")
+          sys.exit(1 if hits else 0)
+          PY
