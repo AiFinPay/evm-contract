@@ -54,6 +54,7 @@
     "typescript": "^5.9.3"
   },
   "overrides": {
-    "elliptic": "^6.6.1"
+    "elliptic": "^6.6.1",
+    "serialize-javascript": "7.0.3"
   }
 }
