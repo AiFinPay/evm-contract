@@ -76,11 +76,15 @@ const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
     usdt: ZERO,
     label: "XRPL EVM (native only)",
   },
-  // TESTNET (dev branch only): Amoy runs native-only in this first pass.
+  // TESTNET (dev branch only). The USDC slot is Circle's real Amoy USDC, so
+  // the stablecoin path is wired against the genuine 6-decimal token the
+  // mainnet procedure will use. The USDT slot takes a freely-mintable mock
+  // via AMOY_TEST_STABLE, because Circle's faucet is rate-limited and a paid
+  // E2E cannot be scheduled around it. Unset leaves the slot closed.
   80002: {
-    usdc: ZERO,
-    usdt: ZERO,
-    label: "Polygon Amoy TESTNET (native only)",
+    usdc: ethers.getAddress("0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582"),
+    usdt: process.env.AMOY_TEST_STABLE ? ethers.getAddress(process.env.AMOY_TEST_STABLE) : ZERO,
+    label: "Polygon Amoy TESTNET (Circle USDC + mintable mock in USDT slot)",
   },
 };
 
