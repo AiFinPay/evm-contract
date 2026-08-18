@@ -1,0 +1,29 @@
+{
+  "network": "amoy",
+  "chainId": 80002,
+  "timestamp": "2026-08-18T07:44:03.246Z",
+  "splitterVersion": "1.3",
+  "splitter": {
+    "address": "0x821235a97780814e38fd85Ab7572e5E09cCa3eBb",
+    "owner": "0xc525ac84289f884cB488A3dd22Bf5Fef32F96102",
+    "treasury": "0xc525ac84289f884cB488A3dd22Bf5Fef32F96102",
+    "usdc": "0x0000000000000000000000000000000000000000",
+    "usdt": "0x0000000000000000000000000000000000000000"
+  },
+  "runtimeCodeHash": "0xdb72fa0a1fd6536f936a80e22efde11cb3d9aed031dd86bee4f6b680ab05ff24",
+  "tokenDecimals": {
+    "usdc": null,
+    "usdt": null
+  },
+  "registryEntryStaged": {
+    "chainId": 80002,
+    "version": "1.3",
+    "splitter": "0x821235a97780814e38fd85Ab7572e5E09cCa3eBb",
+    "runtimeCodeHash": "0xdb72fa0a1fd6536f936a80e22efde11cb3d9aed031dd86bee4f6b680ab05ff24",
+    "treasury": "0xc525ac84289f884cB488A3dd22Bf5Fef32F96102",
+    "feeProfile": "agent-x402",
+    "treasuryBps": 0,
+    "ipCreatorBps": 0,
+    "enabled": false
+  }
+}

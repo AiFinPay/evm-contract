@@ -50,7 +50,7 @@ export default defineConfig({
     },
     amoy: {
       type: "http",
-      url: "https://rpc-amoy.polygon.technology",
+      url: process.env.AMOY_RPC || "https://rpc-amoy.polygon.technology",
       accounts: DEV_KEY,
       chainId: 80002,
       chainType: "l1",

@@ -45,6 +45,15 @@ const GOVERNANCE: Record<number, { owner: string; treasury: string }> = {
   137: { owner: SAFE_POLYGON, treasury: SAFE_POLYGON },
 };
 
+// TESTNET (dev branch only): Polygon Amoy governance comes from the
+// AMOY_TEST_SAFE env var — a real 2-of-2 Safe deployed by
+// scripts/deploy-safe-amoy.ts. Env-driven so no throwaway address is
+// committed; the owner-must-be-a-contract check below still applies in full.
+if (process.env.AMOY_TEST_SAFE) {
+  const amoySafe = ethers.getAddress(process.env.AMOY_TEST_SAFE);
+  GOVERNANCE[80002] = { owner: amoySafe, treasury: amoySafe };
+}
+
 /** Per-chain USDC/USDT. address(0) means the token is unsupported → native only. */
 const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
   137: {
@@ -66,6 +75,12 @@ const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
     usdc: ZERO,
     usdt: ZERO,
     label: "XRPL EVM (native only)",
+  },
+  // TESTNET (dev branch only): Amoy runs native-only in this first pass.
+  80002: {
+    usdc: ZERO,
+    usdt: ZERO,
+    label: "Polygon Amoy TESTNET (native only)",
   },
 };
 
