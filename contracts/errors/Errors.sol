@@ -29,6 +29,8 @@ error BonusAlreadyClaimed();
 error NoReferrals();
 error FeesExceed100();
 error TreasuryFeeTooLow();
+error TreasuryFeeTooHigh();
+error IPCreatorFeeTooHigh();
 error ARPFeeTooHigh();
 error ProtocolPaused();
 

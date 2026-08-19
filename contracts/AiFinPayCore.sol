@@ -47,6 +47,9 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     uint256 public constant USD_CENTS_PER_MSECCO = 1;
     uint256 public constant MIN_USD_CENTS = 10;
     uint256 public constant BPS_DENOMINATOR = 10_000;
+    uint256 public constant MAX_CONF_BPS = 200;
+    uint256 public constant MAX_TREASURY_BPS = 500;
+    uint256 public constant MAX_IP_CREATOR_BPS = 100;
     uint256 public constant REFERRAL_BONUS_MSECCO = 10;
     uint256 public constant TIER_PARTNER_MIN = 100;
     uint256 public constant TIER_AMBASSADOR_MIN = 500;
@@ -126,6 +129,9 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         IPyth.Price memory p = PYTH.getPriceNoOlderThan(NATIVE_USD_ID, PYTH_MAX_AGE);
         if (p.price <= 0) revert InvalidPythPrice();
         if (p.expo != -8) revert UnexpectedPriceExponent();
+        uint256 priceAbs = uint256(uint64(p.price));
+        uint256 confAbs = uint64(p.conf);
+        if (confAbs * BPS_DENOMINATOR > priceAbs * MAX_CONF_BPS) revert InvalidPythPrice();
 
         uint256 usdCents = (nativePayment * uint256(uint64(p.price))) / 1e24;
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
@@ -162,20 +168,27 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         if (msg.value <= pythFee) revert InsufficientNativeForFee();
         uint256 nativePayment = msg.value - pythFee;
 
+        // Update price feeds first to ensure fresh price data
         PYTH.updatePriceFeeds{value: pythFee}(_priceUpdateData);
 
+        // Read fresh price after update
         IPyth.Price memory p = PYTH.getPriceNoOlderThan(NATIVE_USD_ID, PYTH_MAX_AGE);
         if (p.price <= 0) revert InvalidPythPrice();
         if (p.expo != -8) revert UnexpectedPriceExponent();
+        uint256 priceAbs = uint256(uint64(p.price));
+        uint256 confAbs = uint64(p.conf);
+        if (confAbs * BPS_DENOMINATOR > priceAbs * MAX_CONF_BPS) revert InvalidPythPrice();
 
         uint256 usdCents = (nativePayment * uint256(uint64(p.price))) / 1e24;
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
+        // Effects: update state
         seats[msg.sender].usdCentsPaid += usdCents;
         seats[msg.sender].mseccoBalance += usdCents;
         totalUsdCents += usdCents;
         msecco.mint(msg.sender, usdCents);
 
+        // Interactions: transfer to treasury
         (bool sent, ) = treasury.call{value: nativePayment}("");
         if (!sent) revert TreasuryTransferFailed();
 
@@ -300,6 +313,8 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     function setFees(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
         if (_treasuryBps + _ipCreatorBps >= BPS_DENOMINATOR) revert FeesExceed100();
         if (_treasuryBps < 1) revert TreasuryFeeTooLow();
+        if (_treasuryBps > MAX_TREASURY_BPS) revert TreasuryFeeTooHigh();
+        if (_ipCreatorBps > MAX_IP_CREATOR_BPS) revert IPCreatorFeeTooHigh();
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
         emit FeesUpdated(_treasuryBps, _ipCreatorBps);

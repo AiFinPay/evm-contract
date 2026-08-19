@@ -40,6 +40,8 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MIN_PAYMENT = 100_000;
+    uint256 public constant MAX_TREASURY_BPS = 500;
+    uint256 public constant MAX_IP_CREATOR_BPS = 100;
 
     uint256 public treasuryBps = 100;
     uint256 public ipCreatorBps = 1;
@@ -69,8 +71,8 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     constructor(address initialOwner, address _treasury, address _usdc, address _usdt) Ownable(initialOwner) {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
-        USDC = _usdc;
-        USDT = _usdt;
+        if (_usdc != address(0)) USDC = _usdc;
+        if (_usdt != address(0)) USDT = _usdt;
     }
 
     /// @notice Pay a merchant in the native token. Splits on-chain, once per paymentId.
@@ -161,6 +163,8 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
         if (_treasuryBps + _ipCreatorBps >= BPS_DENOMINATOR) revert FeesExceed100();
         if (_treasuryBps < 1) revert TreasuryFeeTooLow();
+        if (_treasuryBps > MAX_TREASURY_BPS) revert TreasuryFeeTooHigh();
+        if (_ipCreatorBps > MAX_IP_CREATOR_BPS) revert IPCreatorFeeTooHigh();
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
         emit SplitUpdated(_treasuryBps, _ipCreatorBps);

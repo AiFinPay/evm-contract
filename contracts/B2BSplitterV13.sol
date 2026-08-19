@@ -23,9 +23,11 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant AIFP1_TREASURY_BPS = 100;
+    uint256 public constant MAX_TREASURY_BPS = 500;
+    uint256 public constant MAX_IP_CREATOR_BPS = 100;
 
     /// @notice Immutable production economics. Valid profiles are exactly:
-    ///         AIFP-2/x402 = 0/0; AIFP-1 merchant monetization = 100/0.
+    ///         AIFP-2/x402 0/0; AIFP-1 merchant monetization = 100/0.
     uint256 public immutable treasuryBps;
     uint256 public immutable ipCreatorBps;
     address public treasury;
@@ -62,8 +64,8 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         if (_treasury == address(0)) revert ZeroTreasury();
         _validateProductionSplit(_treasuryBps, _ipCreatorBps);
         treasury = _treasury;
-        USDC = _usdc;
-        USDT = _usdt;
+        if (_usdc != address(0)) USDC = _usdc;
+        if (_usdt != address(0)) USDT = _usdt;
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
         emit SplitConfigured(_treasuryBps, _ipCreatorBps);
@@ -195,6 +197,8 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         if (!isAifp1 && !isAifp2) {
             revert InvalidProductionSplit(_treasuryBps, _ipCreatorBps);
         }
+        if (_treasuryBps > MAX_TREASURY_BPS) revert TreasuryFeeTooHigh();
+        if (_ipCreatorBps > MAX_IP_CREATOR_BPS) revert IPCreatorFeeTooHigh();
     }
 
     function setTreasury(address _treasury) external onlyOwner {
