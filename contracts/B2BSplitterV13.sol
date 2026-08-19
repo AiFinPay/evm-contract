@@ -21,6 +21,7 @@ import {
     TreasuryTransferFailed,
     IPCreatorTransferFailed
 } from "./errors/Errors.sol";
+import {Whitelist} from "./Whitelist.sol";
 
 /// @title B2BSplitter v1.3 — gross-inclusive route-specific settlement
 /// @notice The payer supplies one gross settlement amount. The route profile is
@@ -31,9 +32,10 @@ import {
 ///      deployed under a new address and SDK/backend routes must opt into v1.3.
 contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
+    using Whitelist for mapping(address => bool);
 
-    address public immutable USDC;
-    address public immutable USDT;
+    /// @notice Tokens accepted for gross-inclusive stable payments. Owner can update after deployment.
+    mapping(address => bool) public whitelistedTokens;
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant AIFP1_TREASURY_BPS = 100;
@@ -64,6 +66,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     );
     event SplitConfigured(uint256 treasuryBps, uint256 ipCreatorBps);
     event TreasuryUpdated(address newTreasury);
+    event WhitelistedTokensUpdated(address[] tokens, bool[] allowed);
 
     error IncorrectNativeValue(uint256 expected, uint256 received);
     error InvalidProductionSplit(uint256 treasuryBps, uint256 ipCreatorBps);
@@ -80,8 +83,21 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         if (_treasury == address(0)) revert ZeroTreasury();
         _validateProductionSplit(_treasuryBps, _ipCreatorBps);
         treasury = _treasury;
-        if (_usdc != address(0)) USDC = _usdc;
-        if (_usdt != address(0)) USDT = _usdt;
+
+        bool[] memory allowed = new bool[](2);
+        if (_usdc != address(0)) {
+            whitelistedTokens.set(_usdc, true);
+            allowed[0] = true;
+        }
+        if (_usdt != address(0)) {
+            whitelistedTokens.set(_usdt, true);
+            allowed[1] = true;
+        }
+        address[] memory initialTokens = new address[](2);
+        initialTokens[0] = _usdc;
+        initialTokens[1] = _usdt;
+        emit WhitelistedTokensUpdated(initialTokens, allowed);
+
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
         emit SplitConfigured(_treasuryBps, _ipCreatorBps);
@@ -144,7 +160,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     ) external nonReentrant whenNotPaused {
         _consume(_paymentId);
         _validateDeadline(_validUntil);
-        if (_token == address(0) || (_token != USDC && _token != USDT)) {
+        if (_token == address(0) || !whitelistedTokens.isAllowed(_token)) {
             revert UnsupportedToken();
         }
         if (_merchant == address(0)) revert ZeroMerchant();
@@ -226,6 +242,12 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
         emit TreasuryUpdated(_treasury);
+    }
+
+    /// @notice Add or remove stablecoins accepted for gross-inclusive stable payments.
+    /// @dev Requires timelock delay if owner is TimelockController.
+    function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external onlyOwner {
+        whitelistedTokens.updateAndEmit(_tokens, _allowed);
     }
 
     function _splitGross(

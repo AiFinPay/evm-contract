@@ -11,10 +11,10 @@ describe("B2BSplitter v1.2 — audit remediation", () => {
   const AMOUNT = ethers.parseEther("1");
 
   describe("AIFINP-34 — per-chain tokens", () => {
-    it("stores the USDC/USDT passed at deployment (not hardcoded)", async () => {
+    it("whitelists the USDC/USDT passed at deployment", async () => {
       const { splitter } = await loadFixture(fixtureWithSplitter);
-      expect(await splitter.USDC()).to.equal("0x1000000000000000000000000000000000000001");
-      expect(await splitter.USDT()).to.equal("0x1000000000000000000000000000000000000002");
+      expect(await splitter.whitelistedTokens("0x1000000000000000000000000000000000000001")).to.equal(true);
+      expect(await splitter.whitelistedTokens("0x1000000000000000000000000000000000000002")).to.equal(true);
     });
 
     it("rejects address(0) as a payStable token", async () => {
@@ -24,6 +24,40 @@ describe("B2BSplitter v1.2 — audit remediation", () => {
           .connect(agent)
           .payStable(ID_A, ethers.ZeroAddress, AMOUNT, await merchant.getAddress(), ethers.ZeroAddress, "o1")
       ).to.be.revertedWithCustomError(splitter, "UnsupportedToken");
+    });
+
+    it("owner can add and remove a token from the whitelist", async () => {
+      const { splitter, owner } = await loadFixture(fixtureWithSplitter);
+      const token = "0x3333333333333333333333333333333333333333";
+      await expect(splitter.connect(owner).setWhitelistedTokens([token], [true]))
+        .to.emit(splitter, "WhitelistedTokensUpdated")
+        .withArgs([token], [true]);
+      expect(await splitter.whitelistedTokens(token)).to.equal(true);
+
+      await expect(splitter.connect(owner).setWhitelistedTokens([token], [false]))
+        .to.emit(splitter, "WhitelistedTokensUpdated")
+        .withArgs([token], [false]);
+      expect(await splitter.whitelistedTokens(token)).to.equal(false);
+    });
+
+    it("non-owner cannot update the whitelist", async () => {
+      const { splitter, agent } = await loadFixture(fixtureWithSplitter);
+      const token = "0x3333333333333333333333333333333333333333";
+      await expect(splitter.connect(agent).setWhitelistedTokens([token], [true]))
+        .to.be.revertedWithCustomError(splitter, "OwnableUnauthorizedAccount");
+    });
+
+    it("setWhitelistedTokens reverts on array length mismatch", async () => {
+      const { splitter, owner } = await loadFixture(fixtureWithSplitter);
+      const token = "0x3333333333333333333333333333333333333333";
+      await expect(splitter.connect(owner).setWhitelistedTokens([token], [true, false]))
+        .to.be.revertedWithCustomError(splitter, "ArrayLengthMismatch");
+    });
+
+    it("setWhitelistedTokens reverts on zero address", async () => {
+      const { splitter, owner } = await loadFixture(fixtureWithSplitter);
+      await expect(splitter.connect(owner).setWhitelistedTokens([ethers.ZeroAddress], [true]))
+        .to.be.revertedWithCustomError(splitter, "ZeroAddress");
     });
   });
 

@@ -62,6 +62,17 @@ describe("AiFinPayCore", function () {
       ).to.be.revertedWithCustomError(core, "UnsupportedToken");
     });
 
+    it("setWhitelistedTokens reverts on array length mismatch", async function () {
+      const token = "0x3333333333333333333333333333333333333333";
+      await expect(core.connect(owner).setWhitelistedTokens([token], [true, false]))
+        .to.be.revertedWithCustomError(core, "ArrayLengthMismatch");
+    });
+
+    it("setWhitelistedTokens reverts on zero address", async function () {
+      await expect(core.connect(owner).setWhitelistedTokens([ethers.ZeroAddress], [true]))
+        .to.be.revertedWithCustomError(core, "ZeroAddress");
+    });
+
     it("Pyth contract is set from constructor", async function () {
       expect(await core.PYTH()).to.equal(await mockPyth.getAddress());
     });

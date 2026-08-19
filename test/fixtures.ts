@@ -100,7 +100,7 @@ async function deployProtocolWithSplitter(): Promise<ProtocolWithSplitter> {
   const testUsdt = "0x1000000000000000000000000000000000000002";
   const B2BSplitterFactory = await ethers.getContractFactory("B2BSplitter");
   const splitter = (await B2BSplitterFactory.deploy(
-    await base.treasury.getAddress(),
+    await base.owner.getAddress(),
     await base.treasury.getAddress(),
     testUsdc,
     testUsdt

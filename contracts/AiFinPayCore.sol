@@ -12,7 +12,6 @@ import {
     ZeroTreasury,
     ZeroPartner,
     ZeroAddress,
-    ArrayLengthMismatch,
     EmptyPartnerName,
     InvalidAgreementHash,
     ZeroNative,
@@ -40,6 +39,7 @@ import {
     ARPFeeTooHigh,
     ProtocolPaused
 } from "./errors/Errors.sol";
+import {Whitelist} from "./Whitelist.sol";
 import {MSECCOToken} from "./MSECCOToken.sol";
 import {AgentPassport} from "./AgentPassport.sol";
 
@@ -47,6 +47,7 @@ import {AgentPassport} from "./AgentPassport.sol";
 /// @notice Adds ARP referral tier system + configurable B2B fees (feature parity with Solana v0.5.3)
 contract AiFinPayCore is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using Whitelist for mapping(address => bool);
 
     struct Seat {
         uint256 usdCentsPaid;
@@ -140,9 +141,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
 
         bool[] memory allowed = new bool[](_initialTokens.length);
         for (uint256 i = 0; i < _initialTokens.length; i++) {
-            address token = _initialTokens[i];
-            if (token == address(0)) revert ZeroAddress();
-            whitelistedTokens[token] = true;
+            whitelistedTokens.set(_initialTokens[i], true);
             allowed[i] = true;
         }
         emit WhitelistedTokensUpdated(_initialTokens, allowed);
@@ -190,7 +189,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         address _referrer
     ) external notPaused nonReentrant {
         if (_agreementHash != manifestoHash) revert InvalidAgreementHash();
-        if (!whitelistedTokens[_token]) revert UnsupportedToken();
+        if (!whitelistedTokens.isAllowed(_token)) revert UnsupportedToken();
 
         uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
@@ -235,7 +234,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     }
 
     function topUpStable(address _token, uint256 _amount) external notPaused nonReentrant hasSeat {
-        if (!whitelistedTokens[_token]) revert UnsupportedToken();
+        if (!whitelistedTokens.isAllowed(_token)) revert UnsupportedToken();
         uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
@@ -389,13 +388,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     /// @notice Add or remove stablecoins accepted for seat reservations/top-ups.
     /// @dev Requires timelock delay if owner is TimelockController.
     function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external onlyOwner {
-        if (_tokens.length != _allowed.length) revert ArrayLengthMismatch();
-        for (uint256 i = 0; i < _tokens.length; i++) {
-            address token = _tokens[i];
-            if (token == address(0)) revert ZeroAddress();
-            whitelistedTokens[token] = _allowed[i];
-        }
-        emit WhitelistedTokensUpdated(_tokens, _allowed);
+        whitelistedTokens.updateAndEmit(_tokens, _allowed);
     }
 
     // forge-lint: disable-next-line(mixed-case-function)

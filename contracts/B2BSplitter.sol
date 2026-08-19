@@ -26,6 +26,7 @@ import {
     TreasuryTransferFailed,
     IPCreatorTransferFailed
 } from "./errors/Errors.sol";
+import {Whitelist} from "./Whitelist.sol";
 
 /// @title B2BSplitter v1.2 — AiFinPay Standalone Payment Splitter
 /// @notice Splits an incoming native or ERC-20 payment between merchant, treasury,
@@ -52,10 +53,10 @@ import {
 ///      with PaymentAlreadyProcessed.
 contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
+    using Whitelist for mapping(address => bool);
 
-    // AIFINP-34 — set once at deployment to THIS chain's tokens (address(0) = unsupported here).
-    address public immutable USDC;
-    address public immutable USDT;
+    /// @notice Tokens accepted for stablecoin payments. Owner can update after deployment.
+    mapping(address => bool) public whitelistedTokens;
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MIN_PAYMENT = 100_000;
@@ -82,6 +83,7 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     );
     event SplitUpdated(uint256 treasuryBps, uint256 ipCreatorBps);
     event TreasuryUpdated(address newTreasury);
+    event WhitelistedTokensUpdated(address[] tokens, bool[] allowed);
 
     /// @param initialOwner Gnosis Safe multisig
     /// @param _treasury    AiFinPay treasury (fee recipient)
@@ -90,8 +92,20 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     constructor(address initialOwner, address _treasury, address _usdc, address _usdt) Ownable(initialOwner) {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
-        if (_usdc != address(0)) USDC = _usdc;
-        if (_usdt != address(0)) USDT = _usdt;
+
+        bool[] memory allowed = new bool[](2);
+        if (_usdc != address(0)) {
+            whitelistedTokens.set(_usdc, true);
+            allowed[0] = true;
+        }
+        if (_usdt != address(0)) {
+            whitelistedTokens.set(_usdt, true);
+            allowed[1] = true;
+        }
+        address[] memory initialTokens = new address[](2);
+        initialTokens[0] = _usdc;
+        initialTokens[1] = _usdt;
+        emit WhitelistedTokensUpdated(initialTokens, allowed);
     }
 
     /// @notice Pay a merchant in the native token. Splits on-chain, once per paymentId.
@@ -146,8 +160,8 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         string calldata _orderId
     ) external nonReentrant whenNotPaused {
         _consume(_paymentId);
-        // AIFINP-34 — reject address(0) explicitly so an unset (address(0)) USDT can't be matched.
-        if (_token == address(0) || (_token != USDC && _token != USDT)) revert UnsupportedToken();
+        // AIFINP-34 — reject address(0) explicitly so an unset (address(0)) token can't be matched.
+        if (_token == address(0) || !whitelistedTokens.isAllowed(_token)) revert UnsupportedToken();
         if (_amount == 0) revert ZeroAmount();
         if (_merchant == address(0)) revert ZeroMerchant();
 
@@ -199,6 +213,12 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
         emit TreasuryUpdated(_treasury);
+    }
+
+    /// @notice Add or remove stablecoins accepted for stablecoin payments.
+    /// @dev Requires timelock delay if owner is TimelockController.
+    function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external onlyOwner {
+        whitelistedTokens.updateAndEmit(_tokens, _allowed);
     }
 
     /// @dev AIFINP-33 — if _ipCreator is zero, its share goes to the merchant (no strand).

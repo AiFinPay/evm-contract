@@ -131,4 +131,38 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
       1
     )).to.be.revertedWithCustomError(Factory, "InvalidProductionSplit").withArgs(100n, 1n);
   });
+
+  it("owner can add and remove a token from the whitelist", async () => {
+    const { splitter, owner } = await loadFixture(fixtureAifp1);
+    const token = "0x3333333333333333333333333333333333333333";
+    await expect(splitter.connect(owner).setWhitelistedTokens([token], [true]))
+      .to.emit(splitter, "WhitelistedTokensUpdated")
+      .withArgs([token], [true]);
+    expect(await splitter.whitelistedTokens(token)).to.equal(true);
+
+    await expect(splitter.connect(owner).setWhitelistedTokens([token], [false]))
+      .to.emit(splitter, "WhitelistedTokensUpdated")
+      .withArgs([token], [false]);
+    expect(await splitter.whitelistedTokens(token)).to.equal(false);
+  });
+
+  it("non-owner cannot update the whitelist", async () => {
+    const { splitter, agent } = await loadFixture(fixtureAifp1);
+    const token = "0x3333333333333333333333333333333333333333";
+    await expect(splitter.connect(agent).setWhitelistedTokens([token], [true]))
+      .to.be.revertedWithCustomError(splitter, "OwnableUnauthorizedAccount");
+  });
+
+  it("setWhitelistedTokens reverts on array length mismatch", async () => {
+    const { splitter, owner } = await loadFixture(fixtureAifp1);
+    const token = "0x3333333333333333333333333333333333333333";
+    await expect(splitter.connect(owner).setWhitelistedTokens([token], [true, false]))
+      .to.be.revertedWithCustomError(splitter, "ArrayLengthMismatch");
+  });
+
+  it("setWhitelistedTokens reverts on zero address", async () => {
+    const { splitter, owner } = await loadFixture(fixtureAifp1);
+    await expect(splitter.connect(owner).setWhitelistedTokens([ethers.ZeroAddress], [true]))
+      .to.be.revertedWithCustomError(splitter, "ZeroAddress");
+  });
 });

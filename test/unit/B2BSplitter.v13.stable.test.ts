@@ -66,6 +66,38 @@ describe("B2BSplitter v1.3 — gross-inclusive stable settlement", () => {
       .to.be.revertedWithCustomError(splitter, "UnsupportedToken");
   });
 
+  it("owner can add and remove a token from the whitelist", async () => {
+    const { splitter, owner, rogue } = await loadFixture(fixture6);
+    const rogueAddr = await rogue.getAddress();
+    await expect(splitter.connect(owner).setWhitelistedTokens([rogueAddr], [true]))
+      .to.emit(splitter, "WhitelistedTokensUpdated")
+      .withArgs([rogueAddr], [true]);
+    expect(await splitter.whitelistedTokens(rogueAddr)).to.equal(true);
+
+    await expect(splitter.connect(owner).setWhitelistedTokens([rogueAddr], [false]))
+      .to.emit(splitter, "WhitelistedTokensUpdated")
+      .withArgs([rogueAddr], [false]);
+    expect(await splitter.whitelistedTokens(rogueAddr)).to.equal(false);
+  });
+
+  it("non-owner cannot update the whitelist", async () => {
+    const { splitter, agent, rogue } = await loadFixture(fixture6);
+    await expect(splitter.connect(agent).setWhitelistedTokens([await rogue.getAddress()], [true]))
+      .to.be.revertedWithCustomError(splitter, "OwnableUnauthorizedAccount");
+  });
+
+  it("setWhitelistedTokens reverts on array length mismatch", async () => {
+    const { splitter, owner, rogue } = await loadFixture(fixture6);
+    await expect(splitter.connect(owner).setWhitelistedTokens([await rogue.getAddress()], [true, false]))
+      .to.be.revertedWithCustomError(splitter, "ArrayLengthMismatch");
+  });
+
+  it("setWhitelistedTokens reverts on zero address", async () => {
+    const { splitter, owner } = await loadFixture(fixture6);
+    await expect(splitter.connect(owner).setWhitelistedTokens([ethers.ZeroAddress], [true]))
+      .to.be.revertedWithCustomError(splitter, "ZeroAddress");
+  });
+
   it("rejects only a charged fee leg that rounds to zero", async () => {
     const { splitter } = await loadFixture(fixture6);
     await expect(splitter.quoteTotal(99n, ethers.ZeroAddress)).to.be.revertedWithCustomError(splitter, "PaymentTooSmallForTreasury");
