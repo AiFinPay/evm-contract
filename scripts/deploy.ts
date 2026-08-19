@@ -67,8 +67,7 @@ async function main() {
     await passport.getAddress(),
     treasury,
     pyth,
-    usdc,
-    usdt,
+    [usdc, usdt],
     nativeUsdId
   );
   await core.waitForDeployment();

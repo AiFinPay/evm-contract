@@ -12,6 +12,7 @@ import {
     ZeroTreasury,
     ZeroPartner,
     ZeroAddress,
+    ArrayLengthMismatch,
     EmptyPartnerName,
     InvalidAgreementHash,
     ZeroNative,
@@ -66,10 +67,11 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     IPyth public immutable PYTH;
     MSECCOToken public msecco;
     AgentPassport public passport;
-
-    address public immutable USDC;
-    address public immutable USDT;
     bytes32 public immutable NATIVE_USD_ID;
+
+    /// @notice Tokens accepted for stablecoin seat reservations and top-ups.
+    ///         Owner can add or remove tokens after deployment.
+    mapping(address => bool) public whitelistedTokens;
     /// @notice SHA-256 of the canonical manifesto. Governable — updatable by the
     ///         owner (Gnosis Safe) via setManifestoHash so a wrong/changed hash
     ///         never requires a redeploy again. Initialised to the real hash.
@@ -115,6 +117,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     event ArpFeesUpdated(uint256 scout, uint256 partner, uint256 ambassador, uint256 oracle);
     event ReferralBonusClaimed(address indexed agent, address indexed referrer, uint256 bonusMsecco);
     event Paused(bool status);
+    event WhitelistedTokensUpdated(address[] tokens, bool[] allowed);
 
     constructor(
         address initialOwner,
@@ -122,23 +125,27 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         address _passport,
         address _treasury,
         address _pyth,
-        address _usdc,
-        address _usdt,
+        address[] memory _initialTokens,
         bytes32 _nativeUsdId
     ) Ownable(initialOwner) {
         if (_msecco == address(0)) revert ZeroMSECCO();
         if (_passport == address(0)) revert ZeroPassport();
         if (_treasury == address(0)) revert ZeroTreasury();
         if (_pyth == address(0)) revert ZeroAddress();
-        if (_usdc == address(0)) revert ZeroAddress();
-        if (_usdt == address(0)) revert ZeroAddress();
         msecco = MSECCOToken(_msecco);
         passport = AgentPassport(_passport);
         treasury = _treasury;
         PYTH = IPyth(_pyth);
-        USDC = _usdc;
-        USDT = _usdt;
         NATIVE_USD_ID = _nativeUsdId;
+
+        bool[] memory allowed = new bool[](_initialTokens.length);
+        for (uint256 i = 0; i < _initialTokens.length; i++) {
+            address token = _initialTokens[i];
+            if (token == address(0)) revert ZeroAddress();
+            whitelistedTokens[token] = true;
+            allowed[i] = true;
+        }
+        emit WhitelistedTokensUpdated(_initialTokens, allowed);
     }
 
     /// @param _agreementHash   Must equal manifestoHash
@@ -183,16 +190,16 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         address _referrer
     ) external notPaused nonReentrant {
         if (_agreementHash != manifestoHash) revert InvalidAgreementHash();
-        if (_token != USDC && _token != USDT) revert UnsupportedToken();
+        if (!whitelistedTokens[_token]) revert UnsupportedToken();
 
         uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
-        _createOrUpdateSeat(msg.sender, usdCents, _token == USDC ? 1 : 2, _referrer);
+        _createOrUpdateSeat(msg.sender, usdCents, 1, _referrer);
 
         IERC20(_token).safeTransferFrom(msg.sender, treasury, _amount);
 
-        emit SeatReserved(msg.sender, usdCents, usdCents, _token == USDC ? 1 : 2);
+        emit SeatReserved(msg.sender, usdCents, usdCents, 1);
     }
 
     function topUpNative(bytes[] calldata _priceUpdateData) external payable notPaused nonReentrant hasSeat {
@@ -228,7 +235,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     }
 
     function topUpStable(address _token, uint256 _amount) external notPaused nonReentrant hasSeat {
-        if (_token != USDC && _token != USDT) revert UnsupportedToken();
+        if (!whitelistedTokens[_token]) revert UnsupportedToken();
         uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
@@ -377,6 +384,18 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         arpAmbassadorBps = _ambassadorBps;
         arpOracleBps = _oracleBps;
         emit ArpFeesUpdated(_scoutBps, _partnerBps, _ambassadorBps, _oracleBps);
+    }
+
+    /// @notice Add or remove stablecoins accepted for seat reservations/top-ups.
+    /// @dev Requires timelock delay if owner is TimelockController.
+    function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external onlyOwner {
+        if (_tokens.length != _allowed.length) revert ArrayLengthMismatch();
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            address token = _tokens[i];
+            if (token == address(0)) revert ZeroAddress();
+            whitelistedTokens[token] = _allowed[i];
+        }
+        emit WhitelistedTokensUpdated(_tokens, _allowed);
     }
 
     // forge-lint: disable-next-line(mixed-case-function)

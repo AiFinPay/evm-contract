@@ -56,7 +56,7 @@ async function deployProtocol(): Promise<ProtocolContracts> {
     await owner.getAddress()
   )) as unknown as AgentPassport;
 
-  // Mock USDC/USDT addresses for testing (any non-zero address works —
+  // Mock stablecoin addresses for testing (any non-zero address works —
   // logic tests don't call stable transfers).
   const mockUsdc = "0x1000000000000000000000000000000000000001";
   const mockUsdt = "0x1000000000000000000000000000000000000002";
@@ -69,8 +69,7 @@ async function deployProtocol(): Promise<ProtocolContracts> {
     await passport.getAddress(),
     await treasury.getAddress(),
     await mockPyth.getAddress(),
-    mockUsdc,
-    mockUsdt,
+    [mockUsdc, mockUsdt],
     mockNativeUsdId
   )) as unknown as AiFinPayCore;
 

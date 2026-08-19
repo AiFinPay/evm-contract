@@ -59,3 +59,6 @@ error PaymentAlreadyProcessed(); // AIFINP-35 — replay: paymentId already sett
 error ZeroProposer();
 error DelayTooShort();
 error NotProposer();
+
+// ── AiFinPayCore Whitelist Errors ──────────────────────────────────────────────
+error ArrayLengthMismatch();
