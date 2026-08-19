@@ -20,31 +20,27 @@ contract TimelockWrapper {
     event TimelockDeployed(address indexed timelock, uint256 minDelay);
     event OwnershipTransferred(address indexed contract_, address indexed timelock);
 
-    constructor(
-        address _proposer,
-        address _executor,
-        uint256 _minDelay
-    ) {
+    constructor(address _proposer, address _executor, uint256 _minDelay) {
         require(_proposer != address(0), "Zero proposer");
         require(_minDelay >= 48 hours, "Delay too short");
-        
+
         proposer = _proposer;
         executor = _executor;
         minDelay = _minDelay;
-        
+
         address[] memory proposers = new address[](1);
         proposers[0] = _proposer;
-        
+
         address[] memory executors = new address[](1);
         executors[0] = _executor;
-        
+
         timelock = new TimelockController(
             _minDelay,
             proposers,
             executors,
             address(this) // admin (self-destructs after transfer)
         );
-        
+
         emit TimelockDeployed(address(timelock), _minDelay);
     }
 
