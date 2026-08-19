@@ -35,6 +35,11 @@ async function main() {
 
   const { pyth, usdc, usdt, nativeUsdId, treasury } = chainConfig;
 
+  const stablecoins = [usdc, usdt].filter(n => n !== ethers.ZeroAddress)
+  if (stablecoins.length == 0) {
+    throw new Error("Stablecoins is not set");
+  }
+
   console.log(`\nChain config loaded:`);
   console.log(`  Pyth:         ${pyth}`);
   console.log(`  USDC:         ${usdc}`);
@@ -67,8 +72,8 @@ async function main() {
     passportAddr,
     treasury,
     pyth,
-    [usdc, usdt],
-    nativeUsdId
+    stablecoins,
+    nativeUsdId,
   );
   await core.waitForDeployment();
   const coreAddr = await core.getAddress();
