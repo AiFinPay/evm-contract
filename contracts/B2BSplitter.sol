@@ -151,15 +151,19 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     }
 
     /// @notice Emergency pause — halts all payments instantly
+    /// @dev Requires timelock delay if owner is TimelockController
     function pause() external onlyOwner {
         _pause();
     }
 
     /// @notice Resume payments after an emergency pause
+    /// @dev Requires timelock delay if owner is TimelockController
     function unpause() external onlyOwner {
         _unpause();
     }
 
+    /// @notice Update fee split percentages
+    /// @dev Requires timelock delay if owner is TimelockController
     function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
         if (_treasuryBps + _ipCreatorBps >= BPS_DENOMINATOR) revert FeesExceed100();
         if (_treasuryBps < 1) revert TreasuryFeeTooLow();
@@ -170,6 +174,8 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         emit SplitUpdated(_treasuryBps, _ipCreatorBps);
     }
 
+    /// @notice Update treasury address
+    /// @dev Requires timelock delay if owner is TimelockController
     function setTreasury(address _treasury) external onlyOwner {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;

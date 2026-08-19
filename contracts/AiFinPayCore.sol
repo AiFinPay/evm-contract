@@ -322,6 +322,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
 
     /// @notice Update the manifesto hash (onlyOwner = Gnosis Safe multisig).
     ///         Lets the multisig correct/rotate the agreement hash without a redeploy.
+    /// @dev Requires timelock delay if owner is TimelockController
     function setManifestoHash(bytes32 _manifestoHash) external onlyOwner {
         bytes32 oldHash = manifestoHash;
         manifestoHash = _manifestoHash;
@@ -329,6 +330,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     }
 
     /// @notice Update ARP referral tier fee percentages (onlyOwner = Gnosis Safe multisig)
+    /// @dev Requires timelock delay if owner is TimelockController
     function setArpFees(
         uint256 _scoutBps,
         uint256 _partnerBps,

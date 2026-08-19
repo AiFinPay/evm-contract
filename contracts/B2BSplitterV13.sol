@@ -181,10 +181,14 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         }
     }
 
+    /// @notice Emergency pause — halts all payments instantly
+    /// @dev Requires timelock delay if owner is TimelockController
     function pause() external onlyOwner {
         _pause();
     }
 
+    /// @notice Resume payments after an emergency pause
+    /// @dev Requires timelock delay if owner is TimelockController
     function unpause() external onlyOwner {
         _unpause();
     }

@@ -84,3 +84,55 @@ forge test --fuzz-runs 1000
 
 **Issue**: Slow tests  
 **Fix**: Reduce `--fuzz-runs` for local dev
+
+## Timelock Tests
+
+### TimelockTest.t.sol
+
+Comprehensive tests for the 48-hour timelock governance system:
+
+| Test | Purpose | Status |
+|------|---------|--------|
+| `test_TimelockBecomesOwner` | Verify ownership transfer | ✅ |
+| `test_ProposerCanSchedule` | Safe can schedule operations | ✅ |
+| `test_AttackerCannotSchedule` | Unauthorized users blocked | ✅ |
+| `test_CannotExecuteBeforeDelay` | 48h delay enforced | ✅ |
+| `test_CanExecuteAfterDelay` | Execution after delay | ✅ |
+| `test_ProposerCanCancel` | Safe can cancel operations | ✅ |
+| `test_FeeCapsEnforcedDuringScheduling` | Fee caps still work | ✅ |
+| `test_TreasuryChangeRequiresTimelock` | Treasury changes timelocked | ✅ |
+| `test_PauseRequiresTimelock` | Pause function timelocked | ✅ |
+| `test_MultipleOperationsScheduled` | Batch scheduling works | ✅ |
+| `testFuzz_ScheduleAndExecute` | Fuzz test all valid fees | ✅ |
+
+### Coverage
+
+- ✅ Scheduling operations
+- ✅ Execution delays (48h)
+- ✅ Cancellation rights
+- ✅ Access control (proposer/executor)
+- ✅ Fee cap enforcement
+- ✅ All protected functions
+- ✅ Multi-operation scheduling
+
+### Running Timelock Tests
+
+```bash
+# All timelock tests
+forge test --match-contract TimelockTest
+
+# Specific test
+forge test --match-test test_CanExecuteAfterDelay
+
+# With gas report
+forge test --match-contract TimelockTest --gas-report
+```
+
+### Key Test Scenarios
+
+1. **Happy Path**: Schedule → Wait 48h → Execute
+2. **Security**: Attacker cannot schedule
+3. **Safety**: Cannot execute before delay
+4. **Governance**: Proposer can cancel
+5. **Validation**: Fee caps enforced at execution
+6. **Fuzz**: All valid fee combinations work
