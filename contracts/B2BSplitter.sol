@@ -28,12 +28,15 @@ import {
 } from "./errors/Errors.sol";
 import {Whitelist} from "./Whitelist.sol";
 
-/// @title B2BSplitter v1.2 — AiFinPay Standalone Payment Splitter
+/// @title B2BSplitter v1.2 — AiFinPay Standalone Payment Splitter [DEPRECATED]
 /// @notice Splits an incoming native or ERC-20 payment between merchant, treasury,
 ///         and IP creator, atomically, once per paymentId. Owner is the team Gnosis
 ///         Safe on Polygon; on the other chains it is the deployer EOA, since no Safe
 ///         exists there yet (migration to multisig is tracked separately).
-/// @dev No upgradeability — redeploy to change logic. v1.2 = audit remediation:
+/// @dev DEPRECATED — do not deploy for new integrations. Use B2BSplitterV13 for all
+///      new routes. This file is kept in the repo only to preserve source-verification
+///      and incident-response capability for the live v1.2 deployments listed below.
+///      No upgradeability — redeploy to change logic. v1.2 = audit remediation:
 ///      - AIFINP-34: stablecoins are per-chain, fixed at deploy (no Polygon hardcodes).
 ///      - AIFINP-35: on-chain paymentId idempotency / replay protection.
 ///      - AIFINP-33: zero IP-creator value is redirected to the merchant, never
