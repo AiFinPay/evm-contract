@@ -1,27 +1,25 @@
-import { fileURLToPath } from "node:url";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
-import { DeploymentRecord } from "./types.js";
-
-const { ethers, networkName } = await network.create();
+import { DeploymentRecord } from "./lib/types.js";
+import { getDeployerInfo, writeDeploymentRecord } from "./lib/deployment.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-async function main() {
-  const [deployer] = await ethers.getSigners();
-  const chainId = (await ethers.provider.getNetwork()).chainId;
+const { ethers, networkName } = await network.create();
 
-  console.log(`Deploying to: ${networkName} (chainId ${chainId})`);
-  console.log("Deployer:", deployer.address);
-  console.log(
-    "Balance:",
-    ethers.formatEther(await ethers.provider.getBalance(deployer.address)),
-    "native"
+async function main() {
+  const { address: deployer, chainId } = await getDeployerInfo(
+    ethers,
+    networkName
   );
 
   // Load chain config
-  const configPath = path.join(__dirname, `../config/chains/${networkName}.json`);
+  const configPath = path.join(
+    __dirname,
+    `../config/chains/${networkName}.json`
+  );
   if (!fs.existsSync(configPath)) {
     throw new Error(
       `No config found for network "${networkName}". Create config/chains/${networkName}.json first.`
@@ -47,69 +45,56 @@ async function main() {
   // 1. Deploy mSECCO token
   console.log("\n1. Deploying MSECCOToken...");
   const MSECCOToken = await ethers.getContractFactory("MSECCOToken");
-  const msecco = await MSECCOToken.deploy(deployer.address);
+  const msecco = await MSECCOToken.deploy(deployer);
   await msecco.waitForDeployment();
-  console.log("   MSECCOToken:", await msecco.getAddress());
+  const mseccoAddr = await msecco.getAddress();
+  console.log("   MSECCOToken:", mseccoAddr);
 
   // 2. Deploy AgentPassport
   console.log("2. Deploying AgentPassport...");
   const AgentPassport = await ethers.getContractFactory("AgentPassport");
-  const passport = await AgentPassport.deploy(deployer.address);
+  const passport = await AgentPassport.deploy(deployer);
   await passport.waitForDeployment();
-  console.log("   AgentPassport:", await passport.getAddress());
+  const passportAddr = await passport.getAddress();
+  console.log("   AgentPassport:", passportAddr);
 
   // 3. Deploy AiFinPayCore
   console.log("3. Deploying AiFinPayCore...");
   const AiFinPayCore = await ethers.getContractFactory("AiFinPayCore");
   const core = await AiFinPayCore.deploy(
-    deployer.address,
-    await msecco.getAddress(),
-    await passport.getAddress(),
+    deployer,
+    mseccoAddr,
+    passportAddr,
     treasury,
     pyth,
     [usdc, usdt],
     nativeUsdId
   );
   await core.waitForDeployment();
-  console.log("   AiFinPayCore:", await core.getAddress());
+  const coreAddr = await core.getAddress();
+  console.log("   AiFinPayCore:", coreAddr);
 
   // 4. Wire up permissions
   console.log("4. Wiring permissions...");
-  await msecco.setCore(await core.getAddress());
-  await passport.setCore(await core.getAddress());
+  await msecco.setCore(coreAddr);
+  await passport.setCore(coreAddr);
   console.log("   Done.");
 
-  const mseccoAddr = await msecco.getAddress();
-  const passportAddr = await passport.getAddress();
-  const coreAddr = await core.getAddress();
-
-  const timestamp = new Date().toISOString();
-  const deploymentRecord = {
-    network: networkName,
-    chainId: Number(chainId),
-    timestamp,
-    core: {
-      msecco: mseccoAddr,
-      passport: passportAddr,
-      core: coreAddr,
-      owner: deployer.address,
-    },
-  } as DeploymentRecord;
-
-  const deploymentsDir = path.join(__dirname, "../deployments");
-  if (!fs.existsSync(deploymentsDir)) {
-    fs.mkdirSync(deploymentsDir, { recursive: true });
-  }
-  const recordFileName = `${networkName}-${timestamp.replace(/[:.]/g, "-")}.json`;
-  fs.writeFileSync(
-    path.join(deploymentsDir, recordFileName),
-    JSON.stringify(deploymentRecord, null, 2) + "\n"
-  );
-  fs.writeFileSync(
-    path.join(deploymentsDir, `${networkName}-latest.json`),
-    JSON.stringify(deploymentRecord, null, 2) + "\n"
+  const { timestamped } = writeDeploymentRecord(
+    networkName,
+    chainId,
+    {
+      core: {
+        msecco: mseccoAddr,
+        passport: passportAddr,
+        core: coreAddr,
+        owner: deployer,
+      },
+    } as DeploymentRecord,
+    "latest"
   );
 
+  console.log(`\nDeployment record written: ${timestamped}`);
   console.log("\n=== DEPLOYMENT COMPLETE ===");
   console.log(`Network:       ${networkName}`);
   console.log(`MSECCOToken:   ${mseccoAddr}`);

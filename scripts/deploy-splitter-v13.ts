@@ -1,10 +1,10 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
-import { DeploymentRecord } from "./types.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { DeploymentRecord } from "./lib/types.js";
+import {
+  computeRuntimeCodeHash,
+  getDeployerInfo,
+  writeDeploymentRecord,
+} from "./lib/deployment.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -145,13 +145,7 @@ async function main() {
   // Resolved first so a missing or unknown profile fails before any network work.
   const fee = resolveFeeProfile();
 
-  const [deployer] = await ethers.getSigners();
-  const chainId = Number((await ethers.provider.getNetwork()).chainId);
-  const bal = await ethers.provider.getBalance(deployer.address);
-
-  console.log(`Network:  ${networkName} (chainId ${chainId})`);
-  console.log(`Deployer: ${deployer.address}`);
-  console.log(`Balance:  ${ethers.formatEther(bal)} native`);
+  const { chainId } = await getDeployerInfo(ethers, networkName);
 
   const cfg = TOKENS[chainId];
   if (!cfg) throw new Error(`No token config for chainId ${chainId} — refusing to deploy blind.`);
@@ -201,8 +195,7 @@ async function main() {
 
   // The registry pins the runtime code hash, so it is recorded here rather
   // than recomputed later from a build that may not match what is on-chain.
-  const runtimeCode = await ethers.provider.getCode(addr);
-  const runtimeCodeHash = ethers.keccak256(runtimeCode);
+  const runtimeCodeHash = await computeRuntimeCodeHash(ethers, addr);
 
   // Read the split back from the chain and assert it matches the profile that
   // was asked for. A deployment whose economic model does not match its own
@@ -217,15 +210,9 @@ async function main() {
     );
   }
 
-  const timestamp = new Date().toISOString();
-  const deploymentsDir = path.join(__dirname, "../deployments");
-  if (!fs.existsSync(deploymentsDir)) fs.mkdirSync(deploymentsDir, { recursive: true });
-
-  const latestRecordPath = path.join(deploymentsDir, `${networkName}-v13-latest.json`);
-  const deploymentRecord: DeploymentRecord & Record<string, unknown> = {
+  const deploymentRecord: Omit<DeploymentRecord, "timestamp"> & Record<string, unknown> = {
     network: networkName,
     chainId,
-    timestamp,
     splitterVersion: "1.3",
     splitter: {
       address: addr,
@@ -250,12 +237,8 @@ async function main() {
       enabled: false,
     },
   };
-  const recordFileName = `${networkName}-v13-${timestamp.replace(/[:.]/g, "-")}.json`;
-  fs.writeFileSync(
-    path.join(deploymentsDir, recordFileName),
-    JSON.stringify(deploymentRecord, null, 2) + "\n"
-  );
-  fs.writeFileSync(latestRecordPath, JSON.stringify(deploymentRecord, null, 2) + "\n");
+
+  writeDeploymentRecord(networkName, chainId, deploymentRecord, "v13-latest");
 
   console.log(`\n✅ B2BSplitterV13 deployed: ${addr}`);
   console.log(`   runtimeCodeHash = ${runtimeCodeHash}`);

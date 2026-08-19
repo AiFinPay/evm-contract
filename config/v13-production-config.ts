@@ -7,6 +7,8 @@
 // plus ALLOW_STABLE_OVERRIDE=true. That prevents a stale bridged/tokenlist
 // address from silently becoming a settlement asset.
 
+import { ethers } from "ethers";
+
 export type ProductionEvmNetwork = {
   name: string;
   chainId: number;
@@ -16,7 +18,7 @@ export type ProductionEvmNetwork = {
   usdtSource: string | null;
 };
 
-export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+export const ZERO_ADDRESS = ethers.ZeroAddress;
 
 const CIRCLE_USDC_SOURCE = "Circle USDC contract-address registry, verified 2026-08-16";
 const TETHER_USDT_SOURCE = "Tether supported-protocols registry, verified 2026-08-16";

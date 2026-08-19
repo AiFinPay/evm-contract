@@ -2,13 +2,13 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
-import { DeploymentRecord } from "./types.js";
+import { DeploymentRecord } from "./lib/types.js";
 import {
   PRODUCTION_EVM_NETWORKS,
   ZERO_ADDRESS,
   configuredStableAddress,
   governanceEnv,
-} from "./v13-production-config.js";
+} from "../config/v13-production-config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { ethers, networkName } = await network.create();

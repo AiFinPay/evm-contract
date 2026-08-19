@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import hre, { network } from "hardhat";
 import { verifyContract } from "@nomicfoundation/hardhat-verify/verify";
 import type { VerifyContractArgs } from "@nomicfoundation/hardhat-verify/verify";
-import type { DeploymentRecord } from "./types.js";
+import type { DeploymentRecord } from "./lib/types.js";
 
 const { ethers, networkName } = await network.create();
 
