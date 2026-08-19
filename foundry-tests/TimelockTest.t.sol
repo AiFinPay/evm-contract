@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "forge-std/Test.sol";
-import "../contracts/TimelockWrapper.sol";
-import "../contracts/B2BSplitter.sol";
+import {Test} from "forge-std/Test.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {TimelockWrapper} from "../contracts/TimelockWrapper.sol";
+import {B2BSplitter} from "../contracts/B2BSplitter.sol";
 
 /// @title Timelock Tests - Comprehensive timelock functionality testing
 contract TimelockTest is Test {

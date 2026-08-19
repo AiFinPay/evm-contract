@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts/governance/TimelockController.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ZeroProposer, DelayTooShort, NotProposer} from "./errors/Errors.sol";
 
 /// @title TimelockWrapper — Helper for deploying TimelockController
 /// @notice Deploys a TimelockController and transfers ownership of target contracts
@@ -12,17 +13,21 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 ///      3. Call transferToTimelock() to transfer ownership
 ///      4. TimelockWrapper self-destructs, leaving TimelockController as owner
 contract TimelockWrapper {
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     TimelockController public immutable timelock;
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     address public immutable proposer;
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     address public immutable executor;
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     uint256 public immutable minDelay;
 
     event TimelockDeployed(address indexed timelock, uint256 minDelay);
     event OwnershipTransferred(address indexed contract_, address indexed timelock);
 
     constructor(address _proposer, address _executor, uint256 _minDelay) {
-        require(_proposer != address(0), "Zero proposer");
-        require(_minDelay >= 48 hours, "Delay too short");
+        if (_proposer == address(0)) revert ZeroProposer();
+        if (_minDelay < 48 hours) revert DelayTooShort();
 
         proposer = _proposer;
         executor = _executor;
@@ -64,7 +69,11 @@ contract TimelockWrapper {
     }
 
     modifier onlyProposer() {
-        require(msg.sender == proposer, "Not proposer");
+        _onlyProposer();
         _;
+    }
+
+    function _onlyProposer() internal view {
+        if (msg.sender != proposer) revert NotProposer();
     }
 }

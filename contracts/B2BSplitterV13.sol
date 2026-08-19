@@ -1,12 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "./errors/Errors.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {
+    ZeroAmount,
+    ZeroMerchant,
+    ZeroPaymentId,
+    ZeroTreasury,
+    UnsupportedToken,
+    PaymentAlreadyProcessed,
+    PaymentTooSmallForRoyalty,
+    PaymentTooSmallForTreasury,
+    TreasuryFeeTooHigh,
+    IPCreatorFeeTooHigh,
+    MerchantTransferFailed,
+    TreasuryTransferFailed,
+    IPCreatorTransferFailed
+} from "./errors/Errors.sol";
 
 /// @title B2BSplitter v1.3 — gross-inclusive route-specific settlement
 /// @notice The payer supplies one gross settlement amount. The route profile is
@@ -28,7 +42,9 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
 
     /// @notice Immutable production economics. Valid profiles are exactly:
     ///         AIFP-2/x402 0/0; AIFP-1 merchant monetization = 100/0.
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     uint256 public immutable treasuryBps;
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     uint256 public immutable ipCreatorBps;
     address public treasury;
 
@@ -176,6 +192,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     }
 
     function _validateDeadline(uint256 _validUntil) internal view {
+        // forge-lint: disable-next-line(block-timestamp)
         if (_validUntil == 0 || block.timestamp > _validUntil) {
             revert PaymentExpired(_validUntil, block.timestamp);
         }

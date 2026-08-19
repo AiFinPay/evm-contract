@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "./errors/Errors.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OnlyCore, CoreAlreadySet, ZeroAddress, NonTransferable} from "./errors/Errors.sol";
 
 /// @title mSECCO — AiFinPay Compute Credit Token (Polygon)
 /// @notice 1 USD = 100 mSECCO. No withdraw — credits are locked in-protocol.
@@ -55,7 +55,11 @@ contract MSECCOToken is ERC20, Ownable {
     }
 
     modifier onlyCore() {
-        if (msg.sender != aifinpayCore) revert OnlyCore();
+        _onlyCore();
         _;
+    }
+
+    function _onlyCore() internal view {
+        if (msg.sender != aifinpayCore) revert OnlyCore();
     }
 }

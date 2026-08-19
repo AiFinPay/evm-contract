@@ -1,14 +1,46 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "./interfaces/IPyth.sol";
-import "./errors/Errors.sol";
-import "./MSECCOToken.sol";
-import "./AgentPassport.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IPyth} from "./interfaces/IPyth.sol";
+import {
+    ZeroMSECCO,
+    ZeroPassport,
+    ZeroTreasury,
+    ZeroPartner,
+    ZeroAddress,
+    EmptyPartnerName,
+    InvalidAgreementHash,
+    ZeroNative,
+    InsufficientNativeForFee,
+    InvalidPythPrice,
+    UnexpectedPriceExponent,
+    BelowMinimum,
+    UnsupportedToken,
+    NoSeatFound,
+    PartnerNotActive,
+    AgentNotVerifiedB2B,
+    PaymentBelowMinimum,
+    SpendAmountTooLarge,
+    DailySpendLimitExceeded,
+    ProtocolFeeFailed,
+    MerchantTransferFailed,
+    TreasuryTransferFailed,
+    IPCreatorTransferFailed,
+    BonusAlreadyClaimed,
+    NoReferrals,
+    FeesExceed100,
+    TreasuryFeeTooLow,
+    TreasuryFeeTooHigh,
+    IPCreatorFeeTooHigh,
+    ARPFeeTooHigh,
+    ProtocolPaused
+} from "./errors/Errors.sol";
+import {MSECCOToken} from "./MSECCOToken.sol";
+import {AgentPassport} from "./AgentPassport.sol";
 
 /// @title AiFinPayCore v5.3 — Multichain
 /// @notice Adds ARP referral tier system + configurable B2B fees (feature parity with Solana v0.5.3)
@@ -241,6 +273,8 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         if (rawSpendUnits == 0) revert PaymentBelowMinimum();
         if (rawSpendUnits > type(uint64).max) revert SpendAmountTooLarge();
 
+        // Safe: guarded by rawSpendUnits > type(uint64).max check above.
+        // forge-lint: disable-next-line(unsafe-typecast)
         uint64 spendUnits = uint64(rawSpendUnits);
         if (!passport.updateSpendLimit(msg.sender, spendUnits)) revert DailySpendLimitExceeded();
 
@@ -345,11 +379,13 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         emit ArpFeesUpdated(_scoutBps, _partnerBps, _ambassadorBps, _oracleBps);
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function verifyAgentB2B(address _agent) external onlyOwner {
         passport.setStatus(_agent, AgentPassport.PassportStatus.VERIFIED_B2B);
         emit AgentVerifiedB2B(_agent);
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function suspendAgentB2B(address _agent) external onlyOwner {
         passport.setStatus(_agent, AgentPassport.PassportStatus.SUSPENDED);
         emit AgentSuspendedB2B(_agent);
@@ -386,12 +422,20 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     }
 
     modifier notPaused() {
-        if (isPaused) revert ProtocolPaused();
+        _notPaused();
         _;
     }
 
+    function _notPaused() internal view {
+        if (isPaused) revert ProtocolPaused();
+    }
+
     modifier hasSeat() {
-        if (seats[msg.sender].createdAt == 0) revert NoSeatFound();
+        _hasSeat();
         _;
+    }
+
+    function _hasSeat() internal view {
+        if (seats[msg.sender].createdAt == 0) revert NoSeatFound();
     }
 }

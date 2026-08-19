@@ -13,3 +13,14 @@ via_ir = true
 remappings = [
     "forge-std/=lib/forge-std/src/forge-std/src/"
 ]
+
+# =============================================================================
+# LINTER CONFIGURATION
+# =============================================================================
+
+[lint]
+# Specifies which lints to run based on severity
+# If uninformed, all severities are checked
+# Options: "high", "medium", "low", "info", "gas", "code-size"
+# Default: ["high", "medium", "low"]
+severity = ["high", "medium", "low", "info", "gas", "code-size"]

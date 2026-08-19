@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 /// @title Simple Math Tests - AiFinPay Protocol
 contract SimpleMathTest is Test {
