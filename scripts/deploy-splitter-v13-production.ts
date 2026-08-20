@@ -124,13 +124,13 @@ async function main() {
   }
 
   const Factory = await ethers.getContractFactory("B2BSplitterV13");
-  const splitter = await Factory.deploy(
-    owner,
+  const splitter = await Factory.deploy({
+    initialOwner: owner,
     treasury,
-    [usdc.address, usdt.address],
-    profile.treasuryBps,
-    profile.ipCreatorBps,
-  );
+    stablecoins: [usdc.address, usdt.address],
+    treasuryBps: profile.treasuryBps,
+    ipCreatorBps: profile.ipCreatorBps,
+  });
   const tx = splitter.deploymentTransaction();
   if (!tx) throw new Error("Deployment transaction missing");
   console.log(`deployTx=${tx.hash}`);

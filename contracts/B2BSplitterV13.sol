@@ -4,7 +4,7 @@ pragma solidity 0.8.35;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {
     ZeroAmount,
@@ -30,7 +30,7 @@ import {Whitelist} from "./Whitelist.sol";
 ///         ever added on top of the quoted gross settlement amount.
 /// @dev This contract intentionally changes the v1.2 ABI/semantics. It must be
 ///      deployed under a new address and SDK/backend routes must opt into v1.3.
-contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
+contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
     using SafeERC20 for IERC20;
     using Whitelist for mapping(address => bool);
 
@@ -87,47 +87,52 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         string orderId;
     }
 
+    struct ConstructorParams {
+        address initialOwner;
+        address treasury;
+        address[] stablecoins;
+        uint256 treasuryBps;
+        uint256 ipCreatorBps;
+    }
+
     error IncorrectNativeValue(uint256 expected, uint256 received);
     error InvalidProductionSplit(uint256 treasuryBps, uint256 ipCreatorBps);
     error PaymentExpired(uint256 validUntil, uint256 currentTime);
     error MissingIPCreator();
     error ZeroStablecoins();
 
-    constructor(
-        address initialOwner,
-        address _treasury,
-        address[] memory _stablecoins,
-        uint256 _treasuryBps,
-        uint256 _ipCreatorBps
-    ) Ownable(initialOwner) {
-        if (_treasury == address(0)) revert ZeroTreasury();
-        _validateProductionSplit(_treasuryBps, _ipCreatorBps);
-        treasury = _treasury;
+    constructor(ConstructorParams memory _params) Ownable(_params.initialOwner) {
+        if (_params.treasury == address(0)) revert ZeroTreasury();
+        _validateProductionSplit(_params.treasuryBps, _params.ipCreatorBps);
+        treasury = _params.treasury;
 
-        uint256 length = _stablecoins.length;
+        address[] memory stablecoins = _params.stablecoins;
+        uint256 length = stablecoins.length;
         if (length == 0) revert ZeroStablecoins();
-        address[] memory initialTokens = new address[](length);
-        bool[] memory allowed = new bool[](length);
         uint256 nonZeroCount = 0;
         for (uint256 i = 0; i < length; i++) {
-            address token = _stablecoins[i];
+            address token = stablecoins[i];
             if (token != address(0)) {
                 whitelistedTokens.set(token, true);
-                allowed[i] = true;
-                initialTokens[i] = token;
                 unchecked {
                     ++nonZeroCount;
                 }
             }
         }
+
+        treasuryBps = _params.treasuryBps;
+        ipCreatorBps = _params.ipCreatorBps;
+        emit SplitConfigured(_params.treasuryBps, _params.ipCreatorBps);
+
         if (nonZeroCount > 0) {
             address[] memory emittedTokens = new address[](nonZeroCount);
             bool[] memory emittedAllowed = new bool[](nonZeroCount);
             uint256 j = 0;
             for (uint256 i = 0; i < length; i++) {
-                if (initialTokens[i] != address(0)) {
-                    emittedTokens[j] = initialTokens[i];
-                    emittedAllowed[j] = allowed[i];
+                address token = stablecoins[i];
+                if (token != address(0)) {
+                    emittedTokens[j] = token;
+                    emittedAllowed[j] = true;
                     unchecked {
                         ++j;
                     }
@@ -135,49 +140,48 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
             }
             emit WhitelistedTokensUpdated(emittedTokens, emittedAllowed);
         }
-
-        treasuryBps = _treasuryBps;
-        ipCreatorBps = _ipCreatorBps;
-        emit SplitConfigured(_treasuryBps, _ipCreatorBps);
     }
 
     /// @notice Settle one exact gross amount in native token.
     /// @param _payment Payment details. `merchant` receives the remainder; `grossAmount` must match
     ///                   `msg.value`.
     function payNative(NativePayment calldata _payment) external payable nonReentrant whenNotPaused {
-        _consume(_payment.paymentId);
-        _validateDeadline(_payment.validUntil);
-        if (_payment.merchant == address(0)) revert ZeroMerchant();
+        bytes32 paymentId = _payment.paymentId;
+        address merchant = _payment.merchant;
+        uint256 grossAmount = _payment.grossAmount;
+        address ipCreator = _payment.ipCreator;
+        uint256 validUntil = _payment.validUntil;
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
-            _payment.grossAmount,
-            _payment.ipCreator
-        );
-        if (msg.value != _payment.grossAmount) {
-            revert IncorrectNativeValue(_payment.grossAmount, msg.value);
-        }
+        _consume(paymentId);
+        _validateDeadline(validUntil);
+        if (merchant == address(0)) revert ZeroMerchant();
 
-        (bool s1, ) = _payment.merchant.call{value: merchantAmt}("");
+        if (msg.value != grossAmount) revert IncorrectNativeValue(grossAmount, msg.value);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(grossAmount, ipCreator);
+
+        (bool s1, ) = payable(merchant).call{value: merchantAmt}("");
         if (!s1) revert MerchantTransferFailed();
+
+        address cachedTreasury = treasury;
         if (treasuryAmt > 0) {
-            (bool s2, ) = payable(treasury).call{value: treasuryAmt}("");
+            (bool s2, ) = payable(cachedTreasury).call{value: treasuryAmt}("");
             if (!s2) revert TreasuryTransferFailed();
         }
         if (ipAmt > 0) {
-            (bool s3, ) = payable(_payment.ipCreator).call{value: ipAmt}("");
+            (bool s3, ) = payable(ipCreator).call{value: ipAmt}("");
             if (!s3) revert IPCreatorTransferFailed();
         }
 
         emit Payment(
-            _payment.paymentId,
+            paymentId,
             msg.sender,
-            _payment.merchant,
+            merchant,
             address(0),
-            _payment.grossAmount,
+            grossAmount,
             merchantAmt,
             treasuryAmt,
             ipAmt,
-            _payment.validUntil,
+            validUntil,
             _payment.orderId
         );
     }
@@ -186,36 +190,39 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     /// @param _payment Payment details. `token` must be whitelisted; `grossAmount` must be approved by
     ///                   `msg.sender`.
     function payStable(StablePayment calldata _payment) external nonReentrant whenNotPaused {
-        _consume(_payment.paymentId);
-        _validateDeadline(_payment.validUntil);
-        if (_payment.token == address(0) || !whitelistedTokens.isAllowed(_payment.token)) {
-            revert UnsupportedToken();
-        }
-        if (_payment.merchant == address(0)) revert ZeroMerchant();
+        bytes32 paymentId = _payment.paymentId;
+        address token = _payment.token;
+        uint256 grossAmount = _payment.grossAmount;
+        address merchant = _payment.merchant;
+        address ipCreator = _payment.ipCreator;
+        uint256 validUntil = _payment.validUntil;
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
-            _payment.grossAmount,
-            _payment.ipCreator
-        );
+        _consume(paymentId);
+        _validateDeadline(validUntil);
+        if (token == address(0) || !whitelistedTokens.isAllowed(token)) revert UnsupportedToken();
+        if (merchant == address(0)) revert ZeroMerchant();
 
-        IERC20(_payment.token).safeTransferFrom(msg.sender, _payment.merchant, merchantAmt);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(grossAmount, ipCreator);
+
+        address cachedTreasury = treasury;
+        IERC20(token).safeTransferFrom(msg.sender, merchant, merchantAmt);
         if (treasuryAmt > 0) {
-            IERC20(_payment.token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
+            IERC20(token).safeTransferFrom(msg.sender, cachedTreasury, treasuryAmt);
         }
         if (ipAmt > 0) {
-            IERC20(_payment.token).safeTransferFrom(msg.sender, _payment.ipCreator, ipAmt);
+            IERC20(token).safeTransferFrom(msg.sender, ipCreator, ipAmt);
         }
 
         emit Payment(
-            _payment.paymentId,
+            paymentId,
             msg.sender,
-            _payment.merchant,
-            _payment.token,
-            _payment.grossAmount,
+            merchant,
+            token,
+            grossAmount,
             merchantAmt,
             treasuryAmt,
             ipAmt,
-            _payment.validUntil,
+            validUntil,
             _payment.orderId
         );
     }
@@ -298,18 +305,18 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         address _ipCreator
     ) internal view returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
         if (_grossAmount == 0) revert ZeroAmount();
-        if (ipCreatorBps > 0 && _ipCreator == address(0)) revert MissingIPCreator();
 
-        treasuryAmt = (_grossAmount * treasuryBps) / BPS_DENOMINATOR;
-        if (treasuryBps > 0 && treasuryAmt == 0) {
-            revert PaymentTooSmallForTreasury();
+        uint256 feeBps = treasuryBps;
+        if (feeBps > 0) {
+            treasuryAmt = (_grossAmount * feeBps) / BPS_DENOMINATOR;
+            if (treasuryAmt == 0) revert PaymentTooSmallForTreasury();
         }
 
-        if (_ipCreator != address(0)) {
-            ipAmt = (_grossAmount * ipCreatorBps) / BPS_DENOMINATOR;
-            if (ipCreatorBps > 0 && ipAmt == 0) {
-                revert PaymentTooSmallForRoyalty();
-            }
+        uint256 creatorBps = ipCreatorBps;
+        if (creatorBps > 0) {
+            if (_ipCreator == address(0)) revert MissingIPCreator();
+            ipAmt = (_grossAmount * creatorBps) / BPS_DENOMINATOR;
+            if (ipAmt == 0) revert PaymentTooSmallForRoyalty();
         }
 
         merchantAmt = _grossAmount - treasuryAmt - ipAmt;

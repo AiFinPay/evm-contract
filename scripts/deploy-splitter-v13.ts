@@ -181,13 +181,13 @@ async function main() {
   console.log(`  ipCreatorBps   = ${fee.ipCreatorBps}`);
 
   const Factory = await ethers.getContractFactory("B2BSplitterV13");
-  const splitter = await Factory.deploy(
-    gov.owner,
-    gov.treasury,
-    [cfg.usdc, cfg.usdt],
-    fee.treasuryBps,
-    fee.ipCreatorBps,
-  );
+  const splitter = await Factory.deploy({
+    initialOwner: gov.owner,
+    treasury: gov.treasury,
+    stablecoins: [cfg.usdc, cfg.usdt],
+    treasuryBps: fee.treasuryBps,
+    ipCreatorBps: fee.ipCreatorBps,
+  });
   console.log(`\nDeploy tx: ${splitter.deploymentTransaction()?.hash}`);
   await splitter.waitForDeployment();
   const addr = await splitter.getAddress();
@@ -251,7 +251,7 @@ async function main() {
 
   console.log(`\nVerify source:`);
   console.log(
-    `  npx hardhat verify --network ${networkName} ${addr} ${gov.owner} ${gov.treasury} "${cfg.usdc},${cfg.usdt}" ${fee.treasuryBps} ${fee.ipCreatorBps}`
+    `  npx hardhat verify --network ${networkName} ${addr} "${gov.owner}" "${gov.treasury}" "${cfg.usdc},${cfg.usdt}" ${fee.treasuryBps} ${fee.ipCreatorBps}`
   );
   console.log(`\nRegistry entry is STAGED and disabled. Do not enable it until:`);
   console.log(`  1. source verification succeeded on the explorer,`);

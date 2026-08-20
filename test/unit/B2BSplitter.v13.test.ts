@@ -8,13 +8,13 @@ const USDT_PLACEHOLDER = "0x1000000000000000000000000000000000000002";
 async function deployV13(treasuryBps: number, ipCreatorBps: number) {
   const [owner, treasury, agent, merchant, ipCreator] = await ethers.getSigners();
   const Factory = await ethers.getContractFactory("B2BSplitterV13");
-  const splitter = await Factory.deploy(
-    await owner.getAddress(),
-    await treasury.getAddress(),
-    [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
+  const splitter = await Factory.deploy({
+    initialOwner: await owner.getAddress(),
+    treasury: await treasury.getAddress(),
+    stablecoins: [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
     treasuryBps,
-    ipCreatorBps
-  );
+    ipCreatorBps,
+  });
   return { owner, treasury, agent, merchant, ipCreator, splitter };
 }
 
@@ -124,20 +124,20 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
 
     const [owner, treasury] = await ethers.getSigners();
     const Factory = await ethers.getContractFactory("B2BSplitterV13");
-    await expect(Factory.deploy(
-      await owner.getAddress(),
-      await treasury.getAddress(),
-      [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
-      1,
-      0
-    )).to.be.revertedWithCustomError(Factory, "InvalidProductionSplit").withArgs(1n, 0n);
-    await expect(Factory.deploy(
-      await owner.getAddress(),
-      await treasury.getAddress(),
-      [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
-      100,
-      1
-    )).to.be.revertedWithCustomError(Factory, "InvalidProductionSplit").withArgs(100n, 1n);
+    await expect(Factory.deploy({
+      initialOwner: await owner.getAddress(),
+      treasury: await treasury.getAddress(),
+      stablecoins: [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
+      treasuryBps: 1,
+      ipCreatorBps: 0,
+    })).to.be.revertedWithCustomError(Factory, "InvalidProductionSplit").withArgs(1n, 0n);
+    await expect(Factory.deploy({
+      initialOwner: await owner.getAddress(),
+      treasury: await treasury.getAddress(),
+      stablecoins: [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
+      treasuryBps: 100,
+      ipCreatorBps: 1,
+    })).to.be.revertedWithCustomError(Factory, "InvalidProductionSplit").withArgs(100n, 1n);
   });
 
   it("owner can add and remove a token from the whitelist", async () => {
@@ -199,9 +199,13 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const Reverter = await ethers.getContractFactory("MockReverter");
     const reverter = await Reverter.deploy();
     const Factory = await ethers.getContractFactory("B2BSplitterV13");
-    const splitter = await Factory.deploy(
-      await owner.getAddress(), await reverter.getAddress(), [USDC_PLACEHOLDER, USDT_PLACEHOLDER], 100, 0
-    );
+    const splitter = await Factory.deploy({
+      initialOwner: await owner.getAddress(),
+      treasury: await reverter.getAddress(),
+      stablecoins: [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
+      treasuryBps: 100,
+      ipCreatorBps: 0,
+    });
     const gross = 10_000n;
     const until = await deadline();
     const id = paymentId("partial-fail");
@@ -267,9 +271,13 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const Reverter = await ethers.getContractFactory("MockReverter");
     const reverter = await Reverter.deploy();
     const Factory = await ethers.getContractFactory("B2BSplitterV13");
-    const splitter = await Factory.deploy(
-      await owner.getAddress(), await treasury.getAddress(), [USDC_PLACEHOLDER, USDT_PLACEHOLDER], 100, 0
-    );
+    const splitter = await Factory.deploy({
+      initialOwner: await owner.getAddress(),
+      treasury: await treasury.getAddress(),
+      stablecoins: [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
+      treasuryBps: 100,
+      ipCreatorBps: 0,
+    });
     const gross = 10_000n;
     const until = await deadline();
     const id = paymentId("merchant-reverts");
@@ -290,13 +298,13 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
   it("constructor emits WhitelistedTokensUpdated with only non-zero tokens (no address(0))", async () => {
     const [owner, treasury] = await ethers.getSigners();
     const Factory = await ethers.getContractFactory("B2BSplitterV13");
-    const tx = await Factory.deploy(
-      await owner.getAddress(),
-      await treasury.getAddress(),
-      [ethers.ZeroAddress, USDC_PLACEHOLDER, ethers.ZeroAddress, USDT_PLACEHOLDER, ethers.ZeroAddress],
-      100,
-      0
-    );
+    const tx = await Factory.deploy({
+      initialOwner: await owner.getAddress(),
+      treasury: await treasury.getAddress(),
+      stablecoins: [ethers.ZeroAddress, USDC_PLACEHOLDER, ethers.ZeroAddress, USDT_PLACEHOLDER, ethers.ZeroAddress],
+      treasuryBps: 100,
+      ipCreatorBps: 0,
+    });
     await tx.waitForDeployment();
     const splitterAddr = await tx.getAddress();
     const splitter = Factory.attach(splitterAddr) as any;
@@ -317,12 +325,12 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
   it("constructor reverts on empty stablecoin list (ZeroStablecoins)", async () => {
     const [owner, treasury] = await ethers.getSigners();
     const Factory = await ethers.getContractFactory("B2BSplitterV13");
-    await expect(Factory.deploy(
-      await owner.getAddress(),
-      await treasury.getAddress(),
-      [],
-      100,
-      0
-    )).to.be.revertedWithCustomError(Factory, "ZeroStablecoins");
+    await expect(Factory.deploy({
+      initialOwner: await owner.getAddress(),
+      treasury: await treasury.getAddress(),
+      stablecoins: [],
+      treasuryBps: 100,
+      ipCreatorBps: 0,
+    })).to.be.revertedWithCustomError(Factory, "ZeroStablecoins");
   });
 });

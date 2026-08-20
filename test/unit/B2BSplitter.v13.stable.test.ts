@@ -9,9 +9,13 @@ async function fixture(decimals = 6, treasuryBps = 100, creatorBps = 0) {
   const usdt = await Token.deploy("Tether", "USDT", decimals);
   const rogue = await Token.deploy("Rogue", "RGE", decimals);
   const Factory = await ethers.getContractFactory("B2BSplitterV13");
-  const splitter = await Factory.deploy(
-    await owner.getAddress(), await treasury.getAddress(), [await usdc.getAddress(), await usdt.getAddress()], treasuryBps, creatorBps
-  );
+  const splitter = await Factory.deploy({
+    initialOwner: await owner.getAddress(),
+    treasury: await treasury.getAddress(),
+    stablecoins: [await usdc.getAddress(), await usdt.getAddress()],
+    treasuryBps,
+    ipCreatorBps: creatorBps,
+  });
   return { owner, treasury, agent, merchant, creator, usdc, usdt, rogue, splitter };
 }
 async function fixture6() { return fixture(6, 100, 0); }
