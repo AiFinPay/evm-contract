@@ -154,6 +154,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
         uint256 grossAmount = _payment.grossAmount;
         address ipCreator = _payment.ipCreator;
         uint256 validUntil = _payment.validUntil;
+        string memory orderId = _payment.orderId;
 
         _consume(paymentId);
         _validateDeadline(validUntil);
@@ -185,7 +186,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
             treasuryAmt,
             ipAmt,
             validUntil,
-            _payment.orderId
+            orderId
         );
     }
 
@@ -199,6 +200,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
         address merchant = _payment.merchant;
         address ipCreator = _payment.ipCreator;
         uint256 validUntil = _payment.validUntil;
+        string memory orderId = _payment.orderId;
 
         _consume(paymentId);
         _validateDeadline(validUntil);
@@ -227,7 +229,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
             treasuryAmt,
             ipAmt,
             validUntil,
-            _payment.orderId
+            orderId
         );
     }
 
