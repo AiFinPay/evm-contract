@@ -75,8 +75,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     constructor(
         address initialOwner,
         address _treasury,
-        address _usdc,
-        address _usdt,
+        address[] memory _stablecoins,
         uint256 _treasuryBps,
         uint256 _ipCreatorBps
     ) Ownable(initialOwner) {
@@ -84,18 +83,17 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         _validateProductionSplit(_treasuryBps, _ipCreatorBps);
         treasury = _treasury;
 
-        bool[] memory allowed = new bool[](2);
-        if (_usdc != address(0)) {
-            whitelistedTokens.set(_usdc, true);
-            allowed[0] = true;
+        uint256 length = _stablecoins.length;
+        address[] memory initialTokens = new address[](length);
+        bool[] memory allowed = new bool[](length);
+        for (uint256 i = 0; i < length; i++) {
+            address token = _stablecoins[i];
+            if (token != address(0)) {
+                whitelistedTokens.set(token, true);
+                allowed[i] = true;
+            }
+            initialTokens[i] = token;
         }
-        if (_usdt != address(0)) {
-            whitelistedTokens.set(_usdt, true);
-            allowed[1] = true;
-        }
-        address[] memory initialTokens = new address[](2);
-        initialTokens[0] = _usdc;
-        initialTokens[1] = _usdt;
         emit WhitelistedTokensUpdated(initialTokens, allowed);
 
         treasuryBps = _treasuryBps;

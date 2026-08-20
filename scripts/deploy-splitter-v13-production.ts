@@ -127,8 +127,7 @@ async function main() {
   const splitter = await Factory.deploy(
     owner,
     treasury,
-    usdc.address,
-    usdt.address,
+    [usdc.address, usdt.address],
     profile.treasuryBps,
     profile.ipCreatorBps,
   );
@@ -145,16 +144,16 @@ async function main() {
   const actual = {
     owner: await splitter.owner(),
     treasury: await splitter.treasury(),
-    usdc: await splitter.USDC(),
-    usdt: await splitter.USDT(),
+    usdcWhitelisted: await splitter.whitelistedTokens(usdc.address),
+    usdtWhitelisted: await splitter.whitelistedTokens(usdt.address),
     treasuryBps: Number(await splitter.treasuryBps()),
     ipCreatorBps: Number(await splitter.ipCreatorBps()),
   };
   const mismatches = [
     actual.owner.toLowerCase() === owner.toLowerCase() || "owner",
     actual.treasury.toLowerCase() === treasury.toLowerCase() || "treasury",
-    actual.usdc.toLowerCase() === usdc.address.toLowerCase() || "USDC",
-    actual.usdt.toLowerCase() === usdt.address.toLowerCase() || "USDT",
+    actual.usdcWhitelisted === true || "USDC whitelist",
+    actual.usdtWhitelisted === true || "USDT whitelist",
     actual.treasuryBps === profile.treasuryBps || "treasuryBps",
     actual.ipCreatorBps === profile.ipCreatorBps || "ipCreatorBps",
   ].filter((x) => x !== true);
@@ -215,7 +214,7 @@ async function main() {
   console.log(`registry.enabled=false (mandatory until explorer verification + paid E2E)`);
   console.log(`verify command:`);
   console.log(
-    `npx hardhat verify --network ${networkName} ${address} ${owner} ${treasury} ${usdc.address} ${usdt.address} ${profile.treasuryBps} ${profile.ipCreatorBps}`,
+    `npx hardhat verify --network ${networkName} ${address} ${owner} ${treasury} "${usdc.address},${usdt.address}" ${profile.treasuryBps} ${profile.ipCreatorBps}`,
   );
 }
 

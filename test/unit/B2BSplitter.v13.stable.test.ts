@@ -10,7 +10,7 @@ async function fixture(decimals = 6, treasuryBps = 100, creatorBps = 0) {
   const rogue = await Token.deploy("Rogue", "RGE", decimals);
   const Factory = await ethers.getContractFactory("B2BSplitterV13");
   const splitter = await Factory.deploy(
-    await owner.getAddress(), await treasury.getAddress(), await usdc.getAddress(), await usdt.getAddress(), treasuryBps, creatorBps
+    await owner.getAddress(), await treasury.getAddress(), [await usdc.getAddress(), await usdt.getAddress()], treasuryBps, creatorBps
   );
   return { owner, treasury, agent, merchant, creator, usdc, usdt, rogue, splitter };
 }

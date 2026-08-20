@@ -11,8 +11,7 @@ async function deployV13(treasuryBps: number, ipCreatorBps: number) {
   const splitter = await Factory.deploy(
     await owner.getAddress(),
     await treasury.getAddress(),
-    USDC_PLACEHOLDER,
-    USDT_PLACEHOLDER,
+    [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
     treasuryBps,
     ipCreatorBps
   );
@@ -117,16 +116,14 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     await expect(Factory.deploy(
       await owner.getAddress(),
       await treasury.getAddress(),
-      USDC_PLACEHOLDER,
-      USDT_PLACEHOLDER,
+      [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
       1,
       0
     )).to.be.revertedWithCustomError(Factory, "InvalidProductionSplit").withArgs(1n, 0n);
     await expect(Factory.deploy(
       await owner.getAddress(),
       await treasury.getAddress(),
-      USDC_PLACEHOLDER,
-      USDT_PLACEHOLDER,
+      [USDC_PLACEHOLDER, USDT_PLACEHOLDER],
       100,
       1
     )).to.be.revertedWithCustomError(Factory, "InvalidProductionSplit").withArgs(100n, 1n);

@@ -184,8 +184,7 @@ async function main() {
   const splitter = await Factory.deploy(
     gov.owner,
     gov.treasury,
-    cfg.usdc,
-    cfg.usdt,
+    [cfg.usdc, cfg.usdt],
     fee.treasuryBps,
     fee.ipCreatorBps,
   );
@@ -242,8 +241,8 @@ async function main() {
 
   console.log(`\n✅ B2BSplitterV13 deployed: ${addr}`);
   console.log(`   runtimeCodeHash = ${runtimeCodeHash}`);
-  console.log(`   USDC()          = ${await splitter.USDC()}`);
-  console.log(`   USDT()          = ${await splitter.USDT()}`);
+  console.log(`   USDC whitelist  = ${await splitter.whitelistedTokens(cfg.usdc)}`);
+  console.log(`   USDT whitelist  = ${await splitter.whitelistedTokens(cfg.usdt)}`);
   console.log(`   treasury()      = ${await splitter.treasury()}`);
   console.log(`   owner()         = ${await splitter.owner()}`);
   console.log(
@@ -252,7 +251,7 @@ async function main() {
 
   console.log(`\nVerify source:`);
   console.log(
-    `  npx hardhat verify --network ${networkName} ${addr} ${gov.owner} ${gov.treasury} ${cfg.usdc} ${cfg.usdt} ${fee.treasuryBps} ${fee.ipCreatorBps}`
+    `  npx hardhat verify --network ${networkName} ${addr} ${gov.owner} ${gov.treasury} "${cfg.usdc},${cfg.usdt}" ${fee.treasuryBps} ${fee.ipCreatorBps}`
   );
   console.log(`\nRegistry entry is STAGED and disabled. Do not enable it until:`);
   console.log(`  1. source verification succeeded on the explorer,`);
