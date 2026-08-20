@@ -42,7 +42,7 @@ const REGISTRY = join(ROOT, 'registry/registry.json');
 const ENTRYPOINT = {
   '1.1': 'payMatic(address,address,string)',
   '1.2': 'payNative(bytes32,address,address,string)',
-  '1.3': 'payNative(bytes32,address,uint256,address,string)',
+  '1.3': 'payNative((bytes32,address,uint256,address,uint256,string))',
 };
 
 const selectorOf = (signature) => id(signature).slice(0, 10);

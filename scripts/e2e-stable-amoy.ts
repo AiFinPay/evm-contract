@@ -58,15 +58,15 @@ async function main() {
 
   const paymentId = ethers.hexlify(ethers.randomBytes(32));
   const validUntil = Math.floor(Date.now() / 1000) + 3600;
-  const payTx = await splitter.payStable(
+  const payTx = await splitter.payStable({
     paymentId,
-    stableAddr,
-    gross,
+    token: stableAddr,
+    grossAmount: gross,
     merchant,
-    ethers.ZeroAddress,
+    ipCreator: ethers.ZeroAddress,
     validUntil,
-    "amoy-stable-e2e",
-  );
+    orderId: "amoy-stable-e2e",
+  });
   const receipt = await payTx.wait();
   console.log(`payStable tx: ${payTx.hash}  (block ${receipt?.blockNumber})\n`);
 

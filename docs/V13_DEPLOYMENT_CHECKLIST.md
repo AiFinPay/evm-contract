@@ -56,8 +56,8 @@ minimum. Contract balance is asserted to be zero after every branch.
 
 | | Signature | Selector |
 |---|---|---|
-| **v1.3 native** | `payNative(bytes32,address,uint256,address,string)` | `0x894eb1f3` |
-| **v1.3 stable** | `payStable(bytes32,address,uint256,address,address,string)` | `0xdf421138` |
+| **v1.3 native** | `payNative(NativePayment)` | `0x27a3bbaf` |
+| **v1.3 stable** | `payStable(StablePayment)` | `0x7d452d37` |
 | v1.2 (legacy) | `payNative(bytes32,address,address,string)` | `0x8f0122bb` |
 | v1.1 (legacy) | `payMatic(address,address,string)` | `0xfa3014a0` |
 

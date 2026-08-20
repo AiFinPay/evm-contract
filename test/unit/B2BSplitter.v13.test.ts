@@ -47,10 +47,12 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const gross = ethers.parseEther("1");
     const until = await deadline();
     await expect(splitter.connect(agent).payNative(
-      paymentId("under"), await merchant.getAddress(), gross, ethers.ZeroAddress, until, "under", { value: gross - 1n }
+      { paymentId: paymentId("under"), merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "under" },
+      { value: gross - 1n }
     )).to.be.revertedWithCustomError(splitter, "IncorrectNativeValue").withArgs(gross, gross - 1n);
     await expect(splitter.connect(agent).payNative(
-      paymentId("over"), await merchant.getAddress(), gross, ethers.ZeroAddress, until, "over", { value: gross + 1n }
+      { paymentId: paymentId("over"), merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "over" },
+      { value: gross + 1n }
     )).to.be.revertedWithCustomError(splitter, "IncorrectNativeValue").withArgs(gross, gross + 1n);
   });
 
@@ -62,7 +64,8 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const mb = await ethers.provider.getBalance(await merchant.getAddress());
     const tb = await ethers.provider.getBalance(await treasury.getAddress());
     await splitter.connect(agent).payNative(
-      paymentId("native-aifp1"), await merchant.getAddress(), gross, ethers.ZeroAddress, until, "order", { value: gross }
+      { paymentId: paymentId("native-aifp1"), merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "order" },
+      { value: gross }
     );
     expect((await ethers.provider.getBalance(await merchant.getAddress())) - mb).to.equal(merchantAmt);
     expect((await ethers.provider.getBalance(await treasury.getAddress())) - tb).to.equal(treasuryAmt);
@@ -76,7 +79,8 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const expired = BigInt(block?.timestamp || 1);
     await ethers.provider.send('evm_mine', []);
     await expect(splitter.connect(agent).payNative(
-      paymentId("expired"), await merchant.getAddress(), gross, ethers.ZeroAddress, expired, "expired", { value: gross }
+      { paymentId: paymentId("expired"), merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: expired, orderId: "expired" },
+      { value: gross }
     )).to.be.revertedWithCustomError(splitter, "PaymentExpired");
   });
 
@@ -89,7 +93,8 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const tb = await ethers.provider.getBalance(await treasury.getAddress());
     const cb = await ethers.provider.getBalance(await ipCreator.getAddress());
     await splitter.connect(agent).payNative(
-      paymentId("native-aifp2"), await merchant.getAddress(), gross, await ipCreator.getAddress(), until, "order", { value: gross }
+      { paymentId: paymentId("native-aifp2"), merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: await ipCreator.getAddress(), validUntil: until, orderId: "order" },
+      { value: gross }
     );
     expect((await ethers.provider.getBalance(await treasury.getAddress())) - tb).to.equal(0n);
     expect((await ethers.provider.getBalance(await ipCreator.getAddress())) - cb).to.equal(0n);
@@ -100,8 +105,14 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const id = paymentId("replay");
     const gross = 10_000n;
     const until = await deadline();
-    await splitter.connect(agent).payNative(id, await merchant.getAddress(), gross, ethers.ZeroAddress, until, "first", { value: gross });
-    await expect(splitter.connect(agent).payNative(id, await merchant.getAddress(), gross, ethers.ZeroAddress, until, "second", { value: gross }))
+    await splitter.connect(agent).payNative(
+      { paymentId: id, merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "first" },
+      { value: gross }
+    );
+    await expect(splitter.connect(agent).payNative(
+      { paymentId: id, merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "second" },
+      { value: gross }
+    ))
       .to.be.revertedWithCustomError(splitter, "PaymentAlreadyProcessed");
   });
 
@@ -170,7 +181,8 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const until = await deadline();
     const mb = await ethers.provider.getBalance(await merchant.getAddress());
     await expect(splitter.connect(agent).payNative(
-      ethers.ZeroHash, await merchant.getAddress(), gross, ethers.ZeroAddress, until, "zero", { value: gross }
+      { paymentId: ethers.ZeroHash, merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "zero" },
+      { value: gross }
     )).to.be.revertedWithCustomError(splitter, "ZeroPaymentId");
     expect(await ethers.provider.getBalance(await merchant.getAddress())).to.equal(mb);
     expect(await splitter.consumedPayment(ethers.ZeroHash)).to.equal(false);
@@ -195,7 +207,8 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const id = paymentId("partial-fail");
     const mb = await ethers.provider.getBalance(await merchant.getAddress());
     await expect(splitter.connect(agent).payNative(
-      id, await merchant.getAddress(), gross, ethers.ZeroAddress, until, "x", { value: gross }
+      { paymentId: id, merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "x" },
+      { value: gross }
     )).to.be.revertedWithCustomError(splitter, "TreasuryTransferFailed");
     // Atomic rollback: merchant balance unchanged, splitter holds no value,
     // consumedPayment[id] is rolled back so the same id may be retried.
@@ -216,7 +229,8 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const tb = await ethers.provider.getBalance(await treasury.getAddress());
     const ab = await ethers.provider.getBalance(await attacker.getAddress());
     await splitter.connect(agent).payNative(
-      paymentId("front"), await merchant.getAddress(), gross, ethers.ZeroAddress, until, "y", { value: gross }
+      { paymentId: paymentId("front"), merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "y" },
+      { value: gross }
     );
     expect((await ethers.provider.getBalance(await treasury.getAddress())) - tb).to.equal(0n);
     expect((await ethers.provider.getBalance(await attacker.getAddress())) - ab).to.equal(100n);
@@ -231,12 +245,14 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
       const gross = 10_000n + BigInt(i);
       expect(await splitter.consumedPayment(id)).to.equal(false);
       await splitter.connect(agent).payNative(
-        id, await merchant.getAddress(), gross, ethers.ZeroAddress, until, `o${i}`, { value: gross }
+        { paymentId: id, merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: `o${i}` },
+        { value: gross }
       );
       expect(await splitter.consumedPayment(id)).to.equal(true);
       // Same id, even with a different amount, reverts.
       await expect(splitter.connect(agent).payNative(
-        id, await merchant.getAddress(), gross + 1n, ethers.ZeroAddress, until, `o${i}b`, { value: gross + 1n }
+        { paymentId: id, merchant: await merchant.getAddress(), grossAmount: gross + 1n, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: `o${i}b` },
+        { value: gross + 1n }
       )).to.be.revertedWithCustomError(splitter, "PaymentAlreadyProcessed");
     }
   });
@@ -258,12 +274,14 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     const until = await deadline();
     const id = paymentId("merchant-reverts");
     await expect(splitter.connect(agent).payNative(
-      id, await reverter.getAddress(), gross, ethers.ZeroAddress, until, "z", { value: gross }
+      { paymentId: id, merchant: await reverter.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "z" },
+      { value: gross }
     )).to.be.revertedWithCustomError(splitter, "MerchantTransferFailed");
     // Top-level revert unwinds consumedPayment; same id may be retried.
     expect(await splitter.consumedPayment(id)).to.equal(false);
     await expect(splitter.connect(agent).payNative(
-      id, await merchant.getAddress(), gross, ethers.ZeroAddress, until, "z", { value: gross }
+      { paymentId: id, merchant: await merchant.getAddress(), grossAmount: gross, ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "z" },
+      { value: gross }
     )).to.not.revert(ethers);
     expect(await splitter.consumedPayment(id)).to.equal(true);
   });

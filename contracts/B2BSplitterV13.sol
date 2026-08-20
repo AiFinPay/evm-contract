@@ -68,6 +68,25 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     event TreasuryUpdated(address newTreasury);
     event WhitelistedTokensUpdated(address[] tokens, bool[] allowed);
 
+    struct NativePayment {
+        bytes32 paymentId;
+        address payable merchant;
+        uint256 grossAmount;
+        address ipCreator;
+        uint256 validUntil;
+        string orderId;
+    }
+
+    struct StablePayment {
+        bytes32 paymentId;
+        address token;
+        uint256 grossAmount;
+        address merchant;
+        address ipCreator;
+        uint256 validUntil;
+        string orderId;
+    }
+
     error IncorrectNativeValue(uint256 expected, uint256 received);
     error InvalidProductionSplit(uint256 treasuryBps, uint256 ipCreatorBps);
     error PaymentExpired(uint256 validUntil, uint256 currentTime);
@@ -123,88 +142,81 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     }
 
     /// @notice Settle one exact gross amount in native token.
-    /// @param _grossAmount Full payer settlement amount, excluding network gas.
-    /// @param _validUntil Last block timestamp at which this quote may move value.
-    function payNative(
-        bytes32 _paymentId,
-        address payable _merchant,
-        uint256 _grossAmount,
-        address _ipCreator,
-        uint256 _validUntil,
-        string calldata _orderId
-    ) external payable nonReentrant whenNotPaused {
-        _consume(_paymentId);
-        _validateDeadline(_validUntil);
-        if (_merchant == address(0)) revert ZeroMerchant();
+    /// @param _payment Payment details. `merchant` receives the remainder; `grossAmount` must match
+    ///                   `msg.value`.
+    function payNative(NativePayment calldata _payment) external payable nonReentrant whenNotPaused {
+        _consume(_payment.paymentId);
+        _validateDeadline(_payment.validUntil);
+        if (_payment.merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
-        if (msg.value != _grossAmount) {
-            revert IncorrectNativeValue(_grossAmount, msg.value);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
+            _payment.grossAmount,
+            _payment.ipCreator
+        );
+        if (msg.value != _payment.grossAmount) {
+            revert IncorrectNativeValue(_payment.grossAmount, msg.value);
         }
 
-        (bool s1, ) = _merchant.call{value: merchantAmt}("");
+        (bool s1, ) = _payment.merchant.call{value: merchantAmt}("");
         if (!s1) revert MerchantTransferFailed();
         if (treasuryAmt > 0) {
             (bool s2, ) = payable(treasury).call{value: treasuryAmt}("");
             if (!s2) revert TreasuryTransferFailed();
         }
         if (ipAmt > 0) {
-            (bool s3, ) = payable(_ipCreator).call{value: ipAmt}("");
+            (bool s3, ) = payable(_payment.ipCreator).call{value: ipAmt}("");
             if (!s3) revert IPCreatorTransferFailed();
         }
 
         emit Payment(
-            _paymentId,
+            _payment.paymentId,
             msg.sender,
-            _merchant,
+            _payment.merchant,
             address(0),
-            _grossAmount,
+            _payment.grossAmount,
             merchantAmt,
             treasuryAmt,
             ipAmt,
-            _validUntil,
-            _orderId
+            _payment.validUntil,
+            _payment.orderId
         );
     }
 
     /// @notice Settle one exact gross amount in configured USDC/USDT.
-    function payStable(
-        bytes32 _paymentId,
-        address _token,
-        uint256 _grossAmount,
-        address _merchant,
-        address _ipCreator,
-        uint256 _validUntil,
-        string calldata _orderId
-    ) external nonReentrant whenNotPaused {
-        _consume(_paymentId);
-        _validateDeadline(_validUntil);
-        if (_token == address(0) || !whitelistedTokens.isAllowed(_token)) {
+    /// @param _payment Payment details. `token` must be whitelisted; `grossAmount` must be approved by
+    ///                   `msg.sender`.
+    function payStable(StablePayment calldata _payment) external nonReentrant whenNotPaused {
+        _consume(_payment.paymentId);
+        _validateDeadline(_payment.validUntil);
+        if (_payment.token == address(0) || !whitelistedTokens.isAllowed(_payment.token)) {
             revert UnsupportedToken();
         }
-        if (_merchant == address(0)) revert ZeroMerchant();
+        if (_payment.merchant == address(0)) revert ZeroMerchant();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(_grossAmount, _ipCreator);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
+            _payment.grossAmount,
+            _payment.ipCreator
+        );
 
-        IERC20(_token).safeTransferFrom(msg.sender, _merchant, merchantAmt);
+        IERC20(_payment.token).safeTransferFrom(msg.sender, _payment.merchant, merchantAmt);
         if (treasuryAmt > 0) {
-            IERC20(_token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
+            IERC20(_payment.token).safeTransferFrom(msg.sender, treasury, treasuryAmt);
         }
         if (ipAmt > 0) {
-            IERC20(_token).safeTransferFrom(msg.sender, _ipCreator, ipAmt);
+            IERC20(_payment.token).safeTransferFrom(msg.sender, _payment.ipCreator, ipAmt);
         }
 
         emit Payment(
-            _paymentId,
+            _payment.paymentId,
             msg.sender,
-            _merchant,
-            _token,
-            _grossAmount,
+            _payment.merchant,
+            _payment.token,
+            _payment.grossAmount,
             merchantAmt,
             treasuryAmt,
             ipAmt,
-            _validUntil,
-            _orderId
+            _payment.validUntil,
+            _payment.orderId
         );
     }
 
