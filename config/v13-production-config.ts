@@ -23,6 +23,17 @@ export const ZERO_ADDRESS = ethers.ZeroAddress;
 const CIRCLE_USDC_SOURCE = "Circle USDC contract-address registry, verified 2026-08-16";
 const TETHER_USDT_SOURCE = "Tether supported-protocols registry, verified 2026-08-16";
 
+export const TESTNET_EVM_NETWORKS: Record<number, ProductionEvmNetwork> = {
+  80002: {
+    name: "Polygon Amoy",
+    chainId: 80002,
+    usdc: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+    usdt: "0x9281E8AF71Dd83c2484a8a22a1b820aEA21ebB32",
+    usdcSource: "Circle Amoy USDC faucet contract",
+    usdtSource: "AiFinPay mintable mock USDT on Amoy",
+  },
+};
+
 export const PRODUCTION_EVM_NETWORKS: Record<number, ProductionEvmNetwork> = {
   137: {
     name: "Polygon PoS",
@@ -99,7 +110,7 @@ export const PRODUCTION_EVM_NETWORKS: Record<number, ProductionEvmNetwork> = {
 };
 
 export function configuredStableAddress(chainId: number, symbol: "USDC" | "USDT"): string {
-  const network = PRODUCTION_EVM_NETWORKS[chainId];
+  const network = PRODUCTION_EVM_NETWORKS[chainId] || TESTNET_EVM_NETWORKS[chainId];
   if (!network) throw new Error(`Unsupported AiFinPay EVM chainId ${chainId}`);
   const canonical = symbol === "USDC" ? network.usdc : network.usdt;
   const override = process.env[`STABLE_${symbol}_${chainId}`]?.trim();
