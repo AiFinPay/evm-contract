@@ -64,8 +64,8 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
         uint256 validUntil,
         string orderId
     );
-    event SplitConfigured(uint256 treasuryBps, uint256 ipCreatorBps);
-    event TreasuryUpdated(address newTreasury);
+    event SplitConfigured(uint256 indexed treasuryBps, uint256 indexed ipCreatorBps);
+    event TreasuryUpdated(address indexed newTreasury);
     event WhitelistedTokensUpdated(address[] tokens, bool[] allowed);
 
     struct NativePayment {
@@ -128,7 +128,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
             address[] memory emittedTokens = new address[](nonZeroCount);
             bool[] memory emittedAllowed = new bool[](nonZeroCount);
             uint256 j = 0;
-            for (uint256 i = 0; i < length; i++) {
+            for (uint256 i = 0; i < length;) {
                 address token = stablecoins[i];
                 if (token != address(0)) {
                     emittedTokens[j] = token;
@@ -136,6 +136,9 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
                     unchecked {
                         ++j;
                     }
+                }
+                unchecked {
+                    ++i;
                 }
             }
             emit WhitelistedTokensUpdated(emittedTokens, emittedAllowed);
@@ -159,7 +162,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
         if (msg.value != grossAmount) revert IncorrectNativeValue(grossAmount, msg.value);
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(grossAmount, ipCreator);
 
-        (bool s1, ) = payable(merchant).call{value: merchantAmt}("");
+        (bool s1, ) = merchant.call{value: merchantAmt}("");
         if (!s1) revert MerchantTransferFailed();
 
         address cachedTreasury = treasury;
@@ -205,12 +208,13 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(grossAmount, ipCreator);
 
         address cachedTreasury = treasury;
-        IERC20(token).safeTransferFrom(msg.sender, merchant, merchantAmt);
+        IERC20 tokenContract = IERC20(token);
+        tokenContract.safeTransferFrom(msg.sender, merchant, merchantAmt);
         if (treasuryAmt > 0) {
-            IERC20(token).safeTransferFrom(msg.sender, cachedTreasury, treasuryAmt);
+            tokenContract.safeTransferFrom(msg.sender, cachedTreasury, treasuryAmt);
         }
         if (ipAmt > 0) {
-            IERC20(token).safeTransferFrom(msg.sender, ipCreator, ipAmt);
+            tokenContract.safeTransferFrom(msg.sender, ipCreator, ipAmt);
         }
 
         emit Payment(
