@@ -1,17 +1,25 @@
-import { defineConfig } from "hardhat/config";
+import { defineConfig, configVariable } from "hardhat/config";
 import * as dotenv from "dotenv";
 import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
+import hardhatLedgerPlugin from "@nomicfoundation/hardhat-ledger";
+import hardhatKeystore from "@nomicfoundation/hardhat-keystore";
 
 dotenv.config();
 
+const LEDGER_ACCOUNT = process.env.LEDGER_ACCOUNT ? [process.env.LEDGER_ACCOUNT] : [];
+
 const DEV_KEY = process.env.DEV_DEPLOYER_KEY ? [process.env.DEV_DEPLOYER_KEY] : [];
 const PROD_KEY = process.env.PROD_DEPLOYER_KEY ? [process.env.PROD_DEPLOYER_KEY] : [];
+
+function prodAccount(variableName: string): string[] {
+  return PROD_KEY.length ? PROD_KEY : [configVariable(variableName)];
+}
 
 const EXPLORER_KEY =
   process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY || "";
 
 export default defineConfig({
-  plugins: [hardhatToolboxMochaEthers],
+  plugins: [hardhatToolboxMochaEthers, hardhatLedgerPlugin, hardhatKeystore],
 
   solidity: {
     version: "0.8.35",
@@ -48,6 +56,7 @@ export default defineConfig({
       type: "http",
       url: "http://127.0.0.1:8545",
     },
+    // TESTNET: Polygon Amoy only
     amoy: {
       type: "http",
       url: process.env.AMOY_RPC || "https://rpc-amoy.polygon.technology",
@@ -58,128 +67,66 @@ export default defineConfig({
     polygon: {
       type: "http",
       url: process.env.POLYGON_MAINNET_RPC || "https://polygon-bor-rpc.publicnode.com",
-      accounts: PROD_KEY,
+      accounts: prodAccount("POLYGON_DEPLOYER_KEY"),
+      ledgerAccounts: PROD_KEY.length === 0 ? LEDGER_ACCOUNT : undefined,
       chainId: 137,
-      chainType: "l1",
-    },
-    "base-sepolia": {
-      type: "http",
-      url: process.env.BASE_SEPOLIA_RPC || "https://sepolia.base.org",
-      accounts: DEV_KEY,
-      chainId: 84532,
-      chainType: "op",
-    },
-    base: {
-      type: "http",
-      url: process.env.BASE_MAINNET_RPC || "https://mainnet.base.org",
-      accounts: PROD_KEY,
-      chainId: 8453,
-      chainType: "op",
-    },
-    "arbitrum-sepolia": {
-      type: "http",
-      url: process.env.ARBITRUM_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
-      accounts: DEV_KEY,
-      chainId: 421614,
-      chainType: "l1",
-    },
-    arbitrum: {
-      type: "http",
-      url: process.env.ARBITRUM_MAINNET_RPC || "https://arb1.arbitrum.io/rpc",
-      accounts: PROD_KEY,
-      chainId: 42161,
-      chainType: "l1",
-    },
-    "bnb-testnet": {
-      type: "http",
-      url: process.env.BNB_TESTNET_RPC || "https://data-seed-prebsc-1-s1.binance.org:8545",
-      accounts: DEV_KEY,
-      chainId: 97,
-      chainType: "l1",
-    },
-    bnb: {
-      type: "http",
-      url: process.env.BNB_MAINNET_RPC || "https://bsc-dataseed.binance.org",
-      accounts: PROD_KEY,
-      chainId: 56,
-      chainType: "l1",
-    },
-    ethereum: {
-      type: "http",
-      url: process.env.ETHEREUM_MAINNET_RPC || "https://eth.llamarpc.com",
-      accounts: PROD_KEY,
-      chainId: 1,
       chainType: "l1",
     },
     avalanche: {
       type: "http",
       url: process.env.AVALANCHE_MAINNET_RPC || "https://api.avax.network/ext/bc/C/rpc",
-      accounts: PROD_KEY,
+      accounts: prodAccount("AVALANCHE_DEPLOYER_KEY"),
       chainId: 43114,
       chainType: "l1",
     },
-    astar: {
+    arbitrum: {
       type: "http",
-      url: process.env.ASTAR_MAINNET_RPC || "https://evm.astar.network",
-      accounts: PROD_KEY,
-      chainId: 592,
+      url: process.env.ARBITRUM_MAINNET_RPC || "https://arb1.arbitrum.io/rpc",
+      accounts: prodAccount("ARBITRUM_DEPLOYER_KEY"),
+      chainId: 42161,
       chainType: "l1",
     },
-    hyperliquid: {
+    bnb: {
       type: "http",
-      url: process.env.HYPERLIQUID_RPC || "https://rpc.hyperliquid.xyz/evm",
-      accounts: PROD_KEY,
-      chainId: 999,
+      url: process.env.BNB_MAINNET_RPC || "https://bsc-dataseed.binance.org",
+      accounts: prodAccount("BNB_DEPLOYER_KEY"),
+      chainId: 56,
       chainType: "l1",
     },
-    optimism: {
+    base: {
       type: "http",
-      url: process.env.OPTIMISM_RPC || "https://mainnet.optimism.io",
-      accounts: PROD_KEY,
-      chainId: 10,
+      url: process.env.BASE_MAINNET_RPC || "https://mainnet.base.org",
+      accounts: prodAccount("BASE_DEPLOYER_KEY"),
+      chainId: 8453,
       chainType: "op",
-    },
-    xrplevm: {
-      type: "http",
-      url: process.env.XRPLEVM_RPC || "https://rpc.xrplevm.org",
-      accounts: PROD_KEY,
-      chainId: 1440000,
-      chainType: "l1",
-    },
-    botchain: {
-      type: "http",
-      url: process.env.BOTCHAIN_RPC || "https://rpc.botchain.ai",
-      accounts: PROD_KEY,
-      chainId: 677,
-      chainType: "l1",
-    },
-    hedera: {
-      type: "http",
-      url: process.env.HEDERA_RPC || "https://mainnet.hashio.io/api",
-      accounts: PROD_KEY,
-      chainId: 295,
-      chainType: "l1",
-    },
-    kaia: {
-      type: "http",
-      url: process.env.KAIA_RPC || "https://public-en.node.kaia.io",
-      accounts: PROD_KEY,
-      chainId: 8217,
-      chainType: "l1",
-    },
-    somnia: {
-      type: "http",
-      url: process.env.SOMNIA_RPC || "https://api.infra.mainnet.somnia.network",
-      accounts: PROD_KEY,
-      chainId: 5031,
-      chainType: "l1",
     },
     unichain: {
       type: "http",
       url: process.env.UNICHAIN_RPC || "https://mainnet.unichain.org",
-      accounts: PROD_KEY,
+      accounts: prodAccount("UNICHAIN_DEPLOYER_KEY"),
       chainId: 130,
       chainType: "op",
+    },
+    optimism: {
+      type: "http",
+      url: process.env.OPTIMISM_RPC || "https://mainnet.optimism.io",
+      accounts: prodAccount("OPTIMISM_DEPLOYER_KEY"),
+      chainId: 10,
+      chainType: "op",
+    },
+    botchain: {
+      type: "http",
+      url: process.env.BOTCHAIN_RPC || "https://rpc.botchain.ai",
+      accounts: prodAccount("BOTCHAIN_DEPLOYER_KEY"),
+      chainId: 677,
+      chainType: "l1",
+    },
+    xrplevm: {
+      type: "http",
+      url: process.env.XRPLEVM_RPC || "https://rpc.xrplevm.org",
+      accounts: prodAccount("XRPLEVM_DEPLOYER_KEY"),
+      chainId: 1440000,
+      chainType: "l1",
     },
   },
 
@@ -382,7 +329,7 @@ export default defineConfig({
 
   verify: {
     etherscan: {
-      apiKey: EXPLORER_KEY,
+      apiKey: process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY || configVariable("ETHERSCAN_API_KEY"),
     },
     sourcify: {
       enabled: false,
