@@ -1,9 +1,6 @@
 # Agent Instructions — AiFinPay EVM Contracts
 
-Primary instructions are located at:
-- node_modules/@daochild/agents-config/AGENTS.md
-
-Follow all instructions from that file unless overridden below.
+Primary instructions: node_modules/@daochild/agents-config/AGENTS.md — read in full and follow unless overridden below.
 
 ## Package manager
 - Use **Bun** only. `package-lock.json` was removed; the lockfile is `bun.lock`.
@@ -12,16 +9,16 @@ Follow all instructions from that file unless overridden below.
 ## Day-to-day commands
 ```bash
 bun run build              # hardhat build (compile contracts)
-bun test                   # hardhat test mocha (153 tests in the current suite)
+bun test                   # hardhat test mocha (176 tests in the current suite)
 bun run lint               # solhint 'contracts/**/*.sol'
 bun run prettify:check     # prettier --check 'contracts/**/*.sol'
 bun run prettify           # prettier --write 'contracts/**/*.sol'
-forge test                 # foundry tests (15 tests with 256 fuzz runs each)
+forge test                 # foundry tests (21 tests with 256 fuzz runs each)
 ```
 
 ## Testing
-- **Hardhat/Mocha**: `bun test` (153 integration tests)
-- **Foundry**: `forge test` (15 tests with fuzzing)
+- **Hardhat/Mocha**: `bun test` (176 integration tests)
+- **Foundry**: `forge test` (21 tests with fuzzing)
 - **Single test**: `bun test --grep "test name"` or `forge test --match-test testName`
 - **Gas reports**: `forge test --gas-report`
 - See `docs/TESTING_GUIDE.md` for complete testing documentation
@@ -32,7 +29,7 @@ No separate typecheck step; Hardhat/TypeScript compilation is exercised during `
 
 ## Toolchain quirks
 - **Hardhat v3.x**, **Ethers.js v6**, **Mocha**, **Chai 5**, **TypeScript 5.9**, ESM/`"type": "module"`, `NodeNext` resolution.
-- **Solidity `0.8.35`**, EVM target `cancun`, optimizer `viaIR: true`, `runs: 200`.
+- **Solidity `0.8.35`**, EVM target `cancun`, optimizer `viaIR: true`, `runs: 10000`.
 - **Tests and scripts must create a network connection** before using `ethers`:
   ```ts
   import { network } from "hardhat";
