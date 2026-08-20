@@ -71,6 +71,8 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     error IncorrectNativeValue(uint256 expected, uint256 received);
     error InvalidProductionSplit(uint256 treasuryBps, uint256 ipCreatorBps);
     error PaymentExpired(uint256 validUntil, uint256 currentTime);
+    error MissingIPCreator();
+    error ZeroStablecoins();
 
     constructor(
         address initialOwner,
@@ -84,17 +86,36 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
         treasury = _treasury;
 
         uint256 length = _stablecoins.length;
+        if (length == 0) revert ZeroStablecoins();
         address[] memory initialTokens = new address[](length);
         bool[] memory allowed = new bool[](length);
+        uint256 nonZeroCount = 0;
         for (uint256 i = 0; i < length; i++) {
             address token = _stablecoins[i];
             if (token != address(0)) {
                 whitelistedTokens.set(token, true);
                 allowed[i] = true;
+                initialTokens[i] = token;
+                unchecked {
+                    ++nonZeroCount;
+                }
             }
-            initialTokens[i] = token;
         }
-        emit WhitelistedTokensUpdated(initialTokens, allowed);
+        if (nonZeroCount > 0) {
+            address[] memory emittedTokens = new address[](nonZeroCount);
+            bool[] memory emittedAllowed = new bool[](nonZeroCount);
+            uint256 j = 0;
+            for (uint256 i = 0; i < length; i++) {
+                if (initialTokens[i] != address(0)) {
+                    emittedTokens[j] = initialTokens[i];
+                    emittedAllowed[j] = allowed[i];
+                    unchecked {
+                        ++j;
+                    }
+                }
+            }
+            emit WhitelistedTokensUpdated(emittedTokens, emittedAllowed);
+        }
 
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
@@ -243,24 +264,35 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuard, Pausable {
     }
 
     /// @notice Add or remove stablecoins accepted for gross-inclusive stable payments.
-    /// @dev Requires timelock delay if owner is TimelockController.
+    /// @dev The owner is trusted to whitelist only "clean" ERC20s (no
+    ///      fee-on-transfer, no rebasing, no balance-modifying hooks). This
+    ///      assumption is enforced operationally by the timelock + multisig
+    ///      governance (see `docs/TIMELOCK_SETUP.md`).
+    ///      Requires timelock delay if owner is TimelockController.
     function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external onlyOwner {
         whitelistedTokens.updateAndEmit(_tokens, _allowed);
     }
 
+    /// @dev Production profiles are pinned at construction (AIFP-2 0/0 or AIFP-1
+    ///      100/0) by `_validateProductionSplit`. The post-split merchant leg
+    ///      is therefore guaranteed non-zero for any non-zero gross amount when
+    ///      treasuryBps < BPS_DENOMINATOR and ipCreatorBps < BPS_DENOMINATOR,
+    ///      which is enforced by the MAX_*_BPS caps. This routine additionally
+    ///      refuses to silently drop the creator leg: if a future profile enables
+    ///      ipCreatorBps > 0, a missing creator address reverts rather than
+    ///      redirecting value to the merchant.
     function _splitGross(
         uint256 _grossAmount,
         address _ipCreator
     ) internal view returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
         if (_grossAmount == 0) revert ZeroAmount();
+        if (ipCreatorBps > 0 && _ipCreator == address(0)) revert MissingIPCreator();
 
         treasuryAmt = (_grossAmount * treasuryBps) / BPS_DENOMINATOR;
         if (treasuryBps > 0 && treasuryAmt == 0) {
             revert PaymentTooSmallForTreasury();
         }
 
-        // Production profiles pin ipCreatorBps to zero. Keep the field/event
-        // shape for ABI continuity and explicit proof that creator fees are zero.
         if (_ipCreator != address(0)) {
             ipAmt = (_grossAmount * ipCreatorBps) / BPS_DENOMINATOR;
             if (ipCreatorBps > 0 && ipAmt == 0) {

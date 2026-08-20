@@ -162,4 +162,149 @@ describe("B2BSplitter v1.3 — gross-inclusive native settlement", () => {
     await expect(splitter.connect(owner).setWhitelistedTokens([ethers.ZeroAddress], [true]))
       .to.be.revertedWithCustomError(splitter, "ZeroAddress");
   });
+
+  // ── audit-coverage: payNative rejects zero paymentId (mirrors payStable) ────────
+  it("payNative reverts on a zero paymentId before any value moves", async () => {
+    const { splitter, agent, merchant } = await loadFixture(fixtureAifp1);
+    const gross = 10_000n;
+    const until = await deadline();
+    const mb = await ethers.provider.getBalance(await merchant.getAddress());
+    await expect(splitter.connect(agent).payNative(
+      ethers.ZeroHash, await merchant.getAddress(), gross, ethers.ZeroAddress, until, "zero", { value: gross }
+    )).to.be.revertedWithCustomError(splitter, "ZeroPaymentId");
+    expect(await ethers.provider.getBalance(await merchant.getAddress())).to.equal(mb);
+    expect(await splitter.consumedPayment(ethers.ZeroHash)).to.equal(false);
+  });
+
+  // ── audit-coverage: treasury rejects after merchant succeeded — atomic rollback ─────
+  // EVM-level reverts unwind ALL state changes in the same transaction,
+  // including the merchant transfer AND the consumedPayment write. So the
+  // audit's [I-01] "payer-burn / merchant-windfall" risk does not exist in
+  // practice — atomic rollback means no partial movement. The same id can be
+  // retried against a working treasury.
+  it("native: treasury rejection rolls back the merchant transfer atomically (no partial movement)", async () => {
+    const [owner, agent, merchant] = await ethers.getSigners();
+    const Reverter = await ethers.getContractFactory("MockReverter");
+    const reverter = await Reverter.deploy();
+    const Factory = await ethers.getContractFactory("B2BSplitterV13");
+    const splitter = await Factory.deploy(
+      await owner.getAddress(), await reverter.getAddress(), [USDC_PLACEHOLDER, USDT_PLACEHOLDER], 100, 0
+    );
+    const gross = 10_000n;
+    const until = await deadline();
+    const id = paymentId("partial-fail");
+    const mb = await ethers.provider.getBalance(await merchant.getAddress());
+    await expect(splitter.connect(agent).payNative(
+      id, await merchant.getAddress(), gross, ethers.ZeroAddress, until, "x", { value: gross }
+    )).to.be.revertedWithCustomError(splitter, "TreasuryTransferFailed");
+    // Atomic rollback: merchant balance unchanged, splitter holds no value,
+    // consumedPayment[id] is rolled back so the same id may be retried.
+    expect(await ethers.provider.getBalance(await merchant.getAddress())).to.equal(mb);
+    expect(await ethers.provider.getBalance(await splitter.getAddress())).to.equal(0n);
+    expect(await splitter.consumedPayment(id)).to.equal(false);
+  });
+
+  // ── audit-coverage: treasury-update frontrun documents the trusted-treasury assumption ──
+  it("treasury-update redirects the next payment (documented trusted-treasury assumption)", async () => {
+    const { splitter, owner, agent, merchant, treasury } = await loadFixture(fixtureAifp1);
+    const [, , , , , attacker] = await ethers.getSigners();
+    const gross = 10_000n;
+    const until = await deadline();
+    // Owner rotates treasury to the attacker after deployment.
+    await splitter.connect(owner).setTreasury(await attacker.getAddress());
+    expect(await splitter.treasury()).to.equal(await attacker.getAddress());
+    const tb = await ethers.provider.getBalance(await treasury.getAddress());
+    const ab = await ethers.provider.getBalance(await attacker.getAddress());
+    await splitter.connect(agent).payNative(
+      paymentId("front"), await merchant.getAddress(), gross, ethers.ZeroAddress, until, "y", { value: gross }
+    );
+    expect((await ethers.provider.getBalance(await treasury.getAddress())) - tb).to.equal(0n);
+    expect((await ethers.provider.getBalance(await attacker.getAddress())) - ab).to.equal(100n);
+  });
+
+  // ── audit-coverage: consumedPayment is monotonically set (replay-proof) ──────────
+  it("consumedPayment writes true exactly once per id, regardless of caller/amount/timing", async () => {
+    const { splitter, agent, merchant, treasury } = await loadFixture(fixtureAifp1);
+    const until = await deadline();
+    for (let i = 0; i < 5; i++) {
+      const id = paymentId(`mono-${i}`);
+      const gross = 10_000n + BigInt(i);
+      expect(await splitter.consumedPayment(id)).to.equal(false);
+      await splitter.connect(agent).payNative(
+        id, await merchant.getAddress(), gross, ethers.ZeroAddress, until, `o${i}`, { value: gross }
+      );
+      expect(await splitter.consumedPayment(id)).to.equal(true);
+      // Same id, even with a different amount, reverts.
+      await expect(splitter.connect(agent).payNative(
+        id, await merchant.getAddress(), gross + 1n, ethers.ZeroAddress, until, `o${i}b`, { value: gross + 1n }
+      )).to.be.revertedWithCustomError(splitter, "PaymentAlreadyProcessed");
+    }
+  });
+
+  // ── audit-coverage: a contract merchant that reverts rolls back consumedPayment too ─────
+  // The CEI guard protects against RE-ENTRANT calls, not against a top-level
+  // merchant revert. If the merchant reverts, the entire transaction rolls back
+  // — including consumedPayment[id] = true — so the same id can be retried with
+  // a working merchant. This documents the actual semantics, not an ideal one.
+  it("a contract merchant that reverts on receive rolls back consumedPayment (retry is possible)", async () => {
+    const [owner, treasury, agent, merchant] = await ethers.getSigners();
+    const Reverter = await ethers.getContractFactory("MockReverter");
+    const reverter = await Reverter.deploy();
+    const Factory = await ethers.getContractFactory("B2BSplitterV13");
+    const splitter = await Factory.deploy(
+      await owner.getAddress(), await treasury.getAddress(), [USDC_PLACEHOLDER, USDT_PLACEHOLDER], 100, 0
+    );
+    const gross = 10_000n;
+    const until = await deadline();
+    const id = paymentId("merchant-reverts");
+    await expect(splitter.connect(agent).payNative(
+      id, await reverter.getAddress(), gross, ethers.ZeroAddress, until, "z", { value: gross }
+    )).to.be.revertedWithCustomError(splitter, "MerchantTransferFailed");
+    // Top-level revert unwinds consumedPayment; same id may be retried.
+    expect(await splitter.consumedPayment(id)).to.equal(false);
+    await expect(splitter.connect(agent).payNative(
+      id, await merchant.getAddress(), gross, ethers.ZeroAddress, until, "z", { value: gross }
+    )).to.not.revert(ethers);
+    expect(await splitter.consumedPayment(id)).to.equal(true);
+  });
+
+  // ── audit-coverage: constructor emits WhitelistedTokensUpdated with no zero entries ─────
+  it("constructor emits WhitelistedTokensUpdated with only non-zero tokens (no address(0))", async () => {
+    const [owner, treasury] = await ethers.getSigners();
+    const Factory = await ethers.getContractFactory("B2BSplitterV13");
+    const tx = await Factory.deploy(
+      await owner.getAddress(),
+      await treasury.getAddress(),
+      [ethers.ZeroAddress, USDC_PLACEHOLDER, ethers.ZeroAddress, USDT_PLACEHOLDER, ethers.ZeroAddress],
+      100,
+      0
+    );
+    await tx.waitForDeployment();
+    const splitterAddr = await tx.getAddress();
+    const splitter = Factory.attach(splitterAddr) as any;
+    const filter = splitter.filters.WhitelistedTokensUpdated();
+    const events = await splitter.queryFilter(filter, (await tx.deploymentTransaction())!.blockNumber!, (await tx.deploymentTransaction())!.blockNumber!);
+    expect(events.length).to.equal(1);
+    const tokens: string[] = (events[0].args as any).tokens;
+    expect(tokens).to.deep.equal([USDC_PLACEHOLDER, USDT_PLACEHOLDER]);
+  });
+
+  // ── audit-coverage: gross=0 reverts on quote (defense-in-depth) ─────
+  it("quoteTotal on AIFP-2 with gross=0 reverts ZeroAmount", async () => {
+    const { splitter } = await loadFixture(fixtureAifp2);
+    await expect(splitter.quoteTotal(0, ethers.ZeroAddress)).to.be.revertedWithCustomError(splitter, "ZeroAmount");
+  });
+
+  // ── audit-coverage [R-I-02]: empty _stablecoins reverts ZeroStablecoins ─────
+  it("constructor reverts on empty stablecoin list (ZeroStablecoins)", async () => {
+    const [owner, treasury] = await ethers.getSigners();
+    const Factory = await ethers.getContractFactory("B2BSplitterV13");
+    await expect(Factory.deploy(
+      await owner.getAddress(),
+      await treasury.getAddress(),
+      [],
+      100,
+      0
+    )).to.be.revertedWithCustomError(Factory, "ZeroStablecoins");
+  });
 });
