@@ -11,7 +11,7 @@ const LEDGER_ACCOUNT = process.env.LEDGER_ACCOUNT ? [process.env.LEDGER_ACCOUNT]
 const DEV_KEY = process.env.DEV_DEPLOYER_KEY ? [process.env.DEV_DEPLOYER_KEY] : [];
 const PROD_KEY = process.env.PROD_DEPLOYER_KEY ? [process.env.PROD_DEPLOYER_KEY] : [];
 
-function prodAccount(variableName: string): string[] {
+function prodAccount(variableName: string): (string | ReturnType<typeof configVariable>)[] {
   return PROD_KEY.length ? PROD_KEY : [configVariable(variableName)];
 }
 
@@ -152,23 +152,14 @@ export default defineConfig({
         },
       },
     },
-    8453: {
-      name: "Base Mainnet",
-      chainType: "op",
+    43114: {
+      name: "Avalanche C-Chain",
+      chainType: "l1",
       blockExplorers: {
         etherscan: {
-          name: "Basescan",
-          url: "https://basescan.org",
-        },
-      },
-    },
-    84532: {
-      name: "Base Sepolia",
-      chainType: "op",
-      blockExplorers: {
-        etherscan: {
-          name: "Base Sepolia Explorer",
-          url: "https://sepolia.basescan.org",
+          name: "Snowtrace",
+          url: "https://snowtrace.io",
+          apiUrl: "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan",
         },
       },
     },
@@ -182,16 +173,6 @@ export default defineConfig({
         },
       },
     },
-    421614: {
-      name: "Arbitrum Sepolia",
-      chainType: "l1",
-      blockExplorers: {
-        etherscan: {
-          name: "Arbiscan Sepolia",
-          url: "https://sepolia.arbiscan.io",
-        },
-      },
-    },
     56: {
       name: "BNB Chain",
       chainType: "l1",
@@ -202,56 +183,23 @@ export default defineConfig({
         },
       },
     },
-    97: {
-      name: "BNB Testnet",
-      chainType: "l1",
+    8453: {
+      name: "Base Mainnet",
+      chainType: "op",
       blockExplorers: {
         etherscan: {
-          name: "BscScan Testnet",
-          url: "https://testnet.bscscan.com",
+          name: "Basescan",
+          url: "https://basescan.org",
         },
       },
     },
-    1: {
-      name: "Ethereum Mainnet",
-      chainType: "l1",
+    130: {
+      name: "Unichain Mainnet",
+      chainType: "op",
       blockExplorers: {
         etherscan: {
-          name: "Etherscan",
-          url: "https://etherscan.io",
-        },
-      },
-    },
-    43114: {
-      name: "Avalanche C-Chain",
-      chainType: "l1",
-      blockExplorers: {
-        etherscan: {
-          name: "Snowtrace",
-          url: "https://snowtrace.io",
-          apiUrl: "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan",
-        },
-      },
-    },
-    592: {
-      name: "Astar Network",
-      chainType: "l1",
-      blockExplorers: {
-        etherscan: {
-          name: "Astar Blockscout",
-          url: "https://blockscout.com/astar",
-          apiUrl: "https://blockscout.com/astar/api",
-        },
-      },
-    },
-    999: {
-      name: "Hyperliquid HyperEVM",
-      chainType: "l1",
-      blockExplorers: {
-        etherscan: {
-          name: "Hyperliquid Explorer",
-          url: "https://explorer.hyperliquid.xyz",
-          apiUrl: "https://explorer.hyperliquid.xyz/api",
+          name: "Unichain Explorer",
+          url: "https://uniscan.xyz",
         },
       },
     },
@@ -265,16 +213,6 @@ export default defineConfig({
         },
       },
     },
-    1440000: {
-      name: "XRPL EVM",
-      chainType: "l1",
-      blockExplorers: {
-        etherscan: {
-          name: "XRPL EVM Explorer",
-          url: "https://explorer.xrplevm.org",
-        },
-      },
-    },
     677: {
       name: "BOT Chain",
       chainType: "l1",
@@ -285,43 +223,13 @@ export default defineConfig({
         },
       },
     },
-    295: {
-      name: "Hedera Mainnet",
+    1440000: {
+      name: "XRPL EVM",
       chainType: "l1",
       blockExplorers: {
         etherscan: {
-          name: "Hashscan",
-          url: "https://hashscan.io/mainnet",
-        },
-      },
-    },
-    8217: {
-      name: "Kaia Mainnet",
-      chainType: "l1",
-      blockExplorers: {
-        etherscan: {
-          name: "Kaiascan",
-          url: "https://kaiascan.io",
-        },
-      },
-    },
-    5031: {
-      name: "Somnia Mainnet",
-      chainType: "l1",
-      blockExplorers: {
-        etherscan: {
-          name: "Somnia Explorer",
-          url: "https://explorer.somnia.network",
-        },
-      },
-    },
-    130: {
-      name: "Unichain Mainnet",
-      chainType: "op",
-      blockExplorers: {
-        etherscan: {
-          name: "Unichain Explorer",
-          url: "https://uniscan.xyz",
+          name: "XRPL EVM Explorer",
+          url: "https://explorer.xrplevm.org",
         },
       },
     },
