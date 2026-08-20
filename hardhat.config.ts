@@ -15,16 +15,13 @@ function prodAccount(variableName: string): (string | ReturnType<typeof configVa
   return PROD_KEY.length ? PROD_KEY : [configVariable(variableName)];
 }
 
-const EXPLORER_KEY =
-  process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY || "";
-
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthers, hardhatLedgerPlugin, hardhatKeystore],
 
   solidity: {
     version: "0.8.35",
     settings: {
-      optimizer: { enabled: true, runs: 200 },
+      optimizer: { enabled: true, runs: 10000 },
       viaIR: true,
       evmVersion: "cancun",
     },
