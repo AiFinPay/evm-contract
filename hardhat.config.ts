@@ -19,11 +19,23 @@ export default defineConfig({
   plugins: [hardhatToolboxMochaEthers, hardhatLedgerPlugin, hardhatKeystore],
 
   solidity: {
-    version: "0.8.35",
-    settings: {
-      optimizer: { enabled: true, runs: 10000 },
-      viaIR: true,
-      evmVersion: "cancun",
+    profiles: {
+      default: {
+        version: "0.8.35",
+        settings: {
+          optimizer: { enabled: true, runs: 10000 },
+          viaIR: true,
+          evmVersion: "cancun",
+        },
+      },
+      production: {
+        version: "0.8.35",
+        settings: {
+          optimizer: { enabled: true, runs: 10000 },
+          viaIR: true,
+          evmVersion: "cancun",
+        },
+      },
     },
   },
 
@@ -145,7 +157,8 @@ export default defineConfig({
         etherscan: {
           name: "PolygonScan Amoy",
           url: "https://amoy.polygonscan.com",
-          apiUrl: "https://api-amoy.polygonscan.com/api",
+          // Etherscan API V2: hardhat-verify supplies chainid=80002 as a query param.
+          apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
     },
