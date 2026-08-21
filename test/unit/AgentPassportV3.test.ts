@@ -56,7 +56,7 @@ describe("AgentPassportV3 (AIFP-3 global identity)", function () {
       verificationLevel: LEVEL_SELF, version, issuerKeyId: ISSUER_KEY_ID, deadline: future(),
     };
     const sig = await ctx.attestor.signTypedData(ctx.domain, SYNC_TYPES, msg);
-    await ctx.passport.registerPassport(
+    await ctx.passport.mirrorPassport(
       AGENT_ID_STRING, msg.agentNumber, msg.verificationLevel, msg.version,
       msg.issuerKeyId, msg.deadline, sig,
     );
@@ -248,7 +248,7 @@ describe("AgentPassportV3 (AIFP-3 global identity)", function () {
         verificationLevel: LEVEL_SELF, version: 1n, issuerKeyId: ISSUER_KEY_ID, deadline: future(),
       };
       const sig = await ctx.attestor.signTypedData(ctx.domain, SYNC_TYPES, msg);
-      await ctx.passport.registerPassport(
+      await ctx.passport.mirrorPassport(
         AGENT_ID_STRING, msg.agentNumber, msg.verificationLevel, msg.version,
         msg.issuerKeyId, msg.deadline, sig,
       );
@@ -267,7 +267,7 @@ describe("AgentPassportV3 (AIFP-3 global identity)", function () {
       };
       const sig = await ctx.outsider.signTypedData(ctx.domain, SYNC_TYPES, msg);
       await expect(
-        ctx.passport.registerPassport(
+        ctx.passport.mirrorPassport(
           AGENT_ID_STRING, msg.agentNumber, msg.verificationLevel, msg.version,
           msg.issuerKeyId, msg.deadline, sig,
         ),

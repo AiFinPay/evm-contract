@@ -13,6 +13,25 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 ///         (`agentTokenId[address]`) and so gave one agent a separate identity
 ///         on every chain it touched.
 ///
+/// @dev **Where this contract sits.** The passport is issued by AiFinPay
+///      off-chain and stays globally valid independent of any blockchain.
+///      Nothing here issues an identity; this is the mirror and enforcement
+///      layer for one chain. The separation of concerns, in AiFinPay's terms:
+///
+///      - AIFP-3 Passport      — the global AiFinPay identity (off-chain)
+///      - Issuer Ed25519       — AiFinPay authenticity
+///      - Holder Ed25519       — agent control
+///      - Wallet proof         — authorization of one specific wallet
+///      - Operational attestor — automated bridge to on-chain state
+///      - Governance Safe      — governance / security layer
+///      - This contract        — mirror + enforcement
+///
+/// @dev **Mirroring is lazy.** A passport exists the moment AiFinPay issues
+///      it; it is not written to nine chains on creation. A chain's mirror is
+///      created the first time an agent actually transacts there, so onboarding
+///      costs no transactions at all and each chain carries only the agents
+///      that use it.
+///
 /// @dev **Why this is not an ERC-721.** The previous passport was a soulbound
 ///      NFT, and an NFT has exactly one owner address. An identity that must
 ///      span many wallets on many chains cannot be modelled that way without
@@ -68,11 +87,23 @@ contract AgentPassportV3 is Ownable, Pausable, EIP712 {
     mapping(bytes32 => mapping(address => BindingStatus)) public bindings;
 
     /// @notice Mirrors backend state onto this chain. Not an authority.
-    /// @dev Verified through SignatureChecker, so this may be an EOA **or** an
-    ///      ERC-1271 contract wallet. Production is expected to use a Safe, so
-    ///      mirroring state needs a signing threshold rather than one hot key:
-    ///      a single EOA that can write passport and wallet state on nine
-    ///      chains is too much authority to rest on one private key.
+    /// @dev The operational attestor is an **automated production signer**. The
+    ///      backend first validates the canonical AIFP-3 state — issuer
+    ///      signature, holder authorization, wallet proof, current version and
+    ///      status — and only then issues the EIP-712 attestation, from a key
+    ///      that should live in KMS/HSM or equivalent.
+    ///
+    ///      It is deliberately **not** the governance Safe. Putting a multisig
+    ///      in the routine path would make every new passport, every status
+    ///      change and every wallet binding wait on human signatures, which
+    ///      does not scale to millions of agents. Governance sits *above* this
+    ///      key and rotates it; it does not sign for it.
+    ///
+    ///      Verification goes through SignatureChecker, so the attestor may be
+    ///      an EOA **or** an ERC-1271 contract wallet — an operator who wants a
+    ///      threshold on the operational key itself can have one. The invariant
+    ///      is the separation of operational signing from governance, not the
+    ///      shape of either key.
     address public attestor;
 
     /// @notice May instantly suspend an agent or block a wallet, and nothing
@@ -90,7 +121,7 @@ contract AgentPassportV3 is Ownable, Pausable, EIP712 {
         "WalletBinding(bytes32 agentId,address wallet,uint8 status,uint64 version,uint256 deadline)"
     );
 
-    event PassportRegistered(bytes32 indexed agentId, string agentIdString, uint64 agentNumber);
+    event PassportMirrored(bytes32 indexed agentId, string agentIdString, uint64 agentNumber);
     event PassportSynced(
         bytes32 indexed agentId,
         Status status,
@@ -112,7 +143,7 @@ contract AgentPassportV3 is Ownable, Pausable, EIP712 {
     error AttestationNotSigned();
     error StaleVersion(uint64 provided, uint64 stored);
     error UnknownPassport(bytes32 agentId);
-    error PassportAlreadyRegistered(bytes32 agentId);
+    error PassportAlreadyMirrored(bytes32 agentId);
     error InvalidStatus();
     error WalletBoundToAnotherAgent(address wallet, bytes32 boundTo);
     error AgentIdMismatch();
@@ -157,10 +188,15 @@ contract AgentPassportV3 is Ownable, Pausable, EIP712 {
 
     // -------------------------------------------------------- attested writes
 
-    /// @notice Register a global identity. Anyone may submit; only a valid
-    ///         attestor signature makes it count, so AiFinPay does not have to
-    ///         hold gas on nine chains to onboard an agent.
-    function registerPassport(
+    /// @notice Create this chain's mirror of a passport AiFinPay has already
+    ///         issued. Named `mirrorPassport` rather than `register` because
+    ///         the identity exists before this call and does not depend on it:
+    ///         the chain records the state, it never confers it.
+    /// @dev Anyone may submit; only a valid attestor signature makes it count.
+    ///      That is what makes lazy mirroring work — AiFinPay holds gas on no
+    ///      chain, and whoever first needs the agent on this chain can create
+    ///      the mirror.
+    function mirrorPassport(
         string calldata _agentIdString,
         uint64 _agentNumber,
         uint8 _verificationLevel,
@@ -171,7 +207,7 @@ contract AgentPassportV3 is Ownable, Pausable, EIP712 {
     ) external whenNotPaused {
         bytes32 agentId = keccak256(bytes(_agentIdString));
         if (agentId == bytes32(0)) revert ZeroAgentId();
-        if (passports[agentId].status != Status.NONE) revert PassportAlreadyRegistered(agentId);
+        if (passports[agentId].status != Status.NONE) revert PassportAlreadyMirrored(agentId);
 
         _verifyPassportSync(
             agentId,
@@ -193,7 +229,7 @@ contract AgentPassportV3 is Ownable, Pausable, EIP712 {
             issuerKeyId: _issuerKeyId
         });
 
-        emit PassportRegistered(agentId, _agentIdString, _agentNumber);
+        emit PassportMirrored(agentId, _agentIdString, _agentNumber);
         emit PassportSynced(agentId, Status.ACTIVE, _verificationLevel, _version, _issuerKeyId);
     }
 
@@ -310,6 +346,10 @@ contract AgentPassportV3 is Ownable, Pausable, EIP712 {
     }
 
     // ------------------------------------------------------------ governance
+    // The owner is the governance Safe (behind a timelock wherever one is
+    // wired). Its powers are exactly these three: rotate the attestor, change
+    // the guardian, pause/unpause — plus ownership itself. It is never in the
+    // path of mirroring a passport or binding a wallet.
 
     /// @notice Rotate the attesting key. Required, not optional: an attestor
     ///         with no rotation path is a permanent single point of failure.
