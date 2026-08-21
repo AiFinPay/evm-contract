@@ -26,6 +26,8 @@ export interface ProtocolContracts {
   passport: AgentPassport;
   core: AiFinPayCore;
   mockPyth: MockPyth;
+  usdcToken: any;
+  usdtToken: any;
 }
 
 export interface ProtocolWithSplitter extends ProtocolContracts {
@@ -56,10 +58,14 @@ async function deployProtocol(): Promise<ProtocolContracts> {
     await owner.getAddress()
   )) as unknown as AgentPassport;
 
-  // Mock stablecoin addresses for testing (any non-zero address works —
-  // logic tests don't call stable transfers).
-  const mockUsdc = "0x1000000000000000000000000000000000000001";
-  const mockUsdt = "0x1000000000000000000000000000000000000002";
+  // Real 6-decimal mock stablecoins. Placeholder addresses no longer work
+  // here: Core reads decimals() from each token when it is whitelisted
+  // (AIFINP-120), so a whitelisted token has to actually be an ERC-20.
+  const MockERC20Factory = await ethers.getContractFactory("MockERC20");
+  const usdcToken = await MockERC20Factory.deploy("Mock USDC", "USDC", 6);
+  const usdtToken = await MockERC20Factory.deploy("Mock USDT", "USDT", 6);
+  const mockUsdc = await usdcToken.getAddress();
+  const mockUsdt = await usdtToken.getAddress();
   const mockNativeUsdId =
     "0x5de33a9112c2b700b8d30b8a3402c103578ccfa2856a12a2b20d7b0c67b6d82d";
 
@@ -87,6 +93,8 @@ async function deployProtocol(): Promise<ProtocolContracts> {
     passport,
     core,
     mockPyth,
+    usdcToken,
+    usdtToken,
   };
 }
 

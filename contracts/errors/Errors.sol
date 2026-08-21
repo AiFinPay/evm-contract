@@ -9,6 +9,10 @@ error ZeroTreasury();
 error ZeroPartner();
 error EmptyPartnerName();
 error InvalidAgreementHash();
+/// @notice A whitelisted stablecoin reports decimals that cannot represent a
+///         whole USD cent, or are implausibly large. Fail closed rather than
+///         credit a wrong amount (AIFINP-120).
+error UnsupportedTokenDecimals(address token, uint8 decimals);
 error ZeroNative();
 error InsufficientNativeForFee();
 error InvalidPythPrice();

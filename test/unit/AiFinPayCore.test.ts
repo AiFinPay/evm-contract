@@ -7,9 +7,10 @@ import { AgentPassport, AiFinPayCore, MockPyth, MSECCOToken } from "../../typech
 describe("AiFinPayCore", function () {
   let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, attacker: Signer;
   let msecco: MSECCOToken, passport: AgentPassport, core: AiFinPayCore, mockPyth: MockPyth;
+  let usdcToken: any, usdtToken: any;
 
   beforeEach(async function () {
-    ({ owner, treasury, agent, merchant, attacker, msecco, passport, core, mockPyth } = await loadFixture(fixture));
+    ({ owner, treasury, agent, merchant, attacker, msecco, passport, core, mockPyth, usdcToken, usdtToken } = await loadFixture(fixture));
   });
 
   describe("Configuration", function () {
@@ -51,8 +52,8 @@ describe("AiFinPayCore", function () {
     });
 
     it("initial stablecoins are whitelisted from constructor", async function () {
-      expect(await core.whitelistedTokens("0x1000000000000000000000000000000000000001")).to.equal(true);
-      expect(await core.whitelistedTokens("0x1000000000000000000000000000000000000002")).to.equal(true);
+      expect(await core.whitelistedTokens(await usdcToken.getAddress())).to.equal(true);
+      expect(await core.whitelistedTokens(await usdtToken.getAddress())).to.equal(true);
     });
 
     it("non-whitelisted stablecoin reverts reserveSeatStable", async function () {
@@ -60,6 +61,57 @@ describe("AiFinPayCore", function () {
       await expect(
         core.connect(agent).reserveSeatStable(hash, "0x3333333333333333333333333333333333333333", 1_000_000, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(core, "UnsupportedToken");
+    });
+
+    // AIFINP-120. The divisor used to be a fixed 10_000, i.e. an assumption that
+    // every stablecoin has 6 decimals. BNB Chain's Binance-Peg USDC and USDT have
+    // 18, so one dollar credited 10^14 cents instead of 100 — a 10^12 over-mint
+    // of mSECCO that Core can never burn back. These lock the behaviour in.
+    describe("stablecoin decimals (AIFINP-120)", function () {
+      const MANIFESTO = "0x27b28e3044b56df3332a60c27604686a634f922a184f62398a4e2f85df19c699";
+
+      async function whitelistedToken(decimals: number) {
+        const token = await (await ethers.getContractFactory("MockERC20"))
+          .deploy("Pegged", "PEG", decimals);
+        await core.connect(owner).setWhitelistedTokens([await token.getAddress()], [true]);
+        return token;
+      }
+
+      it("divisor is derived from each token's own decimals()", async function () {
+        expect(await core.stableCentsDivisor(await usdcToken.getAddress())).to.equal(10n ** 4n);
+        const token18 = await whitelistedToken(18);
+        expect(await core.stableCentsDivisor(await token18.getAddress())).to.equal(10n ** 16n);
+      });
+
+      it("one dollar of an 18-decimal stablecoin credits 100 cents, not 10^14", async function () {
+        const token = await whitelistedToken(18);
+        const oneDollar = 10n ** 18n;
+        const agentAddr = await agent.getAddress();
+
+        await token.mint(agentAddr, oneDollar);
+        await token.connect(agent).approve(await core.getAddress(), oneDollar);
+        await core.connect(agent).reserveSeatStable(MANIFESTO, await token.getAddress(), oneDollar, ethers.ZeroAddress);
+
+        // mSECCO is minted 1:1 with USD cents, so it is the visible proof.
+        expect(await msecco.balanceOf(agentAddr)).to.equal(100n);
+      });
+
+      it("a 6-decimal stablecoin still credits the same 100 cents", async function () {
+        const oneDollar = 10n ** 6n;
+        const agentAddr = await agent.getAddress();
+
+        await usdcToken.mint(agentAddr, oneDollar);
+        await usdcToken.connect(agent).approve(await core.getAddress(), oneDollar);
+        await core.connect(agent).reserveSeatStable(MANIFESTO, await usdcToken.getAddress(), oneDollar, ethers.ZeroAddress);
+
+        expect(await msecco.balanceOf(agentAddr)).to.equal(100n);
+      });
+
+      it("a token that cannot express a whole cent is rejected at whitelist time", async function () {
+        const token = await (await ethers.getContractFactory("MockERC20")).deploy("Odd", "ODD", 1);
+        await expect(core.connect(owner).setWhitelistedTokens([await token.getAddress()], [true]))
+          .to.be.revertedWithCustomError(core, "UnsupportedTokenDecimals");
+      });
     });
 
     it("setWhitelistedTokens reverts on array length mismatch", async function () {

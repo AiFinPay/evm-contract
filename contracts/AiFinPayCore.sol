@@ -2,6 +2,7 @@
 pragma solidity 0.8.35;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -20,6 +21,7 @@ import {
     UnexpectedPriceExponent,
     BelowMinimum,
     UnsupportedToken,
+    UnsupportedTokenDecimals,
     NoSeatFound,
     PartnerNotActive,
     AgentNotVerifiedB2B,
@@ -77,7 +79,15 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     ///         owner (Gnosis Safe) via setManifestoHash so a wrong/changed hash
     ///         never requires a redeploy again. Initialised to the real hash.
     bytes32 public manifestoHash = 0x27b28e3044b56df3332a60c27604686a634f922a184f62398a4e2f85df19c699;
-    uint256 public constant STABLE_DECIMALS_DIVISOR = 10_000;
+    /// @notice Per-token divisor converting a stablecoin's base units to USD
+    ///         cents, derived from that token's own decimals() when it is
+    ///         whitelisted (AIFINP-120).
+    /// @dev The former fixed 10_000 constant assumed every stablecoin had 6
+    ///      decimals. BNB Chain's Binance-Peg USDC and USDT have 18, so one
+    ///      dollar credited 10^14 cents instead of 100 — a 10^12 over-mint of
+    ///      mSECCO, permanent because Core never burns. Read the value from the
+    ///      token rather than assuming it, and fail closed when it is absurd.
+    mapping(address => uint256) public stableCentsDivisor;
     uint256 public constant PYTH_MAX_AGE = 60;
     uint256 public constant USD_CENTS_PER_MSECCO = 1;
     uint256 public constant MIN_USD_CENTS = 10;
@@ -142,6 +152,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         bool[] memory allowed = new bool[](_initialTokens.length);
         for (uint256 i = 0; i < _initialTokens.length; i++) {
             whitelistedTokens.set(_initialTokens[i], true);
+            stableCentsDivisor[_initialTokens[i]] = _centsDivisor(_initialTokens[i]);
             allowed[i] = true;
         }
         emit WhitelistedTokensUpdated(_initialTokens, allowed);
@@ -191,7 +202,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
         if (_agreementHash != manifestoHash) revert InvalidAgreementHash();
         if (!whitelistedTokens.isAllowed(_token)) revert UnsupportedToken();
 
-        uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
+        uint256 usdCents = _stableToUsdCents(_token, _amount);
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
         _createOrUpdateSeat(msg.sender, usdCents, 1, _referrer);
@@ -235,7 +246,7 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
 
     function topUpStable(address _token, uint256 _amount) external notPaused nonReentrant hasSeat {
         if (!whitelistedTokens.isAllowed(_token)) revert UnsupportedToken();
-        uint256 usdCents = _amount / STABLE_DECIMALS_DIVISOR;
+        uint256 usdCents = _stableToUsdCents(_token, _amount);
         if (usdCents < MIN_USD_CENTS) revert BelowMinimum();
 
         seats[msg.sender].usdCentsPaid += usdCents;
@@ -389,6 +400,32 @@ contract AiFinPayCore is Ownable, ReentrancyGuard {
     /// @dev Requires timelock delay if owner is TimelockController.
     function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external onlyOwner {
         whitelistedTokens.updateAndEmit(_tokens, _allowed);
+        // The divisor is refreshed on every enable rather than cached once, so a
+        // token can never be re-listed while carrying a stale scale.
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            if (_allowed[i]) {
+                stableCentsDivisor[_tokens[i]] = _centsDivisor(_tokens[i]);
+            }
+        }
+    }
+
+    /// @dev 10^(decimals-2) scales base units of a $1-pegged token to USD cents.
+    ///      Anything that cannot express a whole cent, or reports an implausible
+    ///      scale, is rejected at whitelist time instead of mispricing later.
+    function _centsDivisor(address _token) private view returns (uint256) {
+        uint8 tokenDecimals = IERC20Metadata(_token).decimals();
+        if (tokenDecimals < 2 || tokenDecimals > 30) {
+            revert UnsupportedTokenDecimals(_token, tokenDecimals);
+        }
+        return 10 ** (uint256(tokenDecimals) - 2);
+    }
+
+    /// @dev Divisor is non-zero for every whitelisted token by construction; the
+    ///      guard is a fail-closed backstop, never an expected branch.
+    function _stableToUsdCents(address _token, uint256 _amount) private view returns (uint256) {
+        uint256 divisor = stableCentsDivisor[_token];
+        if (divisor == 0) revert UnsupportedToken();
+        return _amount / divisor;
     }
 
     // forge-lint: disable-next-line(mixed-case-function)

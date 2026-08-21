@@ -6,6 +6,7 @@ import { Signer } from "ethers";
 describe("E2E: Agent Payment Flow", function () {
   let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, ipCreator: Signer;
   let core: any, msecco: any, passport: any;
+  let usdcToken: any, usdtToken: any;
 
   beforeEach(async function () {
     const contracts = await loadFixture(fixture);
@@ -17,6 +18,8 @@ describe("E2E: Agent Payment Flow", function () {
     core = contracts.core;
     msecco = contracts.msecco;
     passport = contracts.passport;
+    usdcToken = contracts.usdcToken;
+    usdtToken = contracts.usdtToken;
   });
 
   describe("Scenario 1: Partner Management", function () {
@@ -96,6 +99,7 @@ describe("E2E: Agent Payment Flow", function () {
 describe("E2E: Full User Journey", function () {
   let owner: Signer, treasury: Signer, agent: Signer, merchant: Signer, ipCreator: Signer;
   let core: any, msecco: any, passport: any;
+  let usdcToken: any, usdtToken: any;
 
   beforeEach(async function () {
     const contracts = await loadFixture(fixture);
@@ -107,6 +111,8 @@ describe("E2E: Full User Journey", function () {
     core = contracts.core;
     msecco = contracts.msecco;
     passport = contracts.passport;
+    usdcToken = contracts.usdcToken;
+    usdtToken = contracts.usdtToken;
   });
 
   describe("Protocol Configuration", function () {
@@ -135,12 +141,15 @@ describe("E2E: Full User Journey", function () {
 
   describe("Token Whitelist", function () {
     it("initial stablecoins are whitelisted from constructor", async function () {
-      expect(await core.whitelistedTokens("0x1000000000000000000000000000000000000001")).to.equal(true);
-      expect(await core.whitelistedTokens("0x1000000000000000000000000000000000000002")).to.equal(true);
+      expect(await core.whitelistedTokens(await usdcToken.getAddress())).to.equal(true);
+      expect(await core.whitelistedTokens(await usdtToken.getAddress())).to.equal(true);
     });
 
     it("owner can add and remove a token from the whitelist", async function () {
-      const token = "0x3333333333333333333333333333333333333333";
+      // Must be a real ERC-20 now: whitelisting reads decimals() (AIFINP-120).
+      const token = await (
+        await (await ethers.getContractFactory("MockERC20")).deploy("Extra", "EXTRA", 6)
+      ).getAddress();
       await expect(core.connect(owner).setWhitelistedTokens([token], [true]))
         .to.emit(core, "WhitelistedTokensUpdated")
         .withArgs([token], [true]);
