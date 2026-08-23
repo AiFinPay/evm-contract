@@ -4,6 +4,7 @@ pragma solidity 0.8.35;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {
@@ -30,7 +31,18 @@ import {Whitelist} from "./Whitelist.sol";
 ///         ever added on top of the quoted gross settlement amount.
 /// @dev This contract intentionally changes the v1.2 ABI/semantics. It must be
 ///      deployed under a new address and SDK/backend routes must opt into v1.3.
-contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
+///
+/// @dev **Ownership is two-step and cannot be renounced.** The rollout hands
+///      ownership of one splitter per chain to that chain's own timelock. A
+///      one-step transfer accepts any address without proof anyone holds it, so
+///      a single mistyped address permanently loses `pause()` and every other
+///      stop-lever on that chain, with no undo. `Ownable2Step` requires the
+///      incoming owner to call `acceptOwnership()`, which is that proof.
+///      `renounceOwnership()` is disabled outright: it has no legitimate use
+///      here, its calldata is empty so it reads as a no-op inside a batched Safe
+///      transaction, and calling it on a paused splitter would strand the
+///      contract paused forever.
+contract B2BSplitterV13 is Ownable2Step, ReentrancyGuardTransient, Pausable {
     using SafeERC20 for IERC20;
     using Whitelist for mapping(address => bool);
 
@@ -100,6 +112,7 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
     error PaymentExpired(uint256 validUntil, uint256 currentTime);
     error MissingIPCreator();
     error ZeroStablecoins();
+    error OwnershipRenouncementDisabled();
 
     constructor(ConstructorParams memory _params) Ownable(_params.initialOwner) {
         if (_params.treasury == address(0)) revert ZeroTreasury();
@@ -260,6 +273,13 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
 
     /// @notice Emergency pause — halts all payments instantly
     /// @dev Requires timelock delay if owner is TimelockController
+    /// @notice Disabled. Ownership of a live splitter can never be given up.
+    /// @dev Reverts for everyone, owner included — there is no caller for whom
+    ///      renouncing is correct, so this is deliberately not `onlyOwner`.
+    function renounceOwnership() public pure override {
+        revert OwnershipRenouncementDisabled();
+    }
+
     function pause() external onlyOwner {
         _pause();
     }
