@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, develop]
 
+# CodeQL actions/missing-workflow-permissions: an unrestricted GITHUB_TOKEN is
+# write-capable by default, so a compromised action in any step could push to
+# the repository. Nothing here needs more than read.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,3 +38,27 @@ jobs:
 
       - name: Check formatting
         run: bun run prettify:check
+
+  registry:
+    name: Canonical registry · drift + chain state
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # The generated table is a derived artifact. Hand-editing it would change
+      # where the SDK sends money without touching the registry, so the gate is
+      # a regenerate-and-compare rather than a review convention.
+      - name: Generated splitter table matches the registry
+        run: node scripts/generate-sdk-table.mjs --check
+
+      # Chain state is the source of truth. This fails when a required chain is
+      # unreachable, on purpose: "could not check" must not pass as "verified".
+      - name: Registry matches live chain state
+        run: node scripts/verify-registry.mjs
