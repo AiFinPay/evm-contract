@@ -47,7 +47,28 @@ async function assertContractAddress(label: string, address: string): Promise<st
   return normalized;
 }
 
-async function inspectSafe(label: string, raw: string) {
+/**
+ * ADR-006 (docs/architecture/adr/adr-006-safe-threshold-3-of-5.md): the
+ * governance Safe is 3-of-5 by decision, confirmed on-chain and by the founder.
+ *
+ * This gate asserts the shape EXACTLY, not a floor. An inequality would wave
+ * through the direction that hurts: "someone lowered it further" is precisely
+ * the case the gate exists to catch. If the Safe must change, the order is
+ * amend ADR-006, then the chain, then this constant — and this assertion is
+ * deliberately the thing that breaks if that order is reversed.
+ *
+ * Scoped to the governance Safe. A separate treasury Safe is a different
+ * entity and keeps the generic sanity floor below.
+ */
+const GOVERNANCE_SAFE_THRESHOLD = 3;
+const GOVERNANCE_SAFE_OWNER_COUNT = 5;
+
+interface SafeShape {
+  threshold: number;
+  ownerCount: number;
+}
+
+async function inspectSafe(label: string, raw: string, expected?: SafeShape) {
   const address = await assertContractAddress(label, raw);
   const safe = new ethers.Contract(address, SAFE_ABI, ethers.provider);
   let owners: string[];
@@ -64,6 +85,14 @@ async function inspectSafe(label: string, raw: string) {
   }
   if (!Number.isInteger(threshold) || threshold < 2 || threshold > owners.length) {
     throw new Error(`${label} ${address} has unsafe/invalid threshold ${threshold} for ${owners.length} owners; production requires threshold >= 2`);
+  }
+  if (expected && (threshold !== expected.threshold || owners.length !== expected.ownerCount)) {
+    throw new Error(
+      `${label} ${address} is ${threshold}-of-${owners.length}; ADR-006 pins the governance Safe at ` +
+      `${expected.threshold}-of-${expected.ownerCount}. This gate is exact by design. If the Safe is meant to ` +
+      `change, amend ADR-006 first, then the chain, then this constant — do not relax the assertion to match ` +
+      `an unrecorded change.`,
+    );
   }
   return { address, owners, threshold };
 }
@@ -100,7 +129,10 @@ async function main() {
   if (balance === 0n) throw new Error(`Deployer ${deployer.address} has zero native balance`);
 
   const govRaw = governanceEnv(chainId);
-  const ownerSafe = await inspectSafe("Safe owner", govRaw.owner);
+  const ownerSafe = await inspectSafe("Safe owner", govRaw.owner, {
+    threshold: GOVERNANCE_SAFE_THRESHOLD,
+    ownerCount: GOVERNANCE_SAFE_OWNER_COUNT,
+  });
   const treasurySafe = govRaw.treasury.toLowerCase() === govRaw.owner.toLowerCase()
     ? ownerSafe
     : await inspectSafe("treasury Safe", govRaw.treasury);
