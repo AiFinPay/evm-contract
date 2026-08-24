@@ -159,6 +159,7 @@ export default defineConfig({
         etherscan: {
           name: "PolygonScan",
           url: "https://polygonscan.com",
+          apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
     },
@@ -169,7 +170,6 @@ export default defineConfig({
         etherscan: {
           name: "PolygonScan Amoy",
           url: "https://amoy.polygonscan.com",
-          // Etherscan API V2: hardhat-verify supplies chainid=80002 as a query param.
           apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
@@ -180,8 +180,8 @@ export default defineConfig({
       blockExplorers: {
         etherscan: {
           name: "Snowtrace",
-          url: "https://snowtrace.io",
-          apiUrl: "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan",
+          url: "https://snowscan.xyz",
+          apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
     },
@@ -192,6 +192,7 @@ export default defineConfig({
         etherscan: {
           name: "Arbiscan",
           url: "https://arbiscan.io",
+          apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
     },
@@ -202,6 +203,7 @@ export default defineConfig({
         etherscan: {
           name: "BscScan",
           url: "https://bscscan.com",
+          apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
     },
@@ -212,6 +214,7 @@ export default defineConfig({
         etherscan: {
           name: "Basescan",
           url: "https://basescan.org",
+          apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
     },
@@ -222,6 +225,7 @@ export default defineConfig({
         etherscan: {
           name: "Unichain Explorer",
           url: "https://uniscan.xyz",
+          apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
     },
@@ -232,6 +236,7 @@ export default defineConfig({
         etherscan: {
           name: "Optimistic Etherscan",
           url: "https://optimistic.etherscan.io",
+          apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
     },
@@ -242,6 +247,7 @@ export default defineConfig({
         etherscan: {
           name: "BOT Chain Explorer",
           url: "https://explorer.botchain.ai",
+          apiUrl: "https://explorer.botchain.ai/api",
         },
       },
     },
@@ -252,6 +258,7 @@ export default defineConfig({
         etherscan: {
           name: "XRPL EVM Explorer",
           url: "https://explorer.xrplevm.org",
+          apiUrl: "https://explorer.xrplevm.org/api",
         },
       },
     },
