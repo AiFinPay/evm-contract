@@ -15,6 +15,19 @@ function prodAccount(variableName: string): (string | ReturnType<typeof configVa
   return PROD_KEY.length ? PROD_KEY : [configVariable(variableName)];
 }
 
+/**
+ * Returns accounts/ledgerAccounts for production networks.
+ * Priority:
+ * 1. PROD_DEPLOYER_KEY (global private key for all mainnets).
+ * 2. LEDGER_ACCOUNT env (Ledger hardware wallet).
+ * 3. Network-specific *_DEPLOYER_KEY config variable as last resort.
+ */
+function prodAccounts(networkKey: string): { accounts: string[]; ledgerAccounts?: string[] } {
+  if (PROD_KEY.length) return { accounts: PROD_KEY };
+  if (LEDGER_ACCOUNT.length) return { accounts: [], ledgerAccounts: LEDGER_ACCOUNT };
+  return { accounts: [configVariable(`${networkKey}_DEPLOYER_KEY`)] as unknown as string[] };
+}
+
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthers, hardhatLedgerPlugin, hardhatKeystore],
 
@@ -76,66 +89,65 @@ export default defineConfig({
     polygon: {
       type: "http",
       url: process.env.POLYGON_MAINNET_RPC || "https://polygon-bor-rpc.publicnode.com",
-      accounts: prodAccount("POLYGON_DEPLOYER_KEY"),
-      ledgerAccounts: PROD_KEY.length === 0 ? LEDGER_ACCOUNT : undefined,
       chainId: 137,
       chainType: "l1",
+      ...prodAccounts("POLYGON"),
     },
     avalanche: {
       type: "http",
       url: process.env.AVALANCHE_MAINNET_RPC || "https://api.avax.network/ext/bc/C/rpc",
-      accounts: prodAccount("AVALANCHE_DEPLOYER_KEY"),
       chainId: 43114,
       chainType: "l1",
+      ...prodAccounts("AVALANCHE"),
     },
     arbitrum: {
       type: "http",
       url: process.env.ARBITRUM_MAINNET_RPC || "https://arb1.arbitrum.io/rpc",
-      accounts: prodAccount("ARBITRUM_DEPLOYER_KEY"),
       chainId: 42161,
       chainType: "l1",
+      ...prodAccounts("ARBITRUM"),
     },
     bnb: {
       type: "http",
       url: process.env.BNB_MAINNET_RPC || "https://bsc-dataseed.binance.org",
-      accounts: prodAccount("BNB_DEPLOYER_KEY"),
       chainId: 56,
       chainType: "l1",
+      ...prodAccounts("BNB"),
     },
     base: {
       type: "http",
       url: process.env.BASE_MAINNET_RPC || "https://mainnet.base.org",
-      accounts: prodAccount("BASE_DEPLOYER_KEY"),
       chainId: 8453,
       chainType: "op",
+      ...prodAccounts("BASE"),
     },
     unichain: {
       type: "http",
       url: process.env.UNICHAIN_RPC || "https://mainnet.unichain.org",
-      accounts: prodAccount("UNICHAIN_DEPLOYER_KEY"),
       chainId: 130,
       chainType: "op",
+      ...prodAccounts("UNICHAIN"),
     },
     optimism: {
       type: "http",
       url: process.env.OPTIMISM_RPC || "https://mainnet.optimism.io",
-      accounts: prodAccount("OPTIMISM_DEPLOYER_KEY"),
       chainId: 10,
       chainType: "op",
+      ...prodAccounts("OPTIMISM"),
     },
     botchain: {
       type: "http",
       url: process.env.BOTCHAIN_RPC || "https://rpc.botchain.ai",
-      accounts: prodAccount("BOTCHAIN_DEPLOYER_KEY"),
       chainId: 677,
       chainType: "l1",
+      ...prodAccounts("BOTCHAIN"),
     },
     xrplevm: {
       type: "http",
       url: process.env.XRPLEVM_RPC || "https://rpc.xrplevm.org",
-      accounts: prodAccount("XRPLEVM_DEPLOYER_KEY"),
       chainId: 1440000,
       chainType: "l1",
+      ...prodAccounts("XRPLEVM"),
     },
   },
 
