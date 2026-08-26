@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "./errors/Errors.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OnlyCore, PassportAlreadyExists, NoPassport, Soulbound, CoreAlreadySet, ZeroAddress} from "./errors/Errors.sol";
 
 /// @title AgentPassport — On-chain identity NFT for AI agents (Polygon)
 /// @notice Each agent wallet gets one passport. Non-transferable after mint.
@@ -103,6 +103,7 @@ contract AgentPassport is ERC721, Ownable {
         return agentTokenId[_agent] != 0;
     }
 
+    // forge-lint: disable-next-line(mixed-case-function)
     function isVerifiedB2B(address _agent) external view returns (bool) {
         uint256 tokenId = agentTokenId[_agent];
         if (tokenId == 0) return false;
@@ -119,7 +120,11 @@ contract AgentPassport is ERC721, Ownable {
     }
 
     modifier onlyCore() {
-        if (msg.sender != aifinpayCore) revert OnlyCore();
+        _onlyCore();
         _;
+    }
+
+    function _onlyCore() internal view {
+        if (msg.sender != aifinpayCore) revert OnlyCore();
     }
 }

@@ -1,0 +1,26 @@
+[profile.default]
+src = "contracts"
+out = "foundry-artifacts"
+test = "foundry-tests"
+cache_path = "foundry-cache"
+
+solc_version = "0.8.35"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 10000
+via_ir = true
+
+remappings = [
+    "forge-std/=lib/forge-std/src/forge-std/src/"
+]
+
+# =============================================================================
+# LINTER CONFIGURATION
+# =============================================================================
+
+[lint]
+# Specifies which lints to run based on severity
+# If uninformed, all severities are checked
+# Options: "high", "medium", "low", "info", "gas", "code-size"
+# Default: ["high", "medium", "low"]
+severity = ["high", "medium", "low", "info", "gas", "code-size"]

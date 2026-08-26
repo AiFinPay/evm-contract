@@ -4,11 +4,19 @@ cache/
 typechain-types/
 types/
 .env
-*.env.local
+.env.local
 .idea/
 .vscode/
 .DS_Store
 *.log
+
+# Foundry
+lib/
+foundry-artifacts/
+foundry-cache/
+
+# AiFinPay shared deployment / utility helpers (tracked under scripts/lib)
+!scripts/lib/
 
 # one-off local scripts — must never be committed (contained raw keys)
 run_*.js

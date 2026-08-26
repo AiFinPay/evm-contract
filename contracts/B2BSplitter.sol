@@ -1,19 +1,42 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "./errors/Errors.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {
+    ZeroAmount,
+    ZeroMerchant,
+    ZeroNative,
+    ZeroPaymentId,
+    ZeroTreasury,
+    UnsupportedToken,
+    PaymentAlreadyProcessed,
+    PaymentBelowMinimum,
+    PaymentTooSmallForMerchant,
+    PaymentTooSmallForRoyalty,
+    PaymentTooSmallForTreasury,
+    FeesExceed100,
+    TreasuryFeeTooHigh,
+    TreasuryFeeTooLow,
+    IPCreatorFeeTooHigh,
+    MerchantTransferFailed,
+    TreasuryTransferFailed,
+    IPCreatorTransferFailed
+} from "./errors/Errors.sol";
+import {Whitelist} from "./Whitelist.sol";
 
-/// @title B2BSplitter v1.2 — AiFinPay Standalone Payment Splitter
+/// @title B2BSplitter v1.2 — AiFinPay Standalone Payment Splitter [DEPRECATED]
 /// @notice Splits an incoming native or ERC-20 payment between merchant, treasury,
 ///         and IP creator, atomically, once per paymentId. Owner is the team Gnosis
 ///         Safe on Polygon; on the other chains it is the deployer EOA, since no Safe
 ///         exists there yet (migration to multisig is tracked separately).
-/// @dev No upgradeability — redeploy to change logic. v1.2 = audit remediation:
+/// @dev DEPRECATED — do not deploy for new integrations. Use B2BSplitterV13 for all
+///      new routes. This file is kept in the repo only to preserve source-verification
+///      and incident-response capability for the live v1.2 deployments listed below.
+///      No upgradeability — redeploy to change logic. v1.2 = audit remediation:
 ///      - AIFINP-34: stablecoins are per-chain, fixed at deploy (no Polygon hardcodes).
 ///      - AIFINP-35: on-chain paymentId idempotency / replay protection.
 ///      - AIFINP-33: zero IP-creator value is redirected to the merchant, never
@@ -33,13 +56,15 @@ import "./errors/Errors.sol";
 ///      with PaymentAlreadyProcessed.
 contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
+    using Whitelist for mapping(address => bool);
 
-    // AIFINP-34 — set once at deployment to THIS chain's tokens (address(0) = unsupported here).
-    address public immutable USDC;
-    address public immutable USDT;
+    /// @notice Tokens accepted for stablecoin payments. Owner can update after deployment.
+    mapping(address => bool) public whitelistedTokens;
 
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MIN_PAYMENT = 100_000;
+    uint256 public constant MAX_TREASURY_BPS = 500;
+    uint256 public constant MAX_IP_CREATOR_BPS = 100;
 
     uint256 public treasuryBps = 100;
     uint256 public ipCreatorBps = 1;
@@ -61,6 +86,7 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     );
     event SplitUpdated(uint256 treasuryBps, uint256 ipCreatorBps);
     event TreasuryUpdated(address newTreasury);
+    event WhitelistedTokensUpdated(address[] tokens, bool[] allowed);
 
     /// @param initialOwner Gnosis Safe multisig
     /// @param _treasury    AiFinPay treasury (fee recipient)
@@ -69,8 +95,20 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     constructor(address initialOwner, address _treasury, address _usdc, address _usdt) Ownable(initialOwner) {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
-        USDC = _usdc;
-        USDT = _usdt;
+
+        bool[] memory allowed = new bool[](2);
+        if (_usdc != address(0)) {
+            whitelistedTokens.set(_usdc, true);
+            allowed[0] = true;
+        }
+        if (_usdt != address(0)) {
+            whitelistedTokens.set(_usdt, true);
+            allowed[1] = true;
+        }
+        address[] memory initialTokens = new address[](2);
+        initialTokens[0] = _usdc;
+        initialTokens[1] = _usdt;
+        emit WhitelistedTokensUpdated(initialTokens, allowed);
     }
 
     /// @notice Pay a merchant in the native token. Splits on-chain, once per paymentId.
@@ -125,8 +163,8 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
         string calldata _orderId
     ) external nonReentrant whenNotPaused {
         _consume(_paymentId);
-        // AIFINP-34 — reject address(0) explicitly so an unset (address(0)) USDT can't be matched.
-        if (_token == address(0) || (_token != USDC && _token != USDT)) revert UnsupportedToken();
+        // AIFINP-34 — reject address(0) explicitly so an unset (address(0)) token can't be matched.
+        if (_token == address(0) || !whitelistedTokens.isAllowed(_token)) revert UnsupportedToken();
         if (_amount == 0) revert ZeroAmount();
         if (_merchant == address(0)) revert ZeroMerchant();
 
@@ -149,27 +187,41 @@ contract B2BSplitter is Ownable, ReentrancyGuard, Pausable {
     }
 
     /// @notice Emergency pause — halts all payments instantly
+    /// @dev Requires timelock delay if owner is TimelockController
     function pause() external onlyOwner {
         _pause();
     }
 
     /// @notice Resume payments after an emergency pause
+    /// @dev Requires timelock delay if owner is TimelockController
     function unpause() external onlyOwner {
         _unpause();
     }
 
+    /// @notice Update fee split percentages
+    /// @dev Requires timelock delay if owner is TimelockController
     function setSplit(uint256 _treasuryBps, uint256 _ipCreatorBps) external onlyOwner {
         if (_treasuryBps + _ipCreatorBps >= BPS_DENOMINATOR) revert FeesExceed100();
         if (_treasuryBps < 1) revert TreasuryFeeTooLow();
+        if (_treasuryBps > MAX_TREASURY_BPS) revert TreasuryFeeTooHigh();
+        if (_ipCreatorBps > MAX_IP_CREATOR_BPS) revert IPCreatorFeeTooHigh();
         treasuryBps = _treasuryBps;
         ipCreatorBps = _ipCreatorBps;
         emit SplitUpdated(_treasuryBps, _ipCreatorBps);
     }
 
+    /// @notice Update treasury address
+    /// @dev Requires timelock delay if owner is TimelockController
     function setTreasury(address _treasury) external onlyOwner {
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
         emit TreasuryUpdated(_treasury);
+    }
+
+    /// @notice Add or remove stablecoins accepted for stablecoin payments.
+    /// @dev Requires timelock delay if owner is TimelockController.
+    function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external onlyOwner {
+        whitelistedTokens.updateAndEmit(_tokens, _allowed);
     }
 
     /// @dev AIFINP-33 — if _ipCreator is zero, its share goes to the merchant (no strand).

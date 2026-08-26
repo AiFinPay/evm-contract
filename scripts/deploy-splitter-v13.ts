@@ -1,10 +1,10 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
-import { DeploymentRecord } from "./types.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { DeploymentRecord } from "./lib/types.js";
+import {
+  computeRuntimeCodeHash,
+  getDeployerInfo,
+  writeDeploymentRecord,
+} from "./lib/deployment.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -45,6 +45,15 @@ const GOVERNANCE: Record<number, { owner: string; treasury: string }> = {
   137: { owner: SAFE_POLYGON, treasury: SAFE_POLYGON },
 };
 
+// TESTNET (dev branch only): Polygon Amoy governance comes from the
+// AMOY_TEST_SAFE env var — a real 2-of-2 Safe deployed by
+// scripts/deploy-safe-amoy.ts. Env-driven so no throwaway address is
+// committed; the owner-must-be-a-contract check below still applies in full.
+if (process.env.AMOY_TEST_SAFE) {
+  const amoySafe = ethers.getAddress(process.env.AMOY_TEST_SAFE);
+  GOVERNANCE[80002] = { owner: amoySafe, treasury: amoySafe };
+}
+
 /** Per-chain USDC/USDT. address(0) means the token is unsupported → native only. */
 const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
   137: {
@@ -66,6 +75,16 @@ const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
     usdc: ZERO,
     usdt: ZERO,
     label: "XRPL EVM (native only)",
+  },
+  // TESTNET (dev branch only). The USDC slot is Circle's real Amoy USDC, so
+  // the stablecoin path is wired against the genuine 6-decimal token the
+  // mainnet procedure will use. The USDT slot takes a freely-mintable mock
+  // via AMOY_TEST_STABLE, because Circle's faucet is rate-limited and a paid
+  // E2E cannot be scheduled around it. Unset leaves the slot closed.
+  80002: {
+    usdc: ethers.getAddress("0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582"),
+    usdt: process.env.AMOY_TEST_STABLE ? ethers.getAddress(process.env.AMOY_TEST_STABLE) : ZERO,
+    label: "Polygon Amoy TESTNET (Circle USDC + mintable mock in USDT slot)",
   },
 };
 
@@ -126,13 +145,7 @@ async function main() {
   // Resolved first so a missing or unknown profile fails before any network work.
   const fee = resolveFeeProfile();
 
-  const [deployer] = await ethers.getSigners();
-  const chainId = Number((await ethers.provider.getNetwork()).chainId);
-  const bal = await ethers.provider.getBalance(deployer.address);
-
-  console.log(`Network:  ${networkName} (chainId ${chainId})`);
-  console.log(`Deployer: ${deployer.address}`);
-  console.log(`Balance:  ${ethers.formatEther(bal)} native`);
+  const { chainId } = await getDeployerInfo(ethers, networkName);
 
   const cfg = TOKENS[chainId];
   if (!cfg) throw new Error(`No token config for chainId ${chainId} — refusing to deploy blind.`);
@@ -168,22 +181,20 @@ async function main() {
   console.log(`  ipCreatorBps   = ${fee.ipCreatorBps}`);
 
   const Factory = await ethers.getContractFactory("B2BSplitterV13");
-  const splitter = await Factory.deploy(
-    gov.owner,
-    gov.treasury,
-    cfg.usdc,
-    cfg.usdt,
-    fee.treasuryBps,
-    fee.ipCreatorBps,
-  );
+  const splitter = await Factory.deploy({
+    initialOwner: gov.owner,
+    treasury: gov.treasury,
+    stablecoins: [cfg.usdc, cfg.usdt],
+    treasuryBps: fee.treasuryBps,
+    ipCreatorBps: fee.ipCreatorBps,
+  });
   console.log(`\nDeploy tx: ${splitter.deploymentTransaction()?.hash}`);
   await splitter.waitForDeployment();
   const addr = await splitter.getAddress();
 
   // The registry pins the runtime code hash, so it is recorded here rather
   // than recomputed later from a build that may not match what is on-chain.
-  const runtimeCode = await ethers.provider.getCode(addr);
-  const runtimeCodeHash = ethers.keccak256(runtimeCode);
+  const runtimeCodeHash = await computeRuntimeCodeHash(ethers, addr);
 
   // Read the split back from the chain and assert it matches the profile that
   // was asked for. A deployment whose economic model does not match its own
@@ -198,15 +209,9 @@ async function main() {
     );
   }
 
-  const timestamp = new Date().toISOString();
-  const deploymentsDir = path.join(__dirname, "../deployments");
-  if (!fs.existsSync(deploymentsDir)) fs.mkdirSync(deploymentsDir, { recursive: true });
-
-  const latestRecordPath = path.join(deploymentsDir, `${networkName}-v13-latest.json`);
-  const deploymentRecord: DeploymentRecord & Record<string, unknown> = {
+  const deploymentRecord: Omit<DeploymentRecord, "timestamp"> & Record<string, unknown> = {
     network: networkName,
     chainId,
-    timestamp,
     splitterVersion: "1.3",
     splitter: {
       address: addr,
@@ -231,17 +236,13 @@ async function main() {
       enabled: false,
     },
   };
-  const recordFileName = `${networkName}-v13-${timestamp.replace(/[:.]/g, "-")}.json`;
-  fs.writeFileSync(
-    path.join(deploymentsDir, recordFileName),
-    JSON.stringify(deploymentRecord, null, 2) + "\n"
-  );
-  fs.writeFileSync(latestRecordPath, JSON.stringify(deploymentRecord, null, 2) + "\n");
+
+  writeDeploymentRecord(networkName, chainId, deploymentRecord, "v13-latest");
 
   console.log(`\n✅ B2BSplitterV13 deployed: ${addr}`);
   console.log(`   runtimeCodeHash = ${runtimeCodeHash}`);
-  console.log(`   USDC()          = ${await splitter.USDC()}`);
-  console.log(`   USDT()          = ${await splitter.USDT()}`);
+  console.log(`   USDC whitelist  = ${await splitter.whitelistedTokens(cfg.usdc)}`);
+  console.log(`   USDT whitelist  = ${await splitter.whitelistedTokens(cfg.usdt)}`);
   console.log(`   treasury()      = ${await splitter.treasury()}`);
   console.log(`   owner()         = ${await splitter.owner()}`);
   console.log(
@@ -250,7 +251,7 @@ async function main() {
 
   console.log(`\nVerify source:`);
   console.log(
-    `  npx hardhat verify --network ${networkName} ${addr} ${gov.owner} ${gov.treasury} ${cfg.usdc} ${cfg.usdt} ${fee.treasuryBps} ${fee.ipCreatorBps}`
+    `  npx hardhat verify --network ${networkName} ${addr} "${gov.owner}" "${gov.treasury}" "${cfg.usdc},${cfg.usdt}" ${fee.treasuryBps} ${fee.ipCreatorBps}`
   );
   console.log(`\nRegistry entry is STAGED and disabled. Do not enable it until:`);
   console.log(`  1. source verification succeeded on the explorer,`);

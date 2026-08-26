@@ -29,6 +29,8 @@ error BonusAlreadyClaimed();
 error NoReferrals();
 error FeesExceed100();
 error TreasuryFeeTooLow();
+error TreasuryFeeTooHigh();
+error IPCreatorFeeTooHigh();
 error ARPFeeTooHigh();
 error ProtocolPaused();
 
@@ -52,3 +54,11 @@ error PaymentTooSmallForRoyalty();
 error PaymentTooSmallForMerchant();
 error ZeroPaymentId(); // AIFINP-35 — paymentId must be non-zero
 error PaymentAlreadyProcessed(); // AIFINP-35 — replay: paymentId already settled
+
+// ── TimelockWrapper Errors ─────────────────────────────────────────────────────
+error ZeroProposer();
+error DelayTooShort();
+error NotProposer();
+
+// ── AiFinPayCore Whitelist Errors ──────────────────────────────────────────────
+error ArrayLengthMismatch();

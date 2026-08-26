@@ -2,13 +2,14 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
-import { DeploymentRecord } from "./types.js";
+import { DeploymentRecord } from "./lib/types.js";
 import {
   PRODUCTION_EVM_NETWORKS,
+  TESTNET_EVM_NETWORKS,
   ZERO_ADDRESS,
   configuredStableAddress,
   governanceEnv,
-} from "./v13-production-config.js";
+} from "../config/v13-production-config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { ethers, networkName } = await network.create();
@@ -89,11 +90,12 @@ async function inspectStable(symbol: "USDC" | "USDT", raw: string) {
 async function main() {
   const profile = feeProfile();
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
-  const cfg = PRODUCTION_EVM_NETWORKS[chainId];
-  if (!cfg) throw new Error(`chainId ${chainId} is not one of AiFinPay's 9 production EVM networks`);
+  const isTestnet = TESTNET_EVM_NETWORKS[chainId] !== undefined;
+  const cfg = PRODUCTION_EVM_NETWORKS[chainId] || TESTNET_EVM_NETWORKS[chainId];
+  if (!cfg) throw new Error(`chainId ${chainId} is not configured for AiFinPay v1.3 deployment`);
 
   const [deployer] = await ethers.getSigners();
-  if (!deployer) throw new Error("No PROD_DEPLOYER_KEY configured for this network");
+  if (!deployer) throw new Error("No deployer key configured for this network");
   const balance = await ethers.provider.getBalance(deployer.address);
   if (balance === 0n) throw new Error(`Deployer ${deployer.address} has zero native balance`);
 
@@ -108,7 +110,7 @@ async function main() {
   const usdc = await inspectStable("USDC", configuredStableAddress(chainId, "USDC"));
   const usdt = await inspectStable("USDT", configuredStableAddress(chainId, "USDT"));
 
-  console.log(`AiFinPay B2BSplitter v1.3 production deployment`);
+  console.log(`AiFinPay B2BSplitter v1.3 ${isTestnet ? "testnet" : "production"} deployment`);
   console.log(`network=${cfg.name} chainId=${chainId} hardhat=${networkName}`);
   console.log(`deployer=${deployer.address}`);
   console.log(`owner=${owner} threshold=${ownerSafe.threshold} owners=${ownerSafe.owners.join(",")}`);
@@ -117,21 +119,21 @@ async function main() {
   console.log(`USDC=${usdc.address} decimals=${usdc.decimals ?? "unsupported"} symbol=${usdc.symbol ?? "n/a"}`);
   console.log(`USDT=${usdt.address} decimals=${usdt.decimals ?? "unsupported"} symbol=${usdt.symbol ?? "n/a"}`);
 
-  if (process.env.CONFIRM_MAINNET_DEPLOY !== `${chainId}:${profile.name}`) {
+  const confirmVar = isTestnet ? "CONFIRM_AMOY_DEPLOY" : "CONFIRM_MAINNET_DEPLOY";
+  if (process.env[confirmVar] !== `${chainId}:${profile.name}`) {
     throw new Error(
-      `Refusing mainnet deployment. Set CONFIRM_MAINNET_DEPLOY=${chainId}:${profile.name} after reviewing the values above.`,
+      `Refusing deployment. Set ${confirmVar}=${chainId}:${profile.name} after reviewing the values above.`,
     );
   }
 
   const Factory = await ethers.getContractFactory("B2BSplitterV13");
-  const splitter = await Factory.deploy(
-    owner,
+  const splitter = await Factory.deploy({
+    initialOwner: owner,
     treasury,
-    usdc.address,
-    usdt.address,
-    profile.treasuryBps,
-    profile.ipCreatorBps,
-  );
+    stablecoins: [usdc.address, usdt.address],
+    treasuryBps: profile.treasuryBps,
+    ipCreatorBps: profile.ipCreatorBps,
+  });
   const tx = splitter.deploymentTransaction();
   if (!tx) throw new Error("Deployment transaction missing");
   console.log(`deployTx=${tx.hash}`);
@@ -145,16 +147,16 @@ async function main() {
   const actual = {
     owner: await splitter.owner(),
     treasury: await splitter.treasury(),
-    usdc: await splitter.USDC(),
-    usdt: await splitter.USDT(),
+    usdcWhitelisted: await splitter.whitelistedTokens(usdc.address),
+    usdtWhitelisted: await splitter.whitelistedTokens(usdt.address),
     treasuryBps: Number(await splitter.treasuryBps()),
     ipCreatorBps: Number(await splitter.ipCreatorBps()),
   };
   const mismatches = [
     actual.owner.toLowerCase() === owner.toLowerCase() || "owner",
     actual.treasury.toLowerCase() === treasury.toLowerCase() || "treasury",
-    actual.usdc.toLowerCase() === usdc.address.toLowerCase() || "USDC",
-    actual.usdt.toLowerCase() === usdt.address.toLowerCase() || "USDT",
+    actual.usdcWhitelisted === true || "USDC whitelist",
+    actual.usdtWhitelisted === true || "USDT whitelist",
     actual.treasuryBps === profile.treasuryBps || "treasuryBps",
     actual.ipCreatorBps === profile.ipCreatorBps || "ipCreatorBps",
   ].filter((x) => x !== true);
@@ -215,8 +217,12 @@ async function main() {
   console.log(`registry.enabled=false (mandatory until explorer verification + paid E2E)`);
   console.log(`verify command:`);
   console.log(
-    `npx hardhat verify --network ${networkName} ${address} ${owner} ${treasury} ${usdc.address} ${usdt.address} ${profile.treasuryBps} ${profile.ipCreatorBps}`,
+    `npx hardhat verify --network ${networkName} ${address} ${owner} ${treasury} "${usdc.address},${usdt.address}" ${profile.treasuryBps} ${profile.ipCreatorBps}`,
   );
+
+  if (isTestnet) {
+    console.log(`\n⚠️  Testnet deployment only — not safe to enable in production registries.`);
+  }
 }
 
 main().catch((err) => {

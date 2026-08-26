@@ -73,10 +73,10 @@ describe("Integration: B2BSplitter with Core", function () {
       expect(await splitter.ipCreatorBps()).to.equal(1);
     });
 
-    it("splitter uses the per-chain tokens set at deployment (AIFINP-34)", async function () {
+    it("splitter whitelists the per-chain tokens set at deployment (AIFINP-34)", async function () {
       // v1.2: no longer hardcoded Polygon addresses — taken from the constructor.
-      expect(await splitter.USDC()).to.equal("0x1000000000000000000000000000000000000001");
-      expect(await splitter.USDT()).to.equal("0x1000000000000000000000000000000000000002");
+      expect(await splitter.whitelistedTokens("0x1000000000000000000000000000000000000001")).to.equal(true);
+      expect(await splitter.whitelistedTokens("0x1000000000000000000000000000000000000002")).to.equal(true);
     });
   });
 

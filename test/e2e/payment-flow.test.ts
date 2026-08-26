@@ -133,13 +133,30 @@ describe("E2E: Full User Journey", function () {
     });
   });
 
-  describe("Token Addresses", function () {
-    it("USDC is set from constructor", async function () {
-      expect(await core.USDC()).to.equal("0x1000000000000000000000000000000000000001");
+  describe("Token Whitelist", function () {
+    it("initial stablecoins are whitelisted from constructor", async function () {
+      expect(await core.whitelistedTokens("0x1000000000000000000000000000000000000001")).to.equal(true);
+      expect(await core.whitelistedTokens("0x1000000000000000000000000000000000000002")).to.equal(true);
     });
 
-    it("USDT is set from constructor", async function () {
-      expect(await core.USDT()).to.equal("0x1000000000000000000000000000000000000002");
+    it("owner can add and remove a token from the whitelist", async function () {
+      const token = "0x3333333333333333333333333333333333333333";
+      await expect(core.connect(owner).setWhitelistedTokens([token], [true]))
+        .to.emit(core, "WhitelistedTokensUpdated")
+        .withArgs([token], [true]);
+      expect(await core.whitelistedTokens(token)).to.equal(true);
+
+      await expect(core.connect(owner).setWhitelistedTokens([token], [false]))
+        .to.emit(core, "WhitelistedTokensUpdated")
+        .withArgs([token], [false]);
+      expect(await core.whitelistedTokens(token)).to.equal(false);
+    });
+
+    it("non-owner cannot update the whitelist", async function () {
+      const { attacker: nonOwner } = await loadFixture(fixture);
+      const token = "0x3333333333333333333333333333333333333333";
+      await expect(core.connect(nonOwner).setWhitelistedTokens([token], [true]))
+        .to.be.revertedWithCustomError(core, "OwnableUnauthorizedAccount");
     });
 
     it("Pyth contract is set from constructor", async function () {

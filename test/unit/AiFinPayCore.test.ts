@@ -30,7 +30,7 @@ describe("AiFinPayCore", function () {
     it("reserveSeatStable reverts when the agreement hash is wrong", async function () {
       const wrongHash = "0x2222222222222222222222222222222222222222222222222222222222222222";
       await expect(
-        core.connect(agent).reserveSeatStable(wrongHash, await core.USDC(), 1_000_000, ethers.ZeroAddress)
+        core.connect(agent).reserveSeatStable(wrongHash, "0x1000000000000000000000000000000000000001", 1_000_000, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(core, "InvalidAgreementHash");
     });
 
@@ -50,12 +50,27 @@ describe("AiFinPayCore", function () {
       expect(await core.PYTH_MAX_AGE()).to.equal(60);
     });
 
-    it("USDC is set from constructor", async function () {
-      expect(await core.USDC()).to.equal("0x1000000000000000000000000000000000000001");
+    it("initial stablecoins are whitelisted from constructor", async function () {
+      expect(await core.whitelistedTokens("0x1000000000000000000000000000000000000001")).to.equal(true);
+      expect(await core.whitelistedTokens("0x1000000000000000000000000000000000000002")).to.equal(true);
     });
 
-    it("USDT is set from constructor", async function () {
-      expect(await core.USDT()).to.equal("0x1000000000000000000000000000000000000002");
+    it("non-whitelisted stablecoin reverts reserveSeatStable", async function () {
+      const hash = "0x27b28e3044b56df3332a60c27604686a634f922a184f62398a4e2f85df19c699";
+      await expect(
+        core.connect(agent).reserveSeatStable(hash, "0x3333333333333333333333333333333333333333", 1_000_000, ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(core, "UnsupportedToken");
+    });
+
+    it("setWhitelistedTokens reverts on array length mismatch", async function () {
+      const token = "0x3333333333333333333333333333333333333333";
+      await expect(core.connect(owner).setWhitelistedTokens([token], [true, false]))
+        .to.be.revertedWithCustomError(core, "ArrayLengthMismatch");
+    });
+
+    it("setWhitelistedTokens reverts on zero address", async function () {
+      await expect(core.connect(owner).setWhitelistedTokens([ethers.ZeroAddress], [true]))
+        .to.be.revertedWithCustomError(core, "ZeroAddress");
     });
 
     it("Pyth contract is set from constructor", async function () {
