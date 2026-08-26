@@ -45,12 +45,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
+          bun-version: latest
 
+      # This job used `npm ci`, which cannot run here: the repository moved to
+      # Bun and the tracked package-lock.json is no longer in sync with
+      # package.json. The install step therefore failed on every run, taking
+      # both gates below down with it — a registry gate that never executes is
+      # worse than none, because it reads as green history.
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: bun install --frozen-lockfile
 
       # The generated table is a derived artifact. Hand-editing it would change
       # where the SDK sends money without touching the registry, so the gate is
