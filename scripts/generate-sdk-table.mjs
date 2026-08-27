@@ -54,11 +54,12 @@ function build(registry) {
     if (!entry.verified) {
       throw new Error(`${name} has never been verified against chain state.`);
     }
-    for (const field of ['treasury', 'treasuryBps', 'ipCreatorBps']) {
+    for (const field of ['treasury', 'treasuryBps', 'ipCreatorBps', 'owner']) {
       if (entry[field] === undefined || entry[field] === null) {
         throw new Error(
           `${name} has no verified ${field}. Run verify-registry.mjs --pin — the ` +
-            'treasury and fee split decide where money goes and must come from the chain.',
+            'treasury, fee split and owner decide where money goes and who can ' +
+            'redirect it, and must come from the chain.',
         );
       }
     }
@@ -70,6 +71,7 @@ function build(registry) {
       superseded: entry.superseded === true,
       splitter: entry.splitter,
       runtimeCodeHash: entry.runtimeCodeHash,
+      owner: entry.owner,
       treasury: entry.treasury,
       treasuryBps: entry.treasuryBps,
       ipCreatorBps: entry.ipCreatorBps,
@@ -80,6 +82,20 @@ function build(registry) {
       settlementEnabled: entry.settlementEnabled === true,
       verifiedAt: entry.verified,
     };
+
+    // Offline mirror of the on-chain check in verify-registry.mjs. That one
+    // proves the chain agrees with the registry; this one stops a v1.3 route
+    // reaching the SDK owned by anything other than the governance Safe, even
+    // if the registry were edited and not re-verified.
+    if (
+      entry.version === '1.3' &&
+      entry.owner.toLowerCase() !== registry.governance.safe.toLowerCase()
+    ) {
+      throw new Error(
+        `${name} is v1.3 but its owner is ${entry.owner}, not the governance Safe ` +
+          `${registry.governance.safe}.`,
+      );
+    }
   }
   return {
     $generated: [
@@ -89,6 +105,13 @@ function build(registry) {
     ],
     schemaVersion: registry.schemaVersion,
     sourceUpdatedAt: registry.updatedAt,
+    // Carried through so a consumer can check the owner it was handed against
+    // the governance shape it was verified under, without a second table.
+    governance: {
+      safe: registry.governance.safe,
+      threshold: registry.governance.threshold,
+      owners: registry.governance.owners.map((o) => o.address),
+    },
     routes,
   };
 }

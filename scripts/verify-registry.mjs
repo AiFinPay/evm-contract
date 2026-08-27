@@ -7,12 +7,21 @@
  * Chain state is the source of truth. At each registered address this checks
  * that code exists, that the payment entrypoint the registry claims is present
  * in that bytecode, that its keccak-256 matches the pinned runtimeCodeHash, and
- * that the treasury and fee split the contract reports match what is pinned.
+ * that the treasury, fee split and owner the contract reports match what is
+ * pinned.
  *
  * An address on its own says nothing about what is deployed at it, and a
  * treasury transcribed into a file by hand is just a second unverified table —
  * those are the two gaps this closes. Where the money goes is read from the
  * contract that will send it.
+ *
+ * Ownership is read for the same reason, one level up. The owner can pause the
+ * contract, move the treasury and rewrite the stablecoin whitelist, so every
+ * other pinned field is provisional until you know who holds it. Each v1.3
+ * splitter must report the governance Safe, and that Safe is then read on the
+ * same chain and required to have the exact recorded signer set and threshold —
+ * not a floor, since a Safe quietly dropping from 4-of-5 to 3-of-5 is precisely
+ * what a floor lets through.
  *
  * It fails closed. An RPC that cannot be reached produces a non-zero exit, not
  * a pass: "we could not check" and "it is fine" must never look the same. That
@@ -57,6 +66,7 @@ const CONFIG_CALLS = {
   treasury: { sig: 'treasury()', kind: 'address' },
   treasuryBps: { sig: 'treasuryBps()', kind: 'uint' },
   ipCreatorBps: { sig: 'ipCreatorBps()', kind: 'uint' },
+  owner: { sig: 'owner()', kind: 'address' },
 };
 
 function decodeAddress(hex) {
@@ -67,6 +77,20 @@ function decodeAddress(hex) {
 function decodeUint(hex) {
   if (!hex || hex === '0x') return null;
   return Number(BigInt(hex));
+}
+
+/**
+ * Decode an `address[]` return. `Safe.getOwners()` is the only dynamic return
+ * this script reads, so this stays deliberately narrow: offset word, length
+ * word, then one address per word.
+ */
+function decodeAddressArray(hex) {
+  if (!hex || hex.length < 130) return null;
+  const words = hex.slice(2).match(/.{64}/g);
+  if (!words) return null;
+  const length = Number(BigInt(`0x${words[1]}`));
+  if (words.length < 2 + length) return null;
+  return Array.from({ length }, (_, i) => getAddress(`0x${words[2 + i].slice(24)}`));
 }
 
 async function readConfig(url, address) {
@@ -81,6 +105,78 @@ async function readConfig(url, address) {
   }
   return out;
 }
+
+/**
+ * The governance Safe as it exists on the chain being verified.
+ *
+ * `owner()` returning the right address is only half the answer. A Safe at that
+ * address with different signers, or with the threshold lowered, still reports
+ * the same owner while meaning something entirely different — one key instead
+ * of three. So the signer set and the threshold are read too, and compared as
+ * an exact shape rather than a floor. `threshold >= 2` is what the production
+ * deploy script used to assert, and it passed a 4-of-5 Safe that had become
+ * 3-of-5 without comment: a floor waves through exactly the case worth
+ * catching.
+ *
+ * Tried against the same RPC list as the splitter, preferring the node that
+ * already served the code, and each node is re-checked for chain identity
+ * first: a node answering for a different chain would report a different Safe
+ * and call it a match. Only when every node fails is the Safe unverified — and
+ * unverified is a failure, not a skip.
+ */
+async function readSafe(entry, preferredRpc, governance) {
+  const { safe } = governance;
+  const urls = [preferredRpc, ...entry.rpcs.filter((u) => u !== preferredRpc)];
+  const failures = [];
+
+  for (const url of urls) {
+    try {
+      const chainIdHex = await rpcCall(url, 'eth_chainId', []);
+      if (Number(BigInt(chainIdHex)) !== entry.chainId) {
+        failures.push(`${url}: serves a different chain`);
+        continue;
+      }
+      const code = await rpcCall(url, 'eth_getCode', [safe, 'latest']);
+      if (!code || code === '0x') {
+        return { problems: [`no code at the governance Safe ${safe} — an EOA cannot enforce a threshold`] };
+      }
+      const owners = decodeAddressArray(
+        await rpcCall(url, 'eth_call', [{ to: safe, data: selectorOf('getOwners()') }, 'latest']),
+      );
+      const threshold = decodeUint(
+        await rpcCall(url, 'eth_call', [{ to: safe, data: selectorOf('getThreshold()') }, 'latest']),
+      );
+      if (!owners) return { problems: [`getOwners() at ${safe} did not decode as address[]`] };
+      if (threshold === null) return { problems: [`getThreshold() at ${safe} returned nothing`] };
+      return { problems: compareSafe(owners, threshold, governance), owners, threshold };
+    } catch (error) {
+      failures.push(`${url}: ${error.message}`);
+    }
+  }
+
+  return { problems: [`could not read the governance Safe — ${failures.join('; ')}`] };
+}
+
+/** Exact shape comparison: same signers, same threshold. Never a floor. */
+function compareSafe(owners, threshold, governance) {
+  const expectedThreshold = governance.threshold;
+  const problems = [];
+  if (threshold !== expectedThreshold) {
+    problems.push(`Safe threshold is ${threshold}, expected exactly ${expectedThreshold}`);
+  }
+
+  const actual = new Set(owners.map((a) => a.toLowerCase()));
+  const expected = new Set(governance.owners.map((o) => getAddress(o.address).toLowerCase()));
+  const missing = [...expected].filter((a) => !actual.has(a));
+  const extra = [...actual].filter((a) => !expected.has(a));
+  if (missing.length) problems.push(`Safe is missing owner(s) ${missing.join(', ')}`);
+  if (extra.length) problems.push(`Safe has unrecorded owner(s) ${extra.join(', ')}`);
+
+  return problems;
+}
+
+/** chainId -> result. The Safe is the same contract for both routes on a chain. */
+const safeChecked = new Map();
 
 const PIN = process.argv.includes('--pin');
 
@@ -175,6 +271,46 @@ async function verifyEntry(name, entry) {
     return { name, ok: false, reason: mismatches.join('; ') };
   }
 
+  // Governance. Everything pinned above is only as trustworthy as whoever can
+  // change it: the owner can pause the contract, move the treasury and rewrite
+  // the stablecoin whitelist. So the owner is read from the contract rather
+  // than inferred from the deploy script that was supposed to set it.
+  const governance = registry.governance;
+  const ownedByGovernanceSafe =
+    String(entry.owner ?? '').toLowerCase() === governance.safe.toLowerCase();
+
+  if (entry.version === '1.3' && !ownedByGovernanceSafe) {
+    return {
+      name,
+      ok: false,
+      reason:
+        `owner is ${entry.owner}, but every v1.3 route splitter must be owned by ` +
+        `the governance Safe ${governance.safe}`,
+    };
+  }
+
+  // The legacy v1.1/v1.2 splitters are owned by a deployer EOA. That is history
+  // and cannot be rewritten, but it must never become a settlement target: one
+  // key can re-point the treasury on those. Superseded is not enough on its own,
+  // so ownership and payability are tied together here.
+  if (!ownedByGovernanceSafe && entry.settlementEnabled === true) {
+    return {
+      name,
+      ok: false,
+      reason:
+        `settlement is enabled but the owner ${entry.owner} is not the governance ` +
+        'Safe — a single key could re-point this splitter',
+    };
+  }
+
+  if (ownedByGovernanceSafe) {
+    if (!safeChecked.has(entry.chainId)) {
+      safeChecked.set(entry.chainId, await readSafe(entry, rpc, governance));
+    }
+    const { problems } = safeChecked.get(entry.chainId);
+    if (problems.length) return { name, ok: false, reason: problems.join('; ') };
+  }
+
   const runtimeCodeHash = keccak256(getBytes(code));
   if (!entry.runtimeCodeHash) {
     if (!PIN) {
@@ -200,6 +336,24 @@ async function verifyEntry(name, entry) {
 }
 
 const registry = JSON.parse(readFileSync(REGISTRY, 'utf8'));
+
+// Without this block there is nothing to check ownership against, and every
+// entry would pass on the strength of a field nobody compared to anything.
+const governanceOwners = registry.governance?.owners;
+if (
+  !registry.governance?.safe ||
+  typeof registry.governance.threshold !== 'number' ||
+  !Array.isArray(governanceOwners) ||
+  governanceOwners.length === 0
+) {
+  console.error(
+    'registry.json has no usable governance block. It must declare the Safe ' +
+      'address, its exact owner list and its threshold — ownership is not ' +
+      'verifiable without them.',
+  );
+  process.exit(1);
+}
+
 const results = [];
 
 // Serial on purpose. Parallel workers get rate-limited by public RPCs, and a
@@ -221,6 +375,11 @@ const failed = results.filter((r) => !r.ok);
 const unreachable = failed.filter((r) => r.unreachable);
 
 console.log(`\n${results.length - failed.length}/${results.length} verified against chain state.`);
+console.log(
+  `Governance Safe ${registry.governance.safe} verified ` +
+    `${registry.governance.threshold}-of-${governanceOwners.length} on ` +
+    `${[...safeChecked.values()].filter((r) => !r.problems.length).length} chain(s).`,
+);
 
 if (PIN && !failed.length) {
   registry.updatedAt = new Date().toISOString().slice(0, 10);
