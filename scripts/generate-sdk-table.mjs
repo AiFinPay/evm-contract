@@ -29,8 +29,22 @@ const OUTPUT = join(ROOT, 'registry/generated/splitter-table.json');
 const CHECK = process.argv.includes('--check');
 
 function build(registry) {
-  const networks = {};
+  const routes = {};
   for (const [name, entry] of Object.entries(registry.splitters)) {
+    // From v1.3 a chain carries one splitter per protocol route, so the key is
+    // '<chain>:<route>' and both must be present. Selection by chain alone is
+    // the failure this guards: the deployer used CREATE, so the same address
+    // recurs on other chains for the other route, and an address on its own
+    // does not tell you which economics apply.
+    if (!entry.chain || !entry.route) {
+      throw new Error(
+        `${name} is missing chain/route. Every entry must name both — the SDK ` +
+          'selects on chain AND route, and must never fall back between routes.',
+      );
+    }
+    if (name !== `${entry.chain}:${entry.route}`) {
+      throw new Error(`${name} does not match its own chain/route (${entry.chain}:${entry.route}).`);
+    }
     if (!entry.runtimeCodeHash) {
       throw new Error(
         `${name} has no pinned runtimeCodeHash. Run verify-registry.mjs --pin first — ` +
@@ -40,19 +54,24 @@ function build(registry) {
     if (!entry.verified) {
       throw new Error(`${name} has never been verified against chain state.`);
     }
-    for (const field of ['treasury', 'treasuryBps', 'ipCreatorBps']) {
+    for (const field of ['treasury', 'treasuryBps', 'ipCreatorBps', 'owner']) {
       if (entry[field] === undefined || entry[field] === null) {
         throw new Error(
           `${name} has no verified ${field}. Run verify-registry.mjs --pin — the ` +
-            'treasury and fee split decide where money goes and must come from the chain.',
+            'treasury, fee split and owner decide where money goes and who can ' +
+            'redirect it, and must come from the chain.',
         );
       }
     }
-    networks[name] = {
+    routes[name] = {
+      chain: entry.chain,
+      route: entry.route,
       chainId: entry.chainId,
       version: entry.version,
+      superseded: entry.superseded === true,
       splitter: entry.splitter,
       runtimeCodeHash: entry.runtimeCodeHash,
+      owner: entry.owner,
       treasury: entry.treasury,
       treasuryBps: entry.treasuryBps,
       ipCreatorBps: entry.ipCreatorBps,
@@ -63,6 +82,20 @@ function build(registry) {
       settlementEnabled: entry.settlementEnabled === true,
       verifiedAt: entry.verified,
     };
+
+    // Offline mirror of the on-chain check in verify-registry.mjs. That one
+    // proves the chain agrees with the registry; this one stops a v1.3 route
+    // reaching the SDK owned by anything other than the governance Safe, even
+    // if the registry were edited and not re-verified.
+    if (
+      entry.version === '1.3' &&
+      entry.owner.toLowerCase() !== registry.governance.safe.toLowerCase()
+    ) {
+      throw new Error(
+        `${name} is v1.3 but its owner is ${entry.owner}, not the governance Safe ` +
+          `${registry.governance.safe}.`,
+      );
+    }
   }
   return {
     $generated: [
@@ -72,7 +105,14 @@ function build(registry) {
     ],
     schemaVersion: registry.schemaVersion,
     sourceUpdatedAt: registry.updatedAt,
-    networks,
+    // Carried through so a consumer can check the owner it was handed against
+    // the governance shape it was verified under, without a second table.
+    governance: {
+      safe: registry.governance.safe,
+      threshold: registry.governance.threshold,
+      owners: registry.governance.owners.map((o) => o.address),
+    },
+    routes,
   };
 }
 
@@ -81,9 +121,11 @@ const generated = `${JSON.stringify(build(registry), null, 2)}\n`;
 
 if (!CHECK) {
   writeFileSync(OUTPUT, generated);
-  const enabled = Object.entries(build(registry).networks).filter(([, n]) => n.settlementEnabled);
+  const built = build(registry).routes;
+  const enabled = Object.entries(built).filter(([, n]) => n.settlementEnabled);
+  const live = Object.entries(built).filter(([, n]) => !n.superseded);
   console.log(`Wrote ${OUTPUT}`);
-  console.log(`  ${Object.keys(registry.splitters).length} networks`);
+  console.log(`  ${Object.keys(built).length} routes (${live.length} current, ${Object.keys(built).length - live.length} superseded)`);
   console.log(`  ${enabled.length} with settlement enabled`);
   process.exit(0);
 }
@@ -99,8 +141,8 @@ if (onDisk !== generated) {
   console.error('  Either the table was hand-edited, or the registry changed and the');
   console.error('  table was not regenerated. Run: node scripts/generate-sdk-table.mjs');
   console.error('\n  Registry says:');
-  for (const [name, n] of Object.entries(build(registry).networks)) {
-    console.error(`    ${name.padEnd(10)} v${n.version} ${n.splitter} ${n.runtimeCodeHash.slice(0, 18)}…`);
+  for (const [name, n] of Object.entries(build(registry).routes)) {
+    console.error(`    ${name.padEnd(26)} v${n.version} ${n.splitter} ${n.runtimeCodeHash.slice(0, 18)}…`);
   }
   process.exit(1);
 }
