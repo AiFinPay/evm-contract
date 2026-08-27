@@ -148,13 +148,160 @@ async function readSafe(entry, preferredRpc, governance) {
       );
       if (!owners) return { problems: [`getOwners() at ${safe} did not decode as address[]`] };
       if (threshold === null) return { problems: [`getThreshold() at ${safe} returned nothing`] };
-      return { problems: compareSafe(owners, threshold, governance), owners, threshold };
+
+      // Everything above answers "who may sign". None of it answers "what does
+      // the Safe do with a signature" — and that is where a compromise hides.
+      // v1.3 audit P0 #2.
+      const implementation = await readSafeImplementation(url, safe);
+
+      return {
+        problems: [
+          ...compareSafe(owners, threshold, governance),
+          ...compareImplementation(implementation, governance, safe),
+        ],
+        owners,
+        threshold,
+        implementation,
+      };
     } catch (error) {
       failures.push(`${url}: ${error.message}`);
     }
   }
 
   return { problems: [`could not read the governance Safe — ${failures.join('; ')}`] };
+}
+
+/**
+ * Storage slots a Safe uses for the pieces that change its behaviour without
+ * changing its signers. Slot 0 is the proxy's singleton; the other two are
+ * namespaced hashes, chosen by Safe precisely so they cannot collide with
+ * ordinary storage.
+ */
+const SAFE_SLOT_SINGLETON = `0x${'0'.repeat(64)}`;
+const SAFE_SLOT_GUARD = id('guard_manager.guard.address');
+const SAFE_SLOT_FALLBACK = id('fallback_manager.handler.address');
+const MODULE_SENTINEL = '0x0000000000000000000000000000000000000001';
+const ZERO = '0x0000000000000000000000000000000000000000';
+
+/** Right-most 20 bytes of a storage word, as a checksummed address. */
+function addressFromWord(word) {
+  if (!word || word === '0x') return null;
+  return getAddress(`0x${word.slice(-40)}`);
+}
+
+/**
+ * Read the four things that decide what a Safe actually does, as opposed to
+ * who is allowed to ask it.
+ *
+ * Modules are read through `getModulesPaginated` rather than storage, because
+ * the module list is a linked list and reconstructing it from raw slots means
+ * reimplementing Safe's own traversal. A page of 20 is far past anything we
+ * expect; if it ever fills, `next` tells us and we say so rather than assuming
+ * the list ended.
+ */
+async function readSafeImplementation(url, safe) {
+  const singleton = addressFromWord(
+    await rpcCall(url, 'eth_getStorageAt', [safe, SAFE_SLOT_SINGLETON, 'latest']),
+  );
+  const guard = addressFromWord(
+    await rpcCall(url, 'eth_getStorageAt', [safe, SAFE_SLOT_GUARD, 'latest']),
+  );
+  const fallbackHandler = addressFromWord(
+    await rpcCall(url, 'eth_getStorageAt', [safe, SAFE_SLOT_FALLBACK, 'latest']),
+  );
+
+  const PAGE = 20;
+  const data =
+    selectorOf('getModulesPaginated(address,uint256)') +
+    MODULE_SENTINEL.slice(2).padStart(64, '0') +
+    PAGE.toString(16).padStart(64, '0');
+  const raw = await rpcCall(url, 'eth_call', [{ to: safe, data }, 'latest']);
+  const words = (raw ?? '0x').slice(2).match(/.{64}/g) ?? [];
+  const count = words.length >= 3 ? parseInt(words[2], 16) : 0;
+  const modules = words.slice(3, 3 + count).map((w) => getAddress(`0x${w.slice(-40)}`));
+  const truncated = count >= PAGE;
+
+  const codeHashOf = async (address) =>
+    address && address !== ZERO
+      ? keccak256(getBytes(await rpcCall(url, 'eth_getCode', [address, 'latest'])))
+      : null;
+
+  return {
+    singleton,
+    singletonCodeHash: await codeHashOf(singleton),
+    guard,
+    fallbackHandler,
+    fallbackHandlerCodeHash: await codeHashOf(fallbackHandler),
+    modules,
+    truncated,
+  };
+}
+
+/**
+ * Compare against the pin in registry.json. A missing pin is a failure, not a
+ * skip: "we never wrote down what the Safe should be" and "the Safe is what we
+ * expect" must not produce the same green tick.
+ */
+function compareImplementation(actual, governance, safe) {
+  const pin = governance.implementation;
+  const problems = [];
+  if (!pin) {
+    return [
+      `registry governance has no "implementation" pin, so the Safe singleton, modules, guard and fallback handler at ${safe} are unverified. A Safe can be fully compromised without changing a single signer.`,
+    ];
+  }
+
+  // The singleton is the one that matters most: swap it and every other answer
+  // this script trusts, getOwners() included, comes from the new code.
+  if (pin.singleton && actual.singleton !== getAddress(pin.singleton)) {
+    problems.push(
+      `Safe singleton is ${actual.singleton}, expected ${getAddress(pin.singleton)}. The proxy delegates every call here — a different singleton means getOwners() and getThreshold() above were answered by unreviewed code.`,
+    );
+  }
+  if (pin.singletonCodeHash && actual.singletonCodeHash !== pin.singletonCodeHash.toLowerCase()) {
+    problems.push(
+      `Safe singleton code hash is ${actual.singletonCodeHash}, expected ${pin.singletonCodeHash}.`,
+    );
+  }
+
+  // A module executes through the Safe with no signature check whatsoever.
+  const expectedModules = new Set((pin.modules ?? []).map((m) => getAddress(m)));
+  const unexpected = actual.modules.filter((m) => !expectedModules.has(m));
+  if (unexpected.length) {
+    problems.push(
+      `Safe has unrecorded module(s) ${unexpected.join(', ')}. A module executes transactions through the Safe without any signature, so the ${governance.threshold}-of-${governance.owners.length} threshold does not apply to it.`,
+    );
+  }
+  const missingModules = [...expectedModules].filter((m) => !actual.modules.includes(m));
+  if (missingModules.length) {
+    problems.push(`registry expects module(s) ${missingModules.join(', ')} that the Safe does not have.`);
+  }
+  if (actual.truncated) {
+    problems.push(`Safe returned a full page of modules — the list may be longer than this check read.`);
+  }
+
+  const expectedGuard = pin.guard ? getAddress(pin.guard) : ZERO;
+  if ((actual.guard ?? ZERO) !== expectedGuard) {
+    problems.push(
+      `Safe guard is ${actual.guard === ZERO ? 'unset' : actual.guard}, expected ${expectedGuard === ZERO ? 'unset' : expectedGuard}. A guard runs around every execution and can block or alter it.`,
+    );
+  }
+
+  if (pin.fallbackHandler && actual.fallbackHandler !== getAddress(pin.fallbackHandler)) {
+    problems.push(
+      `Safe fallback handler is ${actual.fallbackHandler}, expected ${getAddress(pin.fallbackHandler)}. The handler answers every selector the Safe does not implement itself.`,
+    );
+  }
+  if (
+    pin.fallbackHandlerCodeHash &&
+    actual.fallbackHandlerCodeHash !== pin.fallbackHandlerCodeHash.toLowerCase()
+  ) {
+    problems.push(
+      `Safe fallback handler code hash is ${actual.fallbackHandlerCodeHash}, expected ${pin.fallbackHandlerCodeHash}.`,
+    );
+  }
+
+  return problems;
 }
 
 /** Exact shape comparison: same signers, same threshold. Never a floor. */
@@ -375,11 +522,23 @@ const failed = results.filter((r) => !r.ok);
 const unreachable = failed.filter((r) => r.unreachable);
 
 console.log(`\n${results.length - failed.length}/${results.length} verified against chain state.`);
+const safeOk = [...safeChecked.values()].filter((r) => !r.problems.length);
 console.log(
   `Governance Safe ${registry.governance.safe} verified ` +
     `${registry.governance.threshold}-of-${governanceOwners.length} on ` +
-    `${[...safeChecked.values()].filter((r) => !r.problems.length).length} chain(s).`,
+    `${safeOk.length} chain(s).`,
 );
+// Naming what was checked, not just that something was: "3-of-5 verified" reads
+// as a complete answer, and for the whole of v1.3 it was taken as one while the
+// singleton, modules, guard and fallback handler went unread.
+const impl = safeOk.find((r) => r.implementation)?.implementation;
+if (impl) {
+  console.log(
+    `  singleton ${impl.singleton}, fallback handler ${impl.fallbackHandler}, ` +
+      `${impl.modules.length} module(s), guard ${impl.guard === `0x${'0'.repeat(40)}` ? 'unset' : impl.guard} ` +
+      `— all matched the registry pin.`,
+  );
+}
 
 if (PIN && !failed.length) {
   registry.updatedAt = new Date().toISOString().slice(0, 10);

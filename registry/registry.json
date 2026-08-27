@@ -90,7 +90,23 @@
         "name": "Reserve",
         "address": "0x849930eB20ED0a697c71BcE565f18702D202C0F8"
       }
-    ]
+    ],
+    "implementation": {
+      "$comment": [
+        "owner()/getOwners()/getThreshold() answer only who may sign. They say nothing about what the Safe does with a signature. Four things can change that without touching a single signer, and v1.3 audit P0 #2 asked for all four:",
+        "  singleton \u2014 a Safe proxy delegates every call to the contract at storage slot 0. Swap it and getOwners() itself becomes whatever the new code says. Every check above it is then reading the attacker's answers.",
+        "  modules \u2014 an enabled module executes transactions through the Safe with NO signature check at all. One module is a complete bypass of the 3-of-5, invisible to a threshold check.",
+        "  guard \u2014 a hook called around every execution. Can block legitimate transactions, or run its own logic first.",
+        "  fallbackHandler \u2014 answers any selector the Safe itself does not implement, so it decides what the Safe appears to be to an outside caller.",
+        "Pinned to what was read from all 9 chains on 2026-08-27: Safe v1.4.1 (SafeL2) with the canonical CompatibilityFallbackHandler, no modules, no guard. Identical on every chain, which is what a deterministic canonical deployment looks like. Changing any of these is a governance event; CI failing until the pin is updated is the point, not friction."
+      ],
+      "singleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+      "singletonCodeHash": "0xb1f926978a0f44a2c0ec8fe822418ae969bd8c3f18d61e5103100339894f81ff",
+      "fallbackHandler": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
+      "fallbackHandlerCodeHash": "0x7c6007a5d711cea8dfd5d91f5940ec29c7f200fe511eb1fc1397b367af3c42f9",
+      "guard": null,
+      "modules": []
+    }
   },
   "splitters": {
     "polygon:legacy": {
