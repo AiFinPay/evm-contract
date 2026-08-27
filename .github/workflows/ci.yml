@@ -63,7 +63,18 @@ jobs:
       - name: Generated splitter table matches the registry
         run: node scripts/generate-sdk-table.mjs --check
 
+      # A stable on-chain hash proves a deployment has not changed. It does not
+      # prove the reviewed source produced it. This compiles contracts/ with
+      # the pinned toolchain, writes each route's immutable profile into the
+      # runtime, and requires the hash to equal the one pinned for that route.
+      - name: Compile with the production profile
+        run: bun run hardhat compile --build-profile production
+
+      - name: Reviewed source reproduces every deployed runtime
+        run: node scripts/verify-build.mjs
+
       # Chain state is the source of truth. This fails when a required chain is
       # unreachable, on purpose: "could not check" must not pass as "verified".
+      # Every value is read from two independent providers and must agree.
       - name: Registry matches live chain state
         run: node scripts/verify-registry.mjs
