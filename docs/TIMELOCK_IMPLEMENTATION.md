@@ -1,8 +1,29 @@
-# Timelock Implementation Summary (v5.5)
+# Timelock — Proposal and Runbook (NOT ACTIVE)
+
+<!-- governance-status: direct-safe -->
+
+> **Status: NOT DEPLOYED. The 48-hour timelock described here does not exist
+> on any chain.** Every v1.3 route splitter is owned *directly* by the
+> governance Safe `0xFd936f75D9221949f2FEaB54Cd342F7527154eD5` (3-of-5).
+> That Safe can change treasury, fee split, the token whitelist, or pause a
+> route **immediately**, with no delay and no reaction window.
+>
+> Verified on-chain 2026-08-27: `owner()` on the v1.3 splitters returns the
+> Safe; the Safe answers `getThreshold()` = 3 and has **no** `getMinDelay()`,
+> so it is not a `TimelockController`. No timelock contract is recorded in
+> `registry/registry.json` on any chain.
+>
+> This document is a **plan for work not yet done**, kept as the runbook for
+> whoever executes it. Read every "✅" below as "what this would give us once
+> deployed", never as a description of production. `scripts/verify-governance-docs.mjs`
+> holds the marker above to the chain, and fails CI if the two disagree.
 
 ## Overview
 
-A **48-hour timelock** has been successfully implemented for all critical protocol operations to address the centralization risk identified in audit finding EVM-HIGH-001.
+A **48-hour timelock** is *proposed* for all critical protocol operations, to
+address the centralization risk raised as audit finding EVM-HIGH-001 and
+re-raised as P0 #3 in the v1.3 blockchain security audit (2026-08). It has been
+written and tested, but ownership was never transferred, so the risk is open.
 
 ## Files Changed
 
@@ -39,9 +60,10 @@ A **48-hour timelock** has been successfully implemented for all critical protoc
 4. **`package.json`**
    - Added `deploy:timelock` script
 
-5. **`docs/SECURITY_AUDIT.md`**
-   - Updated to reflect timelock implementation
-   - Marked EVM-HIGH-001 as fully resolved
+5. ~~`docs/SECURITY_AUDIT.md`~~
+   - Listed here as updated, but **this file does not exist in the repository**.
+   - EVM-HIGH-001 was never marked resolved anywhere, and must not be —
+     the finding is still open.
 
 ## Architecture
 
@@ -69,9 +91,11 @@ A **48-hour timelock** has been successfully implemented for all critical protoc
 └─────────────────────┘
 ```
 
-## Protected Functions
+## Functions the timelock *would* protect
 
-All `onlyOwner` functions now require timelock:
+None of these are timelock-protected today — all are callable immediately by
+the 3-of-5 Safe. Once ownership is transferred, these `onlyOwner` functions
+would require the 48-hour delay:
 
 ### AiFinPayCore
 - ✅ `setFees()` - Fee percentage changes
@@ -112,13 +136,16 @@ cast owner $CONTRACT_ADDRESS --rpc-url $RPC_URL
 
 ## Security Benefits
 
-| Benefit | Before | After |
-|---------|--------|-------|
+Left column is production **today**; right column is what deploying this would
+change. We are in the left column.
+
+| Benefit | Today (deployed) | After timelock (not done) |
+|---------|------------------|---------------------------|
 | **Rug Prevention** | ❌ Instant | ✅ 48h delay |
 | **Community Reaction** | ❌ None | ✅ 48h window |
 | **Multisig Enforcement** | ⚠️ Off-chain | ✅ On-chain |
 | **Transparent Governance** | ⚠️ Partial | ✅ Full |
-| **Audit Compliance** | ❌ EVM-HIGH-001 | ✅ Resolved |
+| **Audit Compliance** | ❌ EVM-HIGH-001 open | ✅ Resolved |
 
 ## Monitoring Setup
 
@@ -184,11 +211,11 @@ All existing tests pass - timelock is transparent to contract logic.
 
 ## Migration Checklist
 
-- [x] Deploy TimelockWrapper contract
-- [x] Deploy TimelockController (via wrapper)
+- [ ] Deploy TimelockWrapper contract *(written in `contracts/TimelockWrapper.sol`, never deployed)*
+- [ ] Deploy TimelockController (via wrapper) *(no address on any chain)*
 - [ ] Transfer ownership of AiFinPayCore
 - [ ] Transfer ownership of B2BSplitter
-- [ ] Transfer ownership of B2BSplitterV13
+- [ ] Transfer ownership of B2BSplitterV13 — **all 18 v1.3 route splitters**
 - [ ] Verify ownership on all contracts
 - [ ] Test scheduling a simple operation
 - [ ] Set up monitoring alerts
@@ -212,13 +239,29 @@ All existing tests pass - timelock is transparent to contract logic.
 
 - [OpenZeppelin TimelockController](https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController)
 - [Gnosis Safe Timelock Integration](https://docs.safe.global/advanced/smart-account-timelock)
-- [Security Audit EVM-HIGH-001](./SECURITY_AUDIT.md)
+- Security audit EVM-HIGH-001 — *(`docs/SECURITY_AUDIT.md` is referenced across
+  this repo but does not exist; the finding lives in the external audit reports)*
 - [Timelock Setup Guide](./TIMELOCK_SETUP.md)
 
 ## Conclusion
 
-The timelock implementation successfully addresses the centralization risk identified in the security audit. All critical protocol parameters now require a 48-hour delay before execution, providing the community with adequate time to react to any malicious proposals.
+The centralization risk is **open**. The code in this repository would address
+it, but it was never deployed, so today a 3-of-5 Safe can change treasury, fee
+split, or the token whitelist on any of the 18 live v1.3 routes with no delay.
 
-**Status**: ✅ Ready for deployment
-**Audit Status**: ✅ EVM-HIGH-001 fully resolved
-**Deployment Priority**: 🔴 HIGH (before mainnet launch)
+Choosing between the two governance models is a decision for the founders, not
+a documentation fix:
+
+- **A — keep direct Safe ownership.** Cheapest, keeps emergency pause instant.
+  Accept and disclose that there is no reaction window. Requires no code.
+- **B — deploy the TimelockController.** Restores the 48-hour window this
+  document was written for; costs ~$280 in gas and makes emergency pause slow
+  unless a separate pause role is deployed alongside (see *Emergency
+  Considerations* above).
+
+Until that decision is made and executed, no document, landing page, SDK
+comment or partner-facing material may claim timelock protection.
+
+**Status**: ❌ Not deployed — proposal only
+**Audit Status**: ❌ EVM-HIGH-001 open; re-raised as v1.3 audit P0 #3
+**Decision owner**: founders (see options A/B above)

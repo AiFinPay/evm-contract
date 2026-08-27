@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    # The long-lived branches are `main` and `dev`. This said `develop`, a
+    # branch that has never existed in this repository, so every pull request
+    # opened against `dev` merged with no CI at all while appearing to be
+    # covered by it.
+    branches: [main, dev]
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
 
 # CodeQL actions/missing-workflow-permissions: an unrestricted GITHUB_TOKEN is
 # write-capable by default, so a compromised action in any step could push to
@@ -67,3 +71,11 @@ jobs:
       # unreachable, on purpose: "could not check" must not pass as "verified".
       - name: Registry matches live chain state
         run: node scripts/verify-registry.mjs
+
+      # v1.3 audit P0 #3: the timelock documents claimed a 48-hour delay that
+      # was never deployed, and nothing could notice. The docs now carry a
+      # governance-status marker and this gate holds it to the chain — in both
+      # directions, so it also fails if a timelock goes live and the docs still
+      # describe direct Safe ownership.
+      - name: Governance documents match on-chain ownership
+        run: node scripts/verify-governance-docs.mjs

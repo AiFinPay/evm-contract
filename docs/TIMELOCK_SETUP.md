@@ -2,11 +2,23 @@
 
 ## Overview
 
-A **48-hour timelock** has been implemented for all critical protocol parameters to prevent rug-pull attacks and give the community time to react to malicious proposals.
+<!-- governance-status: direct-safe -->
+
+> **Status: NOT DEPLOYED.** This is a setup guide for work that has not been
+> done. No `TimelockController` exists on any chain; all 18 live v1.3 route
+> splitters are owned directly by the 3-of-5 governance Safe and can be changed
+> with no delay. See [TIMELOCK_IMPLEMENTATION.md](./TIMELOCK_IMPLEMENTATION.md)
+> for the verified on-chain state and the open A/B governance decision.
+
+A **48-hour timelock** is *proposed* for all critical protocol parameters, to
+prevent rug-pull attacks and give the community time to react to malicious
+proposals. Everything below describes how it would work once deployed.
 
 ## What's Protected
 
 The following operations now require a 48-hour timelock delay:
+
+*(The ✅ marks below mean "would be timelock-protected", not "is protected today".)*
 
 ### AiFinPayCore
 - ✅ `setFees()` - Change treasury/IP creator fee percentages
