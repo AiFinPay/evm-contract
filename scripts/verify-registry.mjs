@@ -304,6 +304,68 @@ function compareImplementation(actual, governance, safe) {
   return problems;
 }
 
+/**
+ * The stablecoin whitelist, checked in both directions.
+ *
+ * `whitelistedTokens` is a plain mapping, so the chain will answer "is THIS
+ * token allowed" and nothing else — there is no way to ask it for the whole
+ * set. Reconstructing the set means replaying WhitelistedTokensUpdated from
+ * deployment, and every free RPC we use caps eth_getLogs at 10 000 blocks
+ * (verified 2026-08-27 against drpc, publicnode and 1rpc), which turns a full
+ * replay into roughly a hundred requests per chain per run. That is not a
+ * check, it is a rate limit waiting to happen.
+ *
+ * So this asks about named tokens only, and the registry names them in two
+ * lists. `whitelisted` is what must be ON — it catches a stablecoin being
+ * removed, which silently breaks every payment in it. `mustNotBeWhitelisted`
+ * is what must stay OFF, seeded with the tokens the superseded
+ * scripts/deploy-splitter-v13.ts table named: exactly the addresses a redeploy
+ * from the wrong table would switch on.
+ *
+ * What this does NOT cover, stated plainly so nobody reads a green tick as
+ * more than it is: a token nobody has named cannot be detected here. Catching
+ * that needs event indexing against an archive node, and is tracked separately.
+ */
+async function checkStablecoins(preferredRpc, entry) {
+  const pin = entry.stablecoins;
+  if (!pin) return [];   // only v1.3 routes carry the pin
+  const problems = [];
+
+  // Free nodes rate-limit, and a 429 on one of them says nothing about the
+  // whitelist. Fall through the same RPC list the code came from, in the same
+  // order readSafe uses, and only give up when every node is exhausted.
+  const urls = [preferredRpc, ...entry.rpcs.filter((u) => u !== preferredRpc)];
+  const read = async (token) => {
+    const data = selectorOf('whitelistedTokens(address)') + getAddress(token).slice(2).padStart(64, '0');
+    const failures = [];
+    for (const url of urls) {
+      try {
+        const raw = await rpcCall(url, 'eth_call', [{ to: entry.splitter, data }, 'latest']);
+        return BigInt(raw ?? '0x0') === 1n;
+      } catch (error) {
+        failures.push(`${url}: ${error.message}`);
+      }
+    }
+    throw new Error(`no RPC could read whitelistedTokens(${token}) — ${failures.join('; ')}`);
+  };
+
+  for (const { symbol, address } of pin.whitelisted ?? []) {
+    if (!(await read(address))) {
+      problems.push(
+        `${symbol} ${address} is NOT whitelisted, but the registry says it must be. Every payment quoted in ${symbol} on this route reverts.`,
+      );
+    }
+  }
+  for (const { symbol, address } of pin.mustNotBeWhitelisted ?? []) {
+    if (await read(address)) {
+      problems.push(
+        `${symbol} ${address} IS whitelisted, and the registry says it must not be. This is the address the superseded deploy-splitter-v13.ts table names — check whether this route was deployed from the wrong config.`,
+      );
+    }
+  }
+  return problems;
+}
+
 /** Exact shape comparison: same signers, same threshold. Never a floor. */
 function compareSafe(owners, threshold, governance) {
   const expectedThreshold = governance.threshold;
@@ -327,7 +389,7 @@ const safeChecked = new Map();
 
 const PIN = process.argv.includes('--pin');
 
-async function rpcCall(url, method, params) {
+async function rpcCall(url, method, params, attempt = 0) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
@@ -337,6 +399,14 @@ async function rpcCall(url, method, params) {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
       signal: controller.signal,
     });
+    if (res.status === 429 && attempt < 2) {
+      // A free node saying "too many requests" is not a node that failed. It
+      // is asking us to slow down, and every check here is read-only, so
+      // retrying is safe. Bounded, because "could not check" must still be
+      // able to become a failure rather than an infinite wait.
+      await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+      return rpcCall(url, method, params, attempt + 1);
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = await res.json();
     if (body.error) throw new Error(body.error.message ?? 'rpc error');
@@ -457,6 +527,20 @@ async function verifyEntry(name, entry) {
     const { problems } = safeChecked.get(entry.chainId);
     if (problems.length) return { name, ok: false, reason: problems.join('; ') };
   }
+
+  // The comment above names rewriting the stablecoin whitelist as one of the
+  // things an owner can do. Until now nothing checked it, so the sentence was
+  // a description of the risk rather than a defence against it.
+  let stableProblems;
+  try {
+    stableProblems = await checkStablecoins(rpc, entry);
+  } catch (error) {
+    // Fail closed, and as THIS entry rather than as the whole run. An
+    // exception escaping here killed the process on the first attempt, which
+    // turned one rate-limited node into zero routes verified.
+    return { name, ok: false, unreachable: true, reason: `stablecoin whitelist unreadable — ${error.message}` };
+  }
+  if (stableProblems.length) return { name, ok: false, reason: stableProblems.join('; ') };
 
   const runtimeCodeHash = keccak256(getBytes(code));
   if (!entry.runtimeCodeHash) {
