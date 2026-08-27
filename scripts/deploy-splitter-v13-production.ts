@@ -155,8 +155,20 @@ async function main() {
   const mismatches = [
     actual.owner.toLowerCase() === owner.toLowerCase() || "owner",
     actual.treasury.toLowerCase() === treasury.toLowerCase() || "treasury",
-    actual.usdcWhitelisted === true || "USDC whitelist",
-    actual.usdtWhitelisted === true || "USDT whitelist",
+    // A stablecoin that is not configured for this chain arrives here as the
+    // zero address, and the constructor deliberately skips zero addresses when
+    // whitelisting. Asserting unconditionally therefore fails on every chain
+    // where one of the two is unset — which is eight of the nine production
+    // chains — and it fails *after* the contract is already deployed and paid
+    // for, leaving no deployment record behind. Assert the whitelist only for
+    // an address we actually asked to be whitelisted; still assert the negative
+    // for an unconfigured one, so a stray entry cannot slip in unnoticed.
+    (usdc.address === ethers.ZeroAddress
+      ? actual.usdcWhitelisted === false
+      : actual.usdcWhitelisted === true) || "USDC whitelist",
+    (usdt.address === ethers.ZeroAddress
+      ? actual.usdtWhitelisted === false
+      : actual.usdtWhitelisted === true) || "USDT whitelist",
     actual.treasuryBps === profile.treasuryBps || "treasuryBps",
     actual.ipCreatorBps === profile.ipCreatorBps || "ipCreatorBps",
   ].filter((x) => x !== true);
