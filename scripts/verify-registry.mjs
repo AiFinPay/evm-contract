@@ -205,7 +205,7 @@ const results = [];
 // Serial on purpose. Parallel workers get rate-limited by public RPCs, and a
 // throttled response is indistinguishable from an empty one.
 for (const [name, entry] of Object.entries(registry.splitters)) {
-  process.stdout.write(`${name.padEnd(10)} `);
+  process.stdout.write(`${name.padEnd(26)} `);
   const result = await verifyEntry(name, entry);
   results.push(result);
   if (result.ok) {
