@@ -366,6 +366,84 @@ async function checkStablecoins(preferredRpc, entry) {
   return problems;
 }
 
+/**
+ * A second, independent node confirms the two things everything else rests on.
+ *
+ * Every check above reads from whichever RPC answered first. That node decides
+ * what bytecode we hash, what owner we compare, and therefore whether the run
+ * is green — one endpoint, trusted absolutely. A node that served stale state,
+ * or answered for a fork, or was simply wrong, would be believed. v1.3 audit
+ * P1 asked for a quorum, and this is the affordable shape of one.
+ *
+ * Only two values are re-read, not the whole config: the runtime code, which
+ * says WHAT the contract is, and owner(), which says WHO can change it. Those
+ * are the root; treasury and the fee split are meaningful only once you trust
+ * them. Re-reading everything would roughly double a run that already takes
+ * ~50s against free endpoints and already needs a 429 backoff, and a check
+ * that times out intermittently teaches people to re-run CI rather than to
+ * read it.
+ *
+ * What this does NOT cover, so the limit is on the record: treasury,
+ * treasuryBps and ipCreatorBps still come from a single node. A node lying
+ * about those alone — while telling the truth about code and owner — is not
+ * caught here. Closing that means enough request budget to re-read everything,
+ * which is the same paid-RPC decision as AIFINP-215.
+ *
+ * Chains with one endpoint in the registry (BOT Chain, XRPL EVM) cannot have a
+ * quorum at all. They warn rather than fail: a single point of trust is a real
+ * finding, but failing on it would block every pull request on a condition
+ * only a second endpoint can fix.
+ */
+async function confirmWithSecondNode(entry, primaryRpc, primaryCode, primaryConfig) {
+  const others = entry.rpcs.filter((u) => u !== primaryRpc);
+  if (others.length === 0) {
+    return {
+      singleSource: true,
+      problems: [],
+    };
+  }
+
+  const failures = [];
+  for (const url of others) {
+    try {
+      const served = Number(BigInt(await rpcCall(url, 'eth_chainId', [])));
+      if (served !== entry.chainId) {
+        failures.push(`${url}: serves chain ${served}`);
+        continue;
+      }
+      const code = await rpcCall(url, 'eth_getCode', [entry.splitter, 'latest']);
+      const owner = decodeAddress(
+        await rpcCall(url, 'eth_call', [{ to: entry.splitter, data: selectorOf('owner()') }, 'latest']),
+      );
+
+      const problems = [];
+      if (keccak256(getBytes(code ?? '0x')) !== keccak256(getBytes(primaryCode))) {
+        problems.push(
+          `${primaryRpc} and ${url} report different bytecode for ${entry.splitter}. One of them is wrong, and nothing here can tell you which.`,
+        );
+      }
+      if (primaryConfig?.owner && owner && owner.toLowerCase() !== String(primaryConfig.owner).toLowerCase()) {
+        problems.push(
+          `${primaryRpc} says owner ${primaryConfig.owner}, ${url} says ${owner}. Ownership decides who can move the treasury; a disagreement here is not a detail.`,
+        );
+      }
+      return { singleSource: false, problems, confirmedBy: url };
+    } catch (error) {
+      failures.push(`${url}: ${error.message}`);
+    }
+  }
+
+  // Every other endpoint failed. Not a disagreement, but not a quorum either —
+  // and "we could not get a second opinion" must not read like "two nodes
+  // agreed".
+  return {
+    singleSource: false,
+    unconfirmed: true,
+    problems: [],
+    reason: failures.join('; '),
+  };
+}
+
 /** Exact shape comparison: same signers, same threshold. Never a floor. */
 function compareSafe(owners, threshold, governance) {
   const expectedThreshold = governance.threshold;
@@ -383,6 +461,11 @@ function compareSafe(owners, threshold, governance) {
 
   return problems;
 }
+
+/** Routes whose chain has one endpoint in the registry: no quorum is possible. */
+const singleSourced = new Set();
+/** Routes where a second endpoint exists but none of them answered this run. */
+const unconfirmed = new Set();
 
 /** chainId -> result. The Safe is the same contract for both routes on a chain. */
 const safeChecked = new Map();
@@ -531,6 +614,17 @@ async function verifyEntry(name, entry) {
   // The comment above names rewriting the stablecoin whitelist as one of the
   // things an owner can do. Until now nothing checked it, so the sentence was
   // a description of the risk rather than a defence against it.
+  // Quorum. Everything above trusted whichever node answered first.
+  const quorum = await confirmWithSecondNode(entry, rpc, code, config);
+  if (quorum.problems.length) {
+    return { name, ok: false, reason: quorum.problems.join('; ') };
+  }
+  if (quorum.singleSource) {
+    singleSourced.add(`${name} (chain ${entry.chainId}, only ${entry.rpcs[0]})`);
+  } else if (quorum.unconfirmed) {
+    unconfirmed.add(`${name}: no second node answered — ${quorum.reason}`);
+  }
+
   let stableProblems;
   try {
     stableProblems = await checkStablecoins(rpc, entry);
@@ -606,6 +700,18 @@ const failed = results.filter((r) => !r.ok);
 const unreachable = failed.filter((r) => r.unreachable);
 
 console.log(`\n${results.length - failed.length}/${results.length} verified against chain state.`);
+if (singleSourced.size) {
+  console.warn(
+    `\n⚠ ${singleSourced.size} route(s) verified from a single endpoint — no quorum was possible:\n`,
+  );
+  for (const s of singleSourced) console.warn(`  - ${s}`);
+  console.warn('  A second endpoint for these chains is the fix; one node is one point of trust.');
+}
+if (unconfirmed.size) {
+  console.warn(`\n⚠ ${unconfirmed.size} route(s) had a second endpoint configured but none answered:\n`);
+  for (const u of unconfirmed) console.warn(`  - ${u}`);
+}
+
 const safeOk = [...safeChecked.values()].filter((r) => !r.problems.length);
 console.log(
   `Governance Safe ${registry.governance.safe} verified ` +
