@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    # This said `develop`, a branch that has never existed in this repository.
+    # The long-lived branch is `dev`, so every pull request opened against it
+    # ran no CI at all while appearing to be covered by it.
+    branches: [main, dev]
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
   # The registry job reads live chain state. Between pull requests nothing
   # would notice a governance transaction, a whitelist change or a provider
   # disagreement, so it also runs on a clock. A scheduled failure is a page,
@@ -85,3 +88,11 @@ jobs:
       # Every value is read from two independent providers and must agree.
       - name: Registry matches live chain state
         run: node scripts/verify-registry.mjs
+
+      # The timelock documents claimed a 48-hour delay that was never deployed,
+      # and nothing could notice. A status banner fixes today; a machine-readable
+      # marker held to the chain keeps it fixed. Fails in both directions, so it
+      # also catches docs still describing direct ownership after a timelock
+      # goes live.
+      - name: Governance documents match on-chain ownership
+        run: node scripts/verify-governance-docs.mjs

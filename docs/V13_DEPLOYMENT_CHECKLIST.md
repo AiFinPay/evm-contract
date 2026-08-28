@@ -89,14 +89,23 @@ without a configured contract owner — v1.2 fell back to the deployer EOA,
 which is how Optimism, BOT Chain and XRPL EVM ended up owned by
 `0x1D5e…fAB9` while Polygon was Safe-governed. Deploying v1.3 the same way
 would repeat that. Create each chain's Safe and add it to `GOVERNANCE` in
-`scripts/deploy-splitter-v13.ts`.
+`PRODUCTION_EVM_NETWORKS` in `scripts/v13-production-config.ts`.
 
 ## Deploy
+
+> **Use `scripts/deploy-splitter-v13-production.ts`.** The older
+> `scripts/deploy-splitter-v13.ts` carries its own `TOKENS` table, and that
+> table disagrees with the chain: it names USDT on Polygon, Optimism and BOT
+> Chain, none of which is whitelisted on the live v1.3 splitters (read
+> 2026-08-27). It also has no entry for BNB Chain, Unichain, Base, Arbitrum or
+> Avalanche, so it refuses five of the nine chains v1.3 runs on. The production
+> script reads `scripts/v13-production-config.ts`, which is what the live
+> routes were deployed from.
 
 ```
 npx hardhat compile
 npx hardhat test
-npx hardhat run scripts/deploy-splitter-v13.ts --network <name>
+npx hardhat run scripts/deploy-splitter-v13-production.ts --network <name>
 ```
 
 The script reads each token's `decimals()` from the chain rather than

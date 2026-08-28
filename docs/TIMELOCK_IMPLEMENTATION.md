@@ -15,7 +15,13 @@
 
 ## Overview
 
-A **48-hour timelock** has been successfully implemented for all critical protocol operations to address the centralization risk identified in audit finding EVM-HIGH-001.
+<!-- governance-status: direct-safe -->
+
+A **48-hour timelock** is *proposed* for all critical protocol operations, to
+address the centralization risk raised as audit finding EVM-HIGH-001 and
+re-raised as P0 #3 in the v1.3 audit. It has been written and tested; ownership
+was never transferred, so the risk is open. Read the status banner above before
+anything below it.
 
 ## Files Changed
 
@@ -54,7 +60,8 @@ A **48-hour timelock** has been successfully implemented for all critical protoc
 
 5. **`docs/SECURITY_AUDIT.md`**
    - Updated to reflect timelock implementation
-   - Marked EVM-HIGH-001 as fully resolved
+   - Listed here as marking EVM-HIGH-001 resolved. **`docs/SECURITY_AUDIT.md`
+     does not exist in this repository**, and the finding is still open.
 
 ## Architecture
 
@@ -84,7 +91,9 @@ A **48-hour timelock** has been successfully implemented for all critical protoc
 
 ## Protected Functions
 
-All `onlyOwner` functions now require timelock:
+None of these is timelock-protected today; all are callable immediately by the
+3-of-5 Safe. Once ownership is transferred, these `onlyOwner` functions would
+require the 48-hour delay:
 
 ### AiFinPayCore
 - ✅ `setFees()` - Fee percentage changes
@@ -197,8 +206,8 @@ All existing tests pass - timelock is transparent to contract logic.
 
 ## Migration Checklist
 
-- [x] Deploy TimelockWrapper contract
-- [x] Deploy TimelockController (via wrapper)
+- [ ] Deploy TimelockWrapper contract *(written, never deployed)*
+- [ ] Deploy TimelockController (via wrapper) *(no address on any chain)*
 - [ ] Transfer ownership of AiFinPayCore
 - [ ] Transfer ownership of B2BSplitter
 - [ ] Transfer ownership of B2BSplitterV13
@@ -232,6 +241,6 @@ All existing tests pass - timelock is transparent to contract logic.
 
 The timelock implementation successfully addresses the centralization risk identified in the security audit. All critical protocol parameters now require a 48-hour delay before execution, providing the community with adequate time to react to any malicious proposals.
 
-**Status**: ✅ Ready for deployment
-**Audit Status**: ✅ EVM-HIGH-001 fully resolved
+**Status**: ❌ Not deployed — proposal only
+**Audit Status**: ❌ EVM-HIGH-001 open; re-raised as v1.3 audit P0 #3
 **Deployment Priority**: 🔴 HIGH (before mainnet launch)

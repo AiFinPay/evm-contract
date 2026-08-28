@@ -92,8 +92,17 @@ Confirm before proceeding:
 
 ## 3. Deploy
 
+> **Use `scripts/deploy-splitter-v13-production.ts`.** The older
+> `scripts/deploy-splitter-v13.ts` carries its own `TOKENS` table, and that
+> table disagrees with the chain: it names USDT on Polygon, Optimism and BOT
+> Chain, none of which is whitelisted on the live v1.3 splitters (read
+> 2026-08-27). It also has no entry for BNB Chain, Unichain, Base, Arbitrum or
+> Avalanche, so it refuses five of the nine chains v1.3 runs on. The production
+> script reads `scripts/v13-production-config.ts`, which is what the live
+> routes were deployed from.
+
 ```
-FEE_PROFILE=agent-x402 npx hardhat run scripts/deploy-splitter-v13.ts --network polygon
+FEE_PROFILE=agent-x402 npx hardhat run scripts/deploy-splitter-v13-production.ts --network polygon
 ```
 
 The script reads each token's `decimals()` from the chain rather than assuming
