@@ -1,0 +1,12 @@
+# Review ownership for payment-critical paths. Enforcement needs branch
+# protection with "require review from code owners" — this file is the
+# half that does not need admin. Author and final approver should differ.
+#
+# Contracts, the canonical registry and the scripts that verify or deploy
+# them decide where money goes and who can redirect it.
+/contracts/                     @daochild @pironmind @syedhassan-aifinpay
+/registry/                      @daochild @pironmind @syedhassan-aifinpay
+/scripts/                       @daochild @pironmind @syedhassan-aifinpay
+/config/                        @daochild @pironmind @syedhassan-aifinpay
+/.github/                       @daochild @pironmind
+/hardhat.config.ts              @daochild @pironmind @syedhassan-aifinpay

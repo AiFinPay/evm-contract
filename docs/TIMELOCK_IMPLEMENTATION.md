@@ -1,5 +1,18 @@
 # Timelock Implementation Summary (v5.5)
 
+> **STATUS, 2026-08-28 — does not describe the deployed v1.3 splitters.**
+> The eighteen production `B2BSplitterV13` deployments are owned **directly** by
+> the governance Safe `0xFd936f75D9221949f2FEaB54Cd342F7527154eD5` (3-of-5),
+> verified on chain by `scripts/verify-registry.mjs`. No `TimelockController`
+> holds ownership of any v1.3 splitter, so the 48-hour delay described below
+> does **not** apply to `pause`, `unpause`, `setTreasury` or
+> `setWhitelistedTokens` on those contracts today: a 3-of-5 Safe transaction
+> executes them immediately. Whether that is the accepted governance model, or
+> ownership moves to a verified timelock, is an open decision (audit of
+> 2026-08-27, "Timelock security claims do not match the deployed ownership
+> model"). Until it is made, read this document as the design of the timelock
+> component, not as a statement about production.
+
 ## Overview
 
 A **48-hour timelock** has been successfully implemented for all critical protocol operations to address the centralization risk identified in audit finding EVM-HIGH-001.
