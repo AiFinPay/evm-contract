@@ -38,7 +38,6 @@ The v1.3 splitter-only deployment model has a third problem: a single deployment
 | `AiFinPayCore v5.3` | Business logic (seats, manifesto, ARP tiers, Pyth top-ups, daily limits, partner registry) belongs in backend + DB | Backend ledger tracks mSECCO balances, ARP tier, partner status |
 | `MSECCOToken` | Internal credit token, non-transferable, exists only inside the AiFinPay product surface | Off-chain credit ledger; on-chain settlement is in USDC/USDT/native |
 | `AgentPassport` | Soulbound identity NFT; KYC is the backend's responsibility | Backend maintains passport state; quote signature binds wallet to verified identity |
-| `TimelockWrapper` | Useful only when transferring ownership of multiple contracts at once; with a single splitter contract, deploy directly to a Safe | Direct deploy → ownership transfer to a Safe with `TimelockController` as optional middle layer |
 | `B2BSplitterV13` (multi-deployment per route) | One contract serves both routes via `routeId` | n/a (replaced by v1.4) |
 
 ### 2.2 Retained contracts
@@ -50,6 +49,7 @@ The v1.3 splitter-only deployment model has a third problem: a single deployment
 | `MockERC20` | Test-only; reused |
 | `MockReverter` | Test-only; reused |
 | `MockPyth` | Test-only; **drop** (no oracle integration in v1.4) |
+| `TimelockWrapper` | **Reused.** Bootstrap helper that deploys `TimelockController` and transfers target ownership. `TimelockController` becomes the `ADMIN_ROLE` holder of `B2BSplitterV14` in production. The wrapper is used once at deploy-time and self-destructs after `transferToTimelock(target)` (see `scripts/deploy-timelock.ts`); `transferMultiple(Ownable[])` becomes redundant but is kept as a defensive no-op for the v1.3 → v1.4 transition window. Foundry tests in `TimelockTest.t.sol` are kept and rewritten to target v1.4 admin functions (`configureRoute`, `grantSignerRole`) instead of the removed v1.2 `setSplit`. |
 | `TimelockController` (OZ) | Used as-is from OpenZeppelin for governance |
 
 ### 2.3 Removed runtime errors
@@ -392,7 +392,7 @@ function acceptOwnership() external                                          // 
 All ADMIN actions are gated by the timelock + multisig governance layer:
 
 - On testnet: deployer EOA is `ADMIN_ROLE`.
-- On production: deployer EOA deploys, immediately transfers ownership (`transferOwnership(safe)` then `safe.acceptOwnership()`), then schedules a `TimelockController.schedule(...)` proposal that grants `ADMIN_ROLE` to the `TimelockController` itself. After the 48-hour delay, `TimelockController` executes the grant.
+- On production: the deploy script runs `scripts/deploy-timelock.ts`, which deploys `TimelockWrapper` (which deploys `TimelockController` with 48h delay), then deploys `B2BSplitterV14` with the deployer EOA as `ADMIN_ROLE`, then calls `TimelockWrapper.transferToTimelock(splitter)` (or `transferMultiple([splitter])` if multiple targets are involved) to hand ownership to `TimelockController`. The Safe becomes the proposer, schedules `TimelockController` proposals to (a) grant `ADMIN_ROLE` to `TimelockController` and (b) revoke `ADMIN_ROLE` from the deployer EOA. After the 48-hour delay the proposal executes and governance becomes Safe → `TimelockController` → splitter. The `signer role` is then granted in a separate proposal. `TimelockWrapper` self-destructs after the transfer; `B2BSplitterV14` holds the canonical admin address.
 
 ### 7.2 Signer rotation
 

@@ -50,6 +50,9 @@ This document is the **destructive** migration plan. It assumes the v1.4 design 
 | `scripts/verify-registry.mjs` | Verifies registry entries against v5.3 deployments; v1.4 has its own registry |
 | `scripts/v13-production-config.ts` | v1.3 config; replaced by v1.4 config |
 | `foundry-tests/Pironmind-Foundry.t.sol` | Tests Core; replaced by v1.4 Foundry tests |
+| `contracts/TimelockWrapper.sol` | **Retained** — bootstrap helper for `TimelockController`, still used by `deploy-timelock.ts` to deploy `B2BSplitterV14`'s admin governance |
+| `scripts/deploy-timelock.ts` | **Retained** — production deploy script |
+| `foundry-tests/TimelockTest.t.sol` | **Retained but rewritten** — tests targeting v1.4 admin functions (`configureRoute`, `grantSignerRole`) instead of the removed v1.2 `setSplit` |
 | `config/v13-production-config.ts` | v1.3 config; replaced |
 | `config/chains/polygon.json` (if it contains mSECCO/Passport/Core references) | Update to v1.4 splitter-only |
 | `config/chains/amoy.json` (if it contains mSECCO/Passport/Core references) | Update to v1.4 splitter-only |
@@ -90,7 +93,8 @@ This document is the **destructive** migration plan. It assumes the v1.4 design 
 | `docs/ARCHITECTURE.md` | Rewrite for splitter-only |
 | `docs/BUSINESS_LOGIC.md` | Rewrite for splitter-only |
 | `docs/IMPLEMENTATION.md` | Rewrite audit findings table; update contract addresses |
-| `docs/TIMELOCK_SETUP.md` | Update for v1.4 RBAC bootstrap (grant SIGN_OPERATOR_ROLE in addition to transferring ownership) |
+| `docs/TIMELOCK_SETUP.md` | Update for v1.4 RBAC bootstrap (grant `SIGN_OPERATOR_ROLE` in addition to transferring ownership); document the deploy flow: `TimelockWrapper` → `TimelockController` → `transferToTimelock(B2BSplitterV14)` → Safe proposes `grantRole(SIGN_OPERATOR_ROLE, kmsPubKey)` |
+| `docs/TIMELOCK_IMPLEMENTATION.md` | Update: replace v1.2 `setSplit`-based worked example with v1.4 `configureRoute` / `grantSignerRole` worked example; `TimelockWrapper.sol` stays, `deploy-timelock.ts` stays |
 | `docs/TESTING_GUIDE.md` | Update test count, remove v1.2/v1.3 references |
 | `AI_DISCOVERY.md` | Update contract summary |
 | `AGENTS.md` | Update day-to-day commands (add `deploy:v14`), update test counts, update splitter canonical address |
@@ -122,6 +126,7 @@ Each phase ends with a green CI. No phase is committed unless its preceding phas
 - `docs: rewrite BUSINESS_LOGIC.md for splitter-only v1.4`
 - `docs: rewrite IMPLEMENTATION.md for splitter-only v1.4`
 - `docs: update TIMELOCK_SETUP.md to bootstrap SIGN_OPERATOR_ROLE`
+- `docs: update TIMELOCK_IMPLEMENTATION.md worked example for v1.4 admin functions`
 - `docs: update README.md, AGENTS.md, AI_DISCOVERY.md`
 
 **Done when:** `grep -r "AiFinPayCore" docs/` returns no matches except in `V14_MIGRATION.md` (which describes the migration itself).
@@ -197,6 +202,9 @@ Each phase ends with a green CI. No phase is committed unless its preceding phas
 - `chore: remove v1.3 config and registry records; preserve historicals under renamed files`
 - `chore: trim errors/Errors.sol to v1.4 surface only`
 - `test: trim fixtures.ts to v1.4 only`
+- `test: rewrite TimelockTest.t.sol to target v1.4 admin functions (configureRoute, grantSignerRole, setTreasury, pause)` — contract under test changes from `B2BSplitter` to `B2BSplitterV14`; the `setSplit` calls are replaced with `configureRoute(...)` calls; the timelock flow itself is unchanged
+
+**`TimelockWrapper.sol`, `scripts/deploy-timelock.ts`, and `foundry-tests/TimelockTest.t.sol` are retained**, with the latter rewritten against `B2BSplitterV14`. The wrapper is the canonical bootstrap helper for `TimelockController` (which becomes `ADMIN_ROLE` holder of `B2BSplitterV14` in production); removing it would force every production deploy to reimplement the proposer/executor/delay wiring. The `transferMultiple(Ownable[])` method becomes a defensive no-op for the v1.3 → v1.4 transition window but stays in the contract.
 
 **Done when:**
 - `grep -r "AiFinPayCore\|MSECCOToken\|AgentPassport\|B2BSplitterV13\|B2BSplitter.sol" contracts/ test/ scripts/` returns no matches.
