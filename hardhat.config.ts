@@ -32,6 +32,17 @@ export default defineConfig({
   plugins: [hardhatToolboxMochaEthers, hardhatLedgerPlugin, hardhatKeystore],
 
   solidity: {
+    // `default` and `production` are deliberately identical, and must stay
+    // that way. Every deploy script passes --build-profile production, which
+    // reads as a hardened profile; it is not one. What matters is that these
+    // exact settings — 0.8.35, optimizer runs 10000, viaIR, cancun — are the
+    // ones the live v1.3 splitters were compiled with. Change either profile
+    // and the compiled bytecode stops matching the 18 deployed routes.
+    //
+    // That is now enforced rather than hoped for:
+    // scripts/verify-bytecode-reproducibility.mjs compares this compiler's
+    // output against every deployed route in CI, so a settings change turns
+    // the build red instead of quietly making the deployment untraceable.
     profiles: {
       default: {
         version: "0.8.35",

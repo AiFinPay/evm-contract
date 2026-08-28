@@ -33,6 +33,14 @@ jobs:
       - name: Run tests
         run: bun run hardhat test
 
+      # v1.3 audit P1. verify-registry.mjs proves the deployed bytecode has not
+      # changed since we pinned it; this proves the pin corresponds to the
+      # source in this repository, rather than to bytecode nobody here ever
+      # compiled. It runs in this job because the artifacts it compares against
+      # are the ones the compile step above just produced.
+      - name: Deployed bytecode reproduces from this source
+        run: node scripts/verify-bytecode-reproducibility.mjs
+
       - name: Run solhint
         run: bunx solhint 'contracts/**/*.sol' --config .solhint.json
 
