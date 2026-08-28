@@ -63,6 +63,9 @@ function build(registry) {
         );
       }
     }
+    if (entry.version === '1.3' && !entry.stablecoins) {
+      throw new Error(`${name} has no pinned stablecoins block — the allowlist is owner-mutable and must be recorded.`);
+    }
     routes[name] = {
       chain: entry.chain,
       route: entry.route,
@@ -75,6 +78,12 @@ function build(registry) {
       treasury: entry.treasury,
       treasuryBps: entry.treasuryBps,
       ipCreatorBps: entry.ipCreatorBps,
+      // Owner-mutable, so pinned and verified live — a stable runtime hash
+      // says nothing about it. null means "not accepted on this chain".
+      stablecoins: entry.stablecoins ?? null,
+      // How many independent RPC providers verified this entry. A route
+      // verified from one provider cannot be enabled, whatever else is true.
+      rpcQuorum: entry.rpcQuorum ?? 2,
       validFrom: entry.validFrom,
       validUntil: entry.validUntil,
       // Deployed is not the same as payable. Settlement stays off until the
@@ -111,6 +120,17 @@ function build(registry) {
       safe: registry.governance.safe,
       threshold: registry.governance.threshold,
       owners: registry.governance.owners.map((o) => o.address),
+      singleton: registry.governance.singleton,
+      fallbackHandler: registry.governance.fallbackHandler,
+      guard: registry.governance.guard,
+      modules: registry.governance.modules,
+    },
+    // The reviewed source every runtime hash above reproduces from.
+    build: {
+      contract: registry.build.contract,
+      solcVersion: registry.build.solcVersion,
+      evmVersion: registry.build.evmVersion,
+      contractsTreeHash: registry.build.contractsTreeHash,
     },
     routes,
   };

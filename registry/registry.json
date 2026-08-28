@@ -28,6 +28,20 @@
     "settlementEnabled true, which is what keeps the EOA-owned legacy deployments",
     "historical rather than payable.",
     "",
+    "'stablecoins' is the owner-mutable allowlist, pinned per chain from the",
+    "production deployment config and asked about token by token on chain. A",
+    "stable runtimeCodeHash proves nothing about it \u2014 setWhitelistedTokens does",
+    "not touch bytecode. null means the chain accepts no stablecoin: native only.",
+    "",
+    "Nothing is trusted from one node. Every value is read from two independent",
+    "providers (distinct hosts) and must agree byte-for-byte; a disagreement is",
+    "a failure, not a vote. A chain with a single public provider declares",
+    "rpcQuorum 1 with a reason \u2014 it verifies, but can never be settlementEnabled",
+    "until a second independent endpoint exists.",
+    "",
+    "'build' pins the reviewed source tree and toolchain. verify-build.mjs",
+    "recompiles and must reproduce every v1.3 runtimeCodeHash from it.",
+    "",
     "An unreachable RPC is NOT a pass. verify-registry.mjs exits non-zero when it",
     "cannot reach a required chain, because 'we could not check' and 'it is fine'",
     "must never produce the same result.",
@@ -49,7 +63,7 @@
     "Entries marked superseded are retained deliberately. Historical deployments",
     "are evidence and are never deleted; settlement on them stays disabled."
   ],
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "updatedAt": "2026-08-28",
   "governance": {
     "$comment": [
@@ -65,7 +79,24 @@
       "while meaning something entirely different, and 'threshold >= 2' is what let a",
       "4-of-5 Safe silently pass as 3-of-5 in the production deploy script.",
       "",
-      "Threshold 3 of 5 is ADR-006."
+      "Threshold 3 of 5 is ADR-006.",
+      "",
+      "A correct signer set is not, by itself, proof that only three signatures can",
+      "exercise the owner's powers. A Safe MODULE executes through the Safe without",
+      "any owner signature at all; a GUARD can veto or alter what executes; the",
+      "SINGLETON is the code the proxy actually runs; the FALLBACK HANDLER answers",
+      "calls the Safe itself does not. Each is therefore pinned and read live:",
+      "singleton from storage slot 0 and its code hash, the proxy's own code hash,",
+      "guard and fallback handler from their keccak-named slots, and",
+      "getModulesPaginated() which must return exactly the pinned list (empty).",
+      "",
+      "reviewedNonce is the Safe nonce at the last review, per chain. The whitelist,",
+      "treasury and pause state can only change through an owner call, an owner call",
+      "can only come from the Safe, and every Safe execution increments nonce() \u2014",
+      "so nonce unchanged since review proves none of them changed since review,",
+      "without scanning event history on nine chains. A higher nonce is not an",
+      "error in the Safe, it is a signal that governance acted: verification fails",
+      "until someone reviews what was executed and re-pins with --pin."
     ],
     "safe": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
     "threshold": 3,
@@ -90,7 +121,47 @@
         "name": "Reserve",
         "address": "0x849930eB20ED0a697c71BcE565f18702D202C0F8"
       }
-    ]
+    ],
+    "safeVersion": "1.4.1",
+    "singleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+    "singletonCodeHash": "0xb1f926978a0f44a2c0ec8fe822418ae969bd8c3f18d61e5103100339894f81ff",
+    "proxyCodeHash": "0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c",
+    "fallbackHandler": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
+    "fallbackHandlerCodeHash": "0x7c6007a5d711cea8dfd5d91f5940ec29c7f200fe511eb1fc1397b367af3c42f9",
+    "guard": "0x0000000000000000000000000000000000000000",
+    "modules": [],
+    "reviewedNonce": {
+      "polygon": 0,
+      "optimism": 0,
+      "bnb": 0,
+      "unichain": 0,
+      "botchain": 0,
+      "base": 0,
+      "arbitrum": 0,
+      "avalanche": 0,
+      "xrplevm": 0
+    }
+  },
+  "build": {
+    "$comment": [
+      "The reviewed source and toolchain that every v1.3 runtimeCodeHash must",
+      "reproduce from. A stable on-chain hash proves a deployment has not",
+      "changed; it does not prove the reviewed source produced it. verify-build.mjs",
+      "compiles contracts/ with exactly these settings, writes each route's",
+      "immutable profile into the compiled runtime at the positions the compiler",
+      "reports, hashes the result and requires it to equal the pinned hash.",
+      "contractsTreeHash is the git tree hash of contracts/ at review; any change",
+      "under contracts/ fails the gate until re-reviewed and re-pinned."
+    ],
+    "contract": "B2BSplitterV13",
+    "solcVersion": "0.8.35",
+    "evmVersion": "cancun",
+    "optimizer": {
+      "enabled": true,
+      "runs": 10000
+    },
+    "viaIR": true,
+    "contractsTreeHash": "1711d24b711c9d7c80136c5e5716691f35e45eb4"
   },
   "splitters": {
     "polygon:legacy": {
@@ -98,8 +169,8 @@
       "version": "1.2",
       "splitter": "0xbD1fa5453f212F096c0213788a645eC597FB4DDe",
       "rpcs": [
+        "https://polygon-bor-rpc.publicnode.com",
         "https://polygon.drpc.org",
-        "https://polygon.publicnode.com",
         "https://1rpc.io/matic"
       ],
       "verified": "2026-08-07",
@@ -121,9 +192,11 @@
       "version": "1.1",
       "splitter": "0x8Ad9830D16b1f10333866a3f38C949CbB19f4BAD",
       "rpcs": [
-        "https://mainnet.base.org",
+        "https://base-rpc.publicnode.com",
         "https://base.drpc.org",
-        "https://base.llamarpc.com"
+        "https://1rpc.io/base",
+        "https://base.meowrpc.com",
+        "https://mainnet.base.org"
       ],
       "verified": "2026-08-07",
       "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0xF03B3387\u2026 on this chain, not this splitter | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
@@ -144,8 +217,10 @@
       "version": "1.2",
       "splitter": "0xF03B3387415D557b6ab709D06E8aF0b4ABD6Eb74",
       "rpcs": [
-        "https://mainnet.optimism.io",
-        "https://optimism.drpc.org"
+        "https://optimism-rpc.publicnode.com",
+        "https://optimism.drpc.org",
+        "https://1rpc.io/op",
+        "https://mainnet.optimism.io"
       ],
       "verified": "2026-08-07",
       "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0xee92807d\u2026 | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
@@ -166,8 +241,10 @@
       "version": "1.1",
       "splitter": "0xeE92807decAa3A02F1e165dd7Efcd92ab9aA83CB",
       "rpcs": [
-        "https://mainnet.unichain.org",
-        "https://unichain.drpc.org"
+        "https://unichain-rpc.publicnode.com",
+        "https://unichain.drpc.org",
+        "https://unichain.api.onfinality.io/public",
+        "https://mainnet.unichain.org"
       ],
       "verified": "2026-08-07",
       "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0x493dc0e3\u2026 on this chain, not this splitter | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
@@ -202,7 +279,9 @@
       "validUntil": "2026-09-03T00:00:00.000Z",
       "chain": "botchain",
       "route": "legacy",
-      "superseded": true
+      "superseded": true,
+      "rpcQuorum": 1,
+      "rpcQuorumReason": "Only one public JSON-RPC provider exists for this chain (chainlist lists no other). A single-provider observation is accepted for verification but NOT for activation: add a second independent endpoint before this route may be enabled."
     },
     "xrplevm:legacy": {
       "chainId": 1440000,
@@ -223,7 +302,9 @@
       "validUntil": "2026-09-03T00:00:00.000Z",
       "chain": "xrplevm",
       "route": "legacy",
-      "superseded": true
+      "superseded": true,
+      "rpcQuorum": 1,
+      "rpcQuorumReason": "Only one public JSON-RPC provider exists for this chain (chainlist lists no other). A single-provider observation is accepted for verification but NOT for activation: add a second independent endpoint before this route may be enabled."
     },
     "polygon:merchant-aifp1": {
       "chain": "polygon",
@@ -244,6 +325,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -266,6 +351,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 0,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -276,8 +365,10 @@
       "version": "1.3",
       "splitter": "0x1Fe2021336596655Fac72bC7bC40F7FFFA501d55",
       "rpcs": [
-        "https://mainnet.optimism.io",
-        "https://optimism.publicnode.com"
+        "https://optimism-rpc.publicnode.com",
+        "https://optimism.drpc.org",
+        "https://1rpc.io/op",
+        "https://mainnet.optimism.io"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. merchant-aifp1: the agent pays the quoted gross amount; AiFinPay treasury receives 1%; the merchant receives 99%.",
@@ -287,6 +378,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -297,8 +392,10 @@
       "version": "1.3",
       "splitter": "0x38Ef6173ce0AC540f129680C2Aa4Ef739787bdBf",
       "rpcs": [
-        "https://mainnet.optimism.io",
-        "https://optimism.publicnode.com"
+        "https://optimism-rpc.publicnode.com",
+        "https://optimism.drpc.org",
+        "https://1rpc.io/op",
+        "https://mainnet.optimism.io"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. agent-x402: the provider receives 100% of the provider-defined price; the AiFinPay fee is 0% for now. This is NOT fee-on-top.",
@@ -308,6 +405,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 0,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -318,8 +419,9 @@
       "version": "1.3",
       "splitter": "0x79D481B835Cb050FAb7a045E619A6Fb9Cd73f510",
       "rpcs": [
-        "https://bsc-dataseed.bnbchain.org",
-        "https://bsc-rpc.publicnode.com"
+        "https://bsc-rpc.publicnode.com",
+        "https://1rpc.io/bnb",
+        "https://bsc-dataseed.bnbchain.org"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. merchant-aifp1: the agent pays the quoted gross amount; AiFinPay treasury receives 1%; the merchant receives 99%.",
@@ -329,6 +431,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": null,
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -339,8 +445,9 @@
       "version": "1.3",
       "splitter": "0x7656fb8B6627311A7d87273913D31b837Bb2b5A4",
       "rpcs": [
-        "https://bsc-dataseed.bnbchain.org",
-        "https://bsc-rpc.publicnode.com"
+        "https://bsc-rpc.publicnode.com",
+        "https://1rpc.io/bnb",
+        "https://bsc-dataseed.bnbchain.org"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. agent-x402: the provider receives 100% of the provider-defined price; the AiFinPay fee is 0% for now. This is NOT fee-on-top.",
@@ -350,6 +457,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 0,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": null,
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -360,6 +471,9 @@
       "version": "1.3",
       "splitter": "0xF03B3387415D557b6ab709D06E8aF0b4ABD6Eb74",
       "rpcs": [
+        "https://unichain-rpc.publicnode.com",
+        "https://unichain.drpc.org",
+        "https://unichain.api.onfinality.io/public",
         "https://mainnet.unichain.org"
       ],
       "verified": "2026-08-27",
@@ -370,6 +484,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -380,6 +498,9 @@
       "version": "1.3",
       "splitter": "0xC701F45b3Bae9CA3a58cB33fCBA6291594D17843",
       "rpcs": [
+        "https://unichain-rpc.publicnode.com",
+        "https://unichain.drpc.org",
+        "https://unichain.api.onfinality.io/public",
         "https://mainnet.unichain.org"
       ],
       "verified": "2026-08-27",
@@ -390,6 +511,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 0,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -410,8 +535,14 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": null,
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
-      "validUntil": "2026-11-25T00:00:00.000Z"
+      "validUntil": "2026-11-25T00:00:00.000Z",
+      "rpcQuorum": 1,
+      "rpcQuorumReason": "Only one public JSON-RPC provider exists for this chain (chainlist lists no other). A single-provider observation is accepted for verification but NOT for activation: add a second independent endpoint before this route may be enabled."
     },
     "botchain:agent-x402": {
       "chain": "botchain",
@@ -430,8 +561,14 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 0,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": null,
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
-      "validUntil": "2026-11-25T00:00:00.000Z"
+      "validUntil": "2026-11-25T00:00:00.000Z",
+      "rpcQuorum": 1,
+      "rpcQuorumReason": "Only one public JSON-RPC provider exists for this chain (chainlist lists no other). A single-provider observation is accepted for verification but NOT for activation: add a second independent endpoint before this route may be enabled."
     },
     "base:merchant-aifp1": {
       "chain": "base",
@@ -440,8 +577,11 @@
       "version": "1.3",
       "splitter": "0xB385Cc32fe39CF5B5778DF0Df0e8E9978b5F662a",
       "rpcs": [
-        "https://mainnet.base.org",
-        "https://base-rpc.publicnode.com"
+        "https://base-rpc.publicnode.com",
+        "https://base.drpc.org",
+        "https://1rpc.io/base",
+        "https://base.meowrpc.com",
+        "https://mainnet.base.org"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. merchant-aifp1: the agent pays the quoted gross amount; AiFinPay treasury receives 1%; the merchant receives 99%.",
@@ -451,6 +591,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -461,8 +605,11 @@
       "version": "1.3",
       "splitter": "0x1Fe2021336596655Fac72bC7bC40F7FFFA501d55",
       "rpcs": [
-        "https://mainnet.base.org",
-        "https://base-rpc.publicnode.com"
+        "https://base-rpc.publicnode.com",
+        "https://base.drpc.org",
+        "https://1rpc.io/base",
+        "https://base.meowrpc.com",
+        "https://mainnet.base.org"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. agent-x402: the provider receives 100% of the provider-defined price; the AiFinPay fee is 0% for now. This is NOT fee-on-top.",
@@ -472,6 +619,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 0,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -482,8 +633,11 @@
       "version": "1.3",
       "splitter": "0x80e2B445DFc44B3B2254aa376B31AEdDd3Ff934a",
       "rpcs": [
-        "https://arb1.arbitrum.io/rpc",
-        "https://arbitrum-one-rpc.publicnode.com"
+        "https://arbitrum-one-rpc.publicnode.com",
+        "https://arb-pokt.nodies.app",
+        "https://arbitrum.gateway.tenderly.co",
+        "https://arbitrum-one.public.blastapi.io",
+        "https://arbitrum.drpc.org"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. merchant-aifp1: the agent pays the quoted gross amount; AiFinPay treasury receives 1%; the merchant receives 99%.",
@@ -493,6 +647,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -503,8 +661,11 @@
       "version": "1.3",
       "splitter": "0xE34Fc0E6694821c600Fa0955C0F74720ea6d8440",
       "rpcs": [
-        "https://arb1.arbitrum.io/rpc",
-        "https://arbitrum-one-rpc.publicnode.com"
+        "https://arbitrum-one-rpc.publicnode.com",
+        "https://arb-pokt.nodies.app",
+        "https://arbitrum.gateway.tenderly.co",
+        "https://arbitrum-one.public.blastapi.io",
+        "https://arbitrum.drpc.org"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. agent-x402: the provider receives 100% of the provider-defined price; the AiFinPay fee is 0% for now. This is NOT fee-on-top.",
@@ -514,6 +675,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 0,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -524,8 +689,10 @@
       "version": "1.3",
       "splitter": "0xE34Fc0E6694821c600Fa0955C0F74720ea6d8440",
       "rpcs": [
-        "https://api.avax.network/ext/bc/C/rpc",
-        "https://avalanche-c-chain-rpc.publicnode.com"
+        "https://avalanche-c-chain-rpc.publicnode.com",
+        "https://avalanche.drpc.org",
+        "https://1rpc.io/avax/c",
+        "https://api.avax.network/ext/bc/C/rpc"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. merchant-aifp1: the agent pays the quoted gross amount; AiFinPay treasury receives 1%; the merchant receives 99%.",
@@ -535,6 +702,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        "USDT": "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7"
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -545,8 +716,10 @@
       "version": "1.3",
       "splitter": "0xF03B3387415D557b6ab709D06E8aF0b4ABD6Eb74",
       "rpcs": [
-        "https://api.avax.network/ext/bc/C/rpc",
-        "https://avalanche-c-chain-rpc.publicnode.com"
+        "https://avalanche-c-chain-rpc.publicnode.com",
+        "https://avalanche.drpc.org",
+        "https://1rpc.io/avax/c",
+        "https://api.avax.network/ext/bc/C/rpc"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. agent-x402: the provider receives 100% of the provider-defined price; the AiFinPay fee is 0% for now. This is NOT fee-on-top.",
@@ -556,6 +729,10 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 0,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        "USDT": "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7"
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z"
     },
@@ -576,8 +753,14 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": null,
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
-      "validUntil": "2026-11-25T00:00:00.000Z"
+      "validUntil": "2026-11-25T00:00:00.000Z",
+      "rpcQuorum": 1,
+      "rpcQuorumReason": "Only one public JSON-RPC provider exists for this chain (chainlist lists no other). A single-provider observation is accepted for verification but NOT for activation: add a second independent endpoint before this route may be enabled."
     },
     "xrplevm:agent-x402": {
       "chain": "xrplevm",
@@ -596,8 +779,14 @@
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 0,
       "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": null,
+        "USDT": null
+      },
       "validFrom": "2026-08-27T00:00:00.000Z",
-      "validUntil": "2026-11-25T00:00:00.000Z"
+      "validUntil": "2026-11-25T00:00:00.000Z",
+      "rpcQuorum": 1,
+      "rpcQuorumReason": "Only one public JSON-RPC provider exists for this chain (chainlist lists no other). A single-provider observation is accepted for verification but NOT for activation: add a second independent endpoint before this route may be enabled."
     }
   },
   "notSplitters": {
