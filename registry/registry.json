@@ -196,7 +196,10 @@
         "https://base.drpc.org",
         "https://1rpc.io/base",
         "https://base.meowrpc.com",
-        "https://mainnet.base.org"
+        "https://mainnet.base.org",
+        "https://base.gateway.tenderly.co",
+        "https://base-mainnet.public.blastapi.io",
+        "https://developer-access-mainnet.base.org"
       ],
       "verified": "2026-08-07",
       "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0xF03B3387\u2026 on this chain, not this splitter | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
@@ -581,7 +584,10 @@
         "https://base.drpc.org",
         "https://1rpc.io/base",
         "https://base.meowrpc.com",
-        "https://mainnet.base.org"
+        "https://mainnet.base.org",
+        "https://base.gateway.tenderly.co",
+        "https://base-mainnet.public.blastapi.io",
+        "https://developer-access-mainnet.base.org"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. merchant-aifp1: the agent pays the quoted gross amount; AiFinPay treasury receives 1%; the merchant receives 99%.",
@@ -609,7 +615,10 @@
         "https://base.drpc.org",
         "https://1rpc.io/base",
         "https://base.meowrpc.com",
-        "https://mainnet.base.org"
+        "https://mainnet.base.org",
+        "https://base.gateway.tenderly.co",
+        "https://base-mainnet.public.blastapi.io",
+        "https://developer-access-mainnet.base.org"
       ],
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. agent-x402: the provider receives 100% of the provider-defined price; the AiFinPay fee is 0% for now. This is NOT fee-on-top.",
