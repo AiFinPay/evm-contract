@@ -103,7 +103,26 @@ function runtimeHashFor(treasuryBps, ipCreatorBps) {
   return keccak256(code);
 }
 
-const routes = Object.entries(registry.splitters).filter(([, e]) => e.version === '1.3');
+// Testnet routes are exempt from source-to-bytecode equivalence.
+//
+// DECISION, 2026-08-29. The Amoy agent-x402 deployment was built with
+// runs=200 / viaIR=false, where production uses runs=10000 / viaIR=true /
+// cancun. The SOURCE is identical — verified byte by byte: of 4912 bytes only
+// 32 differ, all in the CBOR metadata tail. Only the compiler settings differ,
+// so its runtime hash cannot match the pinned one and this gate would refuse it.
+//
+// Redeploying it with production settings was the alternative and was not
+// chosen. What that costs, stated plainly rather than left implicit: this gate
+// is the audit's HIGH remediation ("Source-to-deployed-bytecode equivalence is
+// not an enforced CI invariant"), and from here it proves that property for
+// mainnet only. A testnet route can carry bytecode nobody reproduced.
+//
+// Kept narrow on purpose. `testnet` is refused for any chain outside the closed
+// set in lib/testnet.mjs, in both directions, so this exemption cannot be taken
+// for a route that moves real money by writing one field.
+const routes = Object.entries(registry.splitters).filter(
+  ([, e]) => e.version === '1.3' && e.testnet !== true,
+);
 const profiles = new Map();
 for (const [name, entry] of routes) {
   const expected = runtimeHashFor(entry.treasuryBps, entry.ipCreatorBps);

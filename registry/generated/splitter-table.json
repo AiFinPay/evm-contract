@@ -561,6 +561,52 @@
       "settlementEnabled": false,
       "testnet": false,
       "verifiedAt": "2026-08-27"
+    },
+    "amoy:merchant-aifp1": {
+      "chain": "amoy",
+      "route": "merchant-aifp1",
+      "chainId": 80002,
+      "version": "1.3",
+      "superseded": false,
+      "splitter": "0xdB772E64F63854bf31f2366BF27e47D5699fe7fC",
+      "runtimeCodeHash": "0x4ba01815b55bf6ed2d608bed91f480c179fd644d706680c3e4a91d8181ba5c6b",
+      "owner": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
+      "treasury": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
+      "treasuryBps": 100,
+      "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+        "USDT": null
+      },
+      "rpcQuorum": 2,
+      "validFrom": "2026-08-29T00:00:00.000Z",
+      "validUntil": "2026-11-27T00:00:00.000Z",
+      "settlementEnabled": true,
+      "testnet": true,
+      "verifiedAt": "2026-08-29"
+    },
+    "amoy:agent-x402": {
+      "chain": "amoy",
+      "route": "agent-x402",
+      "chainId": 80002,
+      "version": "1.3",
+      "superseded": false,
+      "splitter": "0x2C8f13623d84BE3D6c2C2C7fB23E325dfc7598e4",
+      "runtimeCodeHash": "0x3e9c2e97d42bf0c6433717dcb80c40e43a68d96f18441af6a391b671d7a61575",
+      "owner": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
+      "treasury": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
+      "treasuryBps": 0,
+      "ipCreatorBps": 0,
+      "stablecoins": {
+        "USDC": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+        "USDT": null
+      },
+      "rpcQuorum": 2,
+      "validFrom": "2026-08-29T00:00:00.000Z",
+      "validUntil": "2026-11-27T00:00:00.000Z",
+      "settlementEnabled": true,
+      "testnet": true,
+      "verifiedAt": "2026-08-29"
     }
   }
 }
