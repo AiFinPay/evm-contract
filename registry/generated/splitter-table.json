@@ -5,7 +5,7 @@
     "difference, so hand-edits are rejected rather than shipped."
   ],
   "schemaVersion": 4,
-  "sourceUpdatedAt": "2026-08-28",
+  "sourceUpdatedAt": "2026-08-29",
   "governance": {
     "safe": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
     "threshold": 3,
@@ -161,7 +161,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "polygon:agent-x402": {

@@ -64,7 +64,7 @@
     "are evidence and are never deleted; settlement on them stays disabled."
   ],
   "schemaVersion": 4,
-  "updatedAt": "2026-08-28",
+  "updatedAt": "2026-08-29",
   "governance": {
     "$comment": [
       "The Safe that owns every v1.3 route splitter. The owner controls pause and",
@@ -320,7 +320,21 @@
       "verified": "2026-08-27",
       "note": "v1.3 gross-inclusive, route-specific. merchant-aifp1: the agent pays the quoted gross amount; AiFinPay treasury receives 1%; the merchant receives 99%.",
       "runtimeCodeHash": "0x4ba01815b55bf6ed2d608bed91f480c179fd644d706680c3e4a91d8181ba5c6b",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
+      "activation": {
+        "date": "2026-08-29",
+        "tx": "0xa93a45a04ce6f49a1603575fe368dda2e1657b7091e147b7867b161036984741",
+        "block": 92881186,
+        "payer": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
+        "merchant": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
+        "grossWei": "500000000000000000",
+        "merchantWei": "495000000000000000",
+        "treasuryWei": "5000000000000000",
+        "paymentId": "0x7ce617f93f1e7d44612ac04a81e766e290a57f31ff60f7f019abbdd7778f08ea",
+        "orderId": "supervised-polygon-merchant-aifp1-001",
+        "verifiedBy": "sdk/node/scripts/supervised-settle.mjs verify polygon merchant-aifp1 <tx>",
+        "note": "First supervised mainnet settlement through v1.3. Balance deltas at block 92881185\u219292881186: payer \u22120.5 \u2212gas 0.084459\u2026, Safe +0.5 (merchant 0.495 + treasury 0.005, same address), splitter 0. Sent as an EIP-7702 transaction by a MetaMask smart account; the Payment event is emitted by this splitter and names the sender as payer. Authorised: Paul (CTO) 2026-08-29 22:29\u201322:30 (Q1 merchant = new Safe, Q2 same-day rollout); Dimitry audit 2026-08-27 \u00a78."
+      },
       "owner": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasury": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
       "treasuryBps": 100,
@@ -814,9 +828,11 @@
     "The window is 90 days from registry activation. Renewal and review are owned",
     "by the Web3/CTO side under Governance Safe control.",
     "",
-    "settlementEnabled is deliberately false on every v1.3 entry at activation.",
+    "settlementEnabled was false on every v1.3 entry at registry activation.",
     "Deployed and verified is not the same as payable. A chain and route is",
     "enabled individually, and only after a successful mainnet paid end-to-end",
-    "settlement on that exact route with verified balance deltas."
+    "settlement on that exact route with verified balance deltas; the evidence",
+    "is recorded in that entry's 'activation' block (tx, block, deltas, who",
+    "authorised). polygon:merchant-aifp1 was the first, 2026-08-29."
   ]
 }
