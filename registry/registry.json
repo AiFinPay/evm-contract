@@ -61,7 +61,14 @@
     "    that way and do not convert this contract to it.",
     "",
     "Entries marked superseded are retained deliberately. Historical deployments",
-    "are evidence and are never deleted; settlement on them stays disabled."
+    "are evidence and are never deleted; the v1.3 resolver never selects them.",
+    "NOTE the scope of settlementEnabled: it governs the v1.3 route resolver in",
+    "the SDK and nothing else. The legacy SDK path (SPLITTER_DEPLOYMENTS) and the",
+    "backend's SPLITTER_ADDRESS_* do not read this file and still settle live",
+    "traffic through the superseded polygon:legacy contract until cutover. A",
+    "'false' here is not a claim that a contract is switched off on chain \u2014 no",
+    "splitter can be switched off except by pause() \u2014 it is a claim that the NEW",
+    "path may not use it. AIFINP-213."
   ],
   "schemaVersion": 4,
   "updatedAt": "2026-08-28",
@@ -174,7 +181,7 @@
         "https://1rpc.io/matic"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records AiFinPayCore 0x1071Bb1C\u2026 on this chain, not this splitter | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
+      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records AiFinPayCore 0x1071Bb1C\u2026 on this chain, not this splitter | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as deployment evidence. settlementEnabled here governs ONLY the v1.3 route resolver (resolveSettlingSplitterRoute): this entry must never be selected by it, and the verifier refuses to enable any EOA-owned splitter. It says nothing about the legacy SDK path (SPLITTER_DEPLOYMENTS / backend SPLITTER_ADDRESS_*), which does not read this registry and still settles live traffic through this contract until the v1.3 cutover on this chain.",
       "runtimeCodeHash": "0x9001fbb7ec70097909415325dc70c5b2102c4312dcd8e01e7495cfcaca2edaff",
       "settlementEnabled": false,
       "owner": "0xD31d82c4b35DABaA2ad7023C89A78A052D1f3c8e",
@@ -199,7 +206,7 @@
         "https://mainnet.base.org"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0xF03B3387\u2026 on this chain, not this splitter | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
+      "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0xF03B3387\u2026 on this chain, not this splitter | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as deployment evidence. settlementEnabled here governs ONLY the v1.3 route resolver (resolveSettlingSplitterRoute): this entry must never be selected by it, and the verifier refuses to enable any EOA-owned splitter. It says nothing about the legacy SDK path (SPLITTER_DEPLOYMENTS / backend SPLITTER_ADDRESS_*), which does not read this registry and still settles live traffic through this contract until the v1.3 cutover on this chain.",
       "runtimeCodeHash": "0x545b3a4ba195edc6b728df8cc64f28da528c9e7805c15f1aa61ef58c3c562197",
       "settlementEnabled": false,
       "owner": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
@@ -223,7 +230,7 @@
         "https://mainnet.optimism.io"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0xee92807d\u2026 | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
+      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0xee92807d\u2026 | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as deployment evidence. settlementEnabled here governs ONLY the v1.3 route resolver (resolveSettlingSplitterRoute): this entry must never be selected by it, and the verifier refuses to enable any EOA-owned splitter. It says nothing about the legacy SDK path (SPLITTER_DEPLOYMENTS / backend SPLITTER_ADDRESS_*), which does not read this registry and still settles live traffic through this contract until the v1.3 cutover on this chain.",
       "runtimeCodeHash": "0xcdf939fd4f9a189e3dba991c5d538bd77b3d493d2ce4e356b61e5742dbde1899",
       "settlementEnabled": false,
       "owner": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
@@ -247,7 +254,7 @@
         "https://mainnet.unichain.org"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0x493dc0e3\u2026 on this chain, not this splitter | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
+      "note": "on-chain: payMatic + 2866B, matches declared v1.1. deployments.json records AiFinPayCore 0x493dc0e3\u2026 on this chain, not this splitter | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as deployment evidence. settlementEnabled here governs ONLY the v1.3 route resolver (resolveSettlingSplitterRoute): this entry must never be selected by it, and the verifier refuses to enable any EOA-owned splitter. It says nothing about the legacy SDK path (SPLITTER_DEPLOYMENTS / backend SPLITTER_ADDRESS_*), which does not read this registry and still settles live traffic through this contract until the v1.3 cutover on this chain.",
       "runtimeCodeHash": "0x545b3a4ba195edc6b728df8cc64f28da528c9e7805c15f1aa61ef58c3c562197",
       "settlementEnabled": false,
       "owner": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
@@ -268,7 +275,7 @@
         "https://rpc.botchain.ai"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0x271870AB\u2026 | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
+      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0x271870AB\u2026 | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as deployment evidence. settlementEnabled here governs ONLY the v1.3 route resolver (resolveSettlingSplitterRoute): this entry must never be selected by it, and the verifier refuses to enable any EOA-owned splitter. It says nothing about the legacy SDK path (SPLITTER_DEPLOYMENTS / backend SPLITTER_ADDRESS_*), which does not read this registry and still settles live traffic through this contract until the v1.3 cutover on this chain.",
       "runtimeCodeHash": "0xabd084ff64e98bb8ac7db7783d80c6a6bcc69716dfb8f64a4686bed5cf428d96",
       "settlementEnabled": false,
       "owner": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
@@ -291,7 +298,7 @@
         "https://rpc.xrplevm.org"
       ],
       "verified": "2026-08-07",
-      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0xeE92807d\u2026 | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as historical deployment evidence, settlement permanently disabled.",
+      "note": "on-chain: payNative + 3151B, matches declared v1.2. deployments.json records a superseded v1.1 at 0xeE92807d\u2026 | SUPERSEDED by the v1.3 route-specific splitters on this chain; retained as deployment evidence. settlementEnabled here governs ONLY the v1.3 route resolver (resolveSettlingSplitterRoute): this entry must never be selected by it, and the verifier refuses to enable any EOA-owned splitter. It says nothing about the legacy SDK path (SPLITTER_DEPLOYMENTS / backend SPLITTER_ADDRESS_*), which does not read this registry and still settles live traffic through this contract until the v1.3 cutover on this chain.",
       "runtimeCodeHash": "0xeb68cf314d335f888726a527dec10d989c26e2c5d6a8df68d117cc7d4dcec239",
       "settlementEnabled": false,
       "owner": "0x1D5eF769A024B3157c76884fbd10302d8d83fAB9",
