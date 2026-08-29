@@ -26,6 +26,22 @@
  * other stops a testnet route pretending it already passed them.
  */
 
+/**
+ * DECISION, 2026-08-29: testnet routes stay on the deployer key.
+ *
+ * The alternative was deploying a Safe on Amoy and transferring ownership to
+ * it, so that the 3-of-5 emergency-pause procedure gets rehearsed on testnet
+ * before it is ever needed on mainnet. That was recommended and not taken, for
+ * speed. The consequence is recorded here rather than left to be rediscovered:
+ * the first 3-of-5 signing round the company performs will be on mainnet, and
+ * the governance Safe has never executed a transaction (AIFINP-218).
+ *
+ * This exemption is therefore load-bearing rather than a convenience, which is
+ * why the closed set below and the two refusals above matter as much as they
+ * do — they are the only thing standing between "a testnet route may be owned
+ * by one key" and "any route may be".
+ */
+
 /** Closed set. Adding to it is a reviewed change, which is the point. */
 export const TESTNET_CHAIN_IDS = Object.freeze({
   80002: 'amoy',
