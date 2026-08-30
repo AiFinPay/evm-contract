@@ -55,6 +55,27 @@ if (process.env.AMOY_TEST_SAFE) {
 }
 
 /** Per-chain USDC/USDT. address(0) means the token is unsupported → native only. */
+/**
+ * SUPERSEDED — this script must not deploy. Use deploy-splitter-v13-production.ts.
+ *
+ * The table below disagrees with the chain. It names USDT on Polygon, Optimism
+ * and BOT Chain; none of the three is whitelisted on the live v1.3 splitters
+ * (read 2026-08-27). It also has no entry for BNB Chain, Unichain, Base,
+ * Arbitrum or Avalanche, so it refuses five of the nine chains v1.3 runs on.
+ *
+ * The live routes were deployed from scripts/v13-production-config.ts, which
+ * requires an explicit ALLOW_STABLE_OVERRIDE before accepting any address from
+ * the environment. This file has no such gate, and two documents pointed
+ * operators straight at it for the pending mainnet deploy.
+ */
+function refuseSupersededDeploy(): void {
+  throw new Error(
+    "scripts/deploy-splitter-v13.ts is superseded and its stablecoin table does not " +
+    "match the deployed v1.3 routes. Use scripts/deploy-splitter-v13-production.ts, " +
+    "which reads scripts/v13-production-config.ts.",
+  );
+}
+
 const TOKENS: Record<number, { usdc: string; usdt: string; label: string }> = {
   137: {
     usdc: ethers.getAddress("0x3c499c542cef5e3811e1192ce70d8cc03d5c3359"),
@@ -142,6 +163,15 @@ async function readDecimals(token: string): Promise<number | null> {
 }
 
 async function main() {
+  // Refuses before reading anything, so no environment, key or network is
+  // touched. An operator following the old runbook gets the pointer, not a
+  // deployment configured from a table that does not match the chain.
+  //
+  // Returns void rather than never: a never return makes TypeScript treat the
+  // rest of main() as unreachable and collapses every downstream type, which
+  // stops the type checker rather than the script.
+  refuseSupersededDeploy();
+
   // Resolved first so a missing or unknown profile fails before any network work.
   const fee = resolveFeeProfile();
 
