@@ -5,7 +5,7 @@
     "difference, so hand-edits are rejected rather than shipped."
   ],
   "schemaVersion": 4,
-  "sourceUpdatedAt": "2026-08-28",
+  "sourceUpdatedAt": "2026-08-30",
   "governance": {
     "safe": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
     "threshold": 3,
@@ -591,8 +591,8 @@
       "chainId": 80002,
       "version": "1.3",
       "superseded": false,
-      "splitter": "0x2C8f13623d84BE3D6c2C2C7fB23E325dfc7598e4",
-      "runtimeCodeHash": "0x3e9c2e97d42bf0c6433717dcb80c40e43a68d96f18441af6a391b671d7a61575",
+      "splitter": "0xFd1622847A89FB3De240d64DFCbd09C65c77D99d",
+      "runtimeCodeHash": "0x0eb0f8ca7792b13ab70f2aa3e779609cd352d279e925ddcd9e901fd9fd68b1b0",
       "owner": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
       "treasury": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
       "treasuryBps": 0,
@@ -606,7 +606,7 @@
       "validUntil": "2026-11-27T00:00:00.000Z",
       "settlementEnabled": true,
       "testnet": true,
-      "verifiedAt": "2026-08-29"
+      "verifiedAt": "2026-08-30"
     }
   }
 }

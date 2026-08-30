@@ -64,7 +64,7 @@
     "are evidence and are never deleted; settlement on them stays disabled."
   ],
   "schemaVersion": 4,
-  "updatedAt": "2026-08-28",
+  "updatedAt": "2026-08-30",
   "governance": {
     "$comment": [
       "The Safe that owns every v1.3 route splitter. The owner controls pause and",
@@ -816,6 +816,7 @@
       },
       "rpcs": [
         "https://polygon-amoy-bor-rpc.publicnode.com",
+        "https://polygon-amoy.gateway.tenderly.co",
         "https://polygon-amoy.drpc.org",
         "https://api.zan.top/polygon-amoy"
       ],
@@ -833,8 +834,8 @@
       "version": "1.3",
       "testnet": true,
       "superseded": false,
-      "splitter": "0x2C8f13623d84BE3D6c2C2C7fB23E325dfc7598e4",
-      "runtimeCodeHash": "0x3e9c2e97d42bf0c6433717dcb80c40e43a68d96f18441af6a391b671d7a61575",
+      "splitter": "0xFd1622847A89FB3De240d64DFCbd09C65c77D99d",
+      "runtimeCodeHash": "0x0eb0f8ca7792b13ab70f2aa3e779609cd352d279e925ddcd9e901fd9fd68b1b0",
       "owner": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
       "treasury": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
       "treasuryBps": 0,
@@ -845,6 +846,7 @@
       },
       "rpcs": [
         "https://polygon-amoy-bor-rpc.publicnode.com",
+        "https://polygon-amoy.gateway.tenderly.co",
         "https://polygon-amoy.drpc.org",
         "https://api.zan.top/polygon-amoy"
       ],
@@ -852,8 +854,8 @@
       "validFrom": "2026-08-29T00:00:00.000Z",
       "validUntil": "2026-11-27T00:00:00.000Z",
       "settlementEnabled": true,
-      "verified": "2026-08-29",
-      "note": "Same SOURCE as mainnet, different compiler settings (runs=200, viaIR=false against production's runs=10000, viaIR=true, cancun). Verified byte by byte: of 4912 bytes only 32 differ, all in the CBOR metadata tail. Exempt from verify-build.mjs per the 2026-08-29 decision not to redeploy it. Owned by the deployer key, not a Safe \u2014 testnet, decided 2026-08-29."
+      "verified": "2026-08-30",
+      "note": "Same SOURCE as mainnet, different compiler settings (runs=200, viaIR=false against production's runs=10000, viaIR=true, cancun). Verified byte by byte: of 4912 bytes only 32 differ, all in the CBOR metadata tail. Exempt from verify-build.mjs per the 2026-08-29 decision not to redeploy it. Owned by the deployer key, not a Safe \u2014 testnet, decided 2026-08-29. | Redeployed by Paul from current source on 2026-08-29 22:47 UTC (AIFINP-179 comment 12223), replacing 0x2C8f1362\u2026 (20 Aug, runs=200/viaIR=false, hash 0x3e9c2e97\u2026, 4912 B). Runtime is now byte-identical to the mainnet 0/0 build, so this route is held to the reproducible-build gate like every other."
     }
   },
   "notSplitters": {

@@ -103,26 +103,19 @@ function runtimeHashFor(treasuryBps, ipCreatorBps) {
   return keccak256(code);
 }
 
-// Testnet routes are exempt from source-to-bytecode equivalence.
+// Testnet routes are held to the same source-to-bytecode gate as mainnet.
 //
-// DECISION, 2026-08-29. The Amoy agent-x402 deployment was built with
-// runs=200 / viaIR=false, where production uses runs=10000 / viaIR=true /
-// cancun. The SOURCE is identical — verified byte by byte: of 4912 bytes only
-// 32 differ, all in the CBOR metadata tail. Only the compiler settings differ,
-// so its runtime hash cannot match the pinned one and this gate would refuse it.
-//
-// Redeploying it with production settings was the alternative and was not
-// chosen. What that costs, stated plainly rather than left implicit: this gate
-// is the audit's HIGH remediation ("Source-to-deployed-bytecode equivalence is
-// not an enforced CI invariant"), and from here it proves that property for
-// mainnet only. A testnet route can carry bytecode nobody reproduced.
-//
-// Kept narrow on purpose. `testnet` is refused for any chain outside the closed
-// set in lib/testnet.mjs, in both directions, so this exemption cannot be taken
-// for a route that moves real money by writing one field.
-const routes = Object.entries(registry.splitters).filter(
-  ([, e]) => e.version === '1.3' && e.testnet !== true,
-);
+// On 2026-08-29 this gate carried a testnet exemption, because the Amoy
+// agent-x402 deployment of 20 Aug was built with runs=200 / viaIR=false and
+// could not reproduce from production settings. That deployment has since
+// been replaced (Paul, 2026-08-29 22:47 UTC, AIFINP-179) with one built from
+// current source and production settings, and its runtime hash is the mainnet
+// 0/0 hash byte for byte. So the exemption is gone: a rehearsal against a
+// contract this gate cannot reproduce is not a rehearsal of what mainnet runs,
+// and the audit's HIGH ("source-to-deployed-bytecode equivalence is not an
+// enforced CI invariant") now holds for every v1.3 route in the registry,
+// testnet included.
+const routes = Object.entries(registry.splitters).filter(([, e]) => e.version === '1.3');
 const profiles = new Map();
 for (const [name, entry] of routes) {
   const expected = runtimeHashFor(entry.treasuryBps, entry.ipCreatorBps);
