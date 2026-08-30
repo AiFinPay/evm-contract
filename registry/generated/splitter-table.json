@@ -167,7 +167,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -190,7 +190,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -213,7 +213,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -236,7 +236,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -259,7 +259,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -282,7 +282,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -305,7 +305,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -328,7 +328,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -397,7 +397,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -420,7 +420,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -443,7 +443,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -466,7 +466,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -489,7 +489,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
@@ -512,7 +512,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "testnet": false,
       "verifiedAt": "2026-08-27"
     },
