@@ -44,6 +44,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { keccak256, id, getBytes, getAddress } from 'ethers';
+import { classifyNetwork } from './lib/testnet.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REGISTRY = join(ROOT, 'registry/registry.json');
@@ -441,7 +442,14 @@ async function verifyEntry(name, entry, registry) {
   const governance = registry.governance;
   const ownedByGovernanceSafe = String(entry.owner ?? '').toLowerCase() === governance.safe.toLowerCase();
 
-  if (entry.version === '1.3' && !ownedByGovernanceSafe) {
+  // A testnet deployment is owned by whoever deployed it and has one provider.
+  // Both exemptions below hang off this, so it is classified first and a
+  // mismatched claim is fatal here rather than quietly enabling them.
+  const net = classifyNetwork(entry);
+  if (!net.ok) return { name, ok: false, reason: net.reason };
+  const isTestnet = net.testnet;
+
+  if (entry.version === '1.3' && !ownedByGovernanceSafe && !isTestnet) {
     return {
       name,
       ok: false,
@@ -450,7 +458,10 @@ async function verifyEntry(name, entry, registry) {
   }
   // Legacy v1.1/v1.2 splitters are owned by a deployer EOA. History, not a
   // settlement target: one key could re-point the treasury on those.
-  if (!ownedByGovernanceSafe && entry.settlementEnabled === true) {
+  // On mainnet this is the rule that stops one key re-pointing a live treasury.
+  // On a testnet there is no treasury worth re-pointing and the whole purpose is
+  // to settle before mainnet does, so the deployer key is the expected owner.
+  if (!ownedByGovernanceSafe && entry.settlementEnabled === true && !isTestnet) {
     return {
       name,
       ok: false,
@@ -472,7 +483,11 @@ async function verifyEntry(name, entry, registry) {
 
   // A single-provider chain verifies but must not settle. Enforced here, not
   // just documented: the registry cannot mark such a route enabled.
-  if (required < 2 && entry.settlementEnabled === true) {
+  // Two providers protect against one node lying about a route that moves real
+  // money. Nobody runs two independent providers for a testnet, and a lie there
+  // costs test funds, so requiring it would make rehearsal impossible for no
+  // gain — which is exactly how we ended up with no rehearsal path at all.
+  if (required < 2 && entry.settlementEnabled === true && !isTestnet) {
     return {
       name,
       ok: false,

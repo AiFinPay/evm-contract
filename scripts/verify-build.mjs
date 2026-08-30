@@ -103,6 +103,18 @@ function runtimeHashFor(treasuryBps, ipCreatorBps) {
   return keccak256(code);
 }
 
+// Testnet routes are held to the same source-to-bytecode gate as mainnet.
+//
+// On 2026-08-29 this gate carried a testnet exemption, because the Amoy
+// agent-x402 deployment of 20 Aug was built with runs=200 / viaIR=false and
+// could not reproduce from production settings. That deployment has since
+// been replaced (Paul, 2026-08-29 22:47 UTC, AIFINP-179) with one built from
+// current source and production settings, and its runtime hash is the mainnet
+// 0/0 hash byte for byte. So the exemption is gone: a rehearsal against a
+// contract this gate cannot reproduce is not a rehearsal of what mainnet runs,
+// and the audit's HIGH ("source-to-deployed-bytecode equivalence is not an
+// enforced CI invariant") now holds for every v1.3 route in the registry,
+// testnet included.
 const routes = Object.entries(registry.splitters).filter(([, e]) => e.version === '1.3');
 const profiles = new Map();
 for (const [name, entry] of routes) {
