@@ -89,6 +89,9 @@ function build(registry) {
       // Deployed is not the same as payable. Settlement stays off until the
       // route has a v1.3 contract and a clean paid E2E.
       settlementEnabled: entry.settlementEnabled === true,
+      // Carried into the SDK so a client can refuse a testnet route in
+      // production rather than discovering the chain id means nothing to it.
+      testnet: entry.testnet === true,
       verifiedAt: entry.verified,
     };
 
@@ -96,8 +99,13 @@ function build(registry) {
     // proves the chain agrees with the registry; this one stops a v1.3 route
     // reaching the SDK owned by anything other than the governance Safe, even
     // if the registry were edited and not re-verified.
+    // Same exemption as verify-registry, same closed set: a testnet deployment
+    // is owned by its deployer. classifyNetwork has already refused any entry
+    // claiming testnet on a mainnet chain, so reaching here with testnet true
+    // means the chain id is in the reviewed set.
     if (
       entry.version === '1.3' &&
+      entry.testnet !== true &&
       entry.owner.toLowerCase() !== registry.governance.safe.toLowerCase()
     ) {
       throw new Error(
