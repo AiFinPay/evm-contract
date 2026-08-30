@@ -5,7 +5,7 @@
     "difference, so hand-edits are rejected rather than shipped."
   ],
   "schemaVersion": 4,
-  "sourceUpdatedAt": "2026-08-29",
+  "sourceUpdatedAt": "2026-08-30",
   "governance": {
     "safe": "0xFd936f75D9221949f2FEaB54Cd342F7527154eD5",
     "threshold": 3,
@@ -183,7 +183,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "optimism:merchant-aifp1": {
@@ -205,7 +205,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "optimism:agent-x402": {
@@ -227,7 +227,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "bnb:merchant-aifp1": {
@@ -249,7 +249,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "bnb:agent-x402": {
@@ -271,7 +271,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "unichain:merchant-aifp1": {
@@ -293,7 +293,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "unichain:agent-x402": {
@@ -315,7 +315,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "botchain:merchant-aifp1": {
@@ -381,7 +381,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "base:agent-x402": {
@@ -403,7 +403,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "arbitrum:merchant-aifp1": {
@@ -425,7 +425,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "arbitrum:agent-x402": {
@@ -447,7 +447,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "avalanche:merchant-aifp1": {
@@ -469,7 +469,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "avalanche:agent-x402": {
@@ -491,7 +491,7 @@
       "rpcQuorum": 2,
       "validFrom": "2026-08-27T00:00:00.000Z",
       "validUntil": "2026-11-25T00:00:00.000Z",
-      "settlementEnabled": false,
+      "settlementEnabled": true,
       "verifiedAt": "2026-08-27"
     },
     "xrplevm:merchant-aifp1": {
