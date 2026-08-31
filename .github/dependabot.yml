@@ -1,0 +1,31 @@
+# Every action in ci.yml is pinned to a commit SHA, which closes the hole a
+# mutable tag leaves open: `@v4` is a pointer its owner can move, and whatever
+# it points at runs inside CI.
+#
+# A pin with nothing to move it is its own defect, though. It trades "an action
+# can change under us" for "an action can never be patched", and the second
+# failure is the silent one — no alert fires for a security release we simply
+# never took. The pins landed without this file; this is the other half.
+#
+# The `# v4` comment beside each SHA is functional, not decoration. Dependabot
+# reads it to know which tag a pin tracks, and rewrites both the SHA and the
+# comment when that tag moves. Delete the comment and the pin stops being
+# updated, with no signal that it has.
+#
+# Note this is Dependabot *version updates*, which needs this file — distinct
+# from the *alerts* already enabled on this repository.
+#
+# Scope is github-actions only. Adding npm would open a large number of pull
+# requests at once, which is a question about review capacity rather than about
+# supply chain, and deserves its own decision.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+      - github-actions
