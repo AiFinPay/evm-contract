@@ -1,9 +1,9 @@
-# B2BSplitter v1.4 — Splitter-Only Architecture (Design Spec)
+# B2BSplitter v1.4 — Splitter-Only Architecture
 
-**Status:** design spec, not implemented
+**Status:** implemented
 **Replaces:** `B2BSplitterV13`, `AiFinPayCore v5.3`, `MSECCOToken`, `AgentPassport`
 **Audience:** engineering, audit, SDK, backend
-**Last updated:** 2026-08-27
+**Last updated:** 2026-08-31
 
 ---
 
@@ -38,18 +38,20 @@ The v1.3 splitter-only deployment model has a third problem: a single deployment
 | `AiFinPayCore v5.3` | Business logic (seats, manifesto, ARP tiers, Pyth top-ups, daily limits, partner registry) belongs in backend + DB | Backend ledger tracks mSECCO balances, ARP tier, partner status |
 | `MSECCOToken` | Internal credit token, non-transferable, exists only inside the AiFinPay product surface | Off-chain credit ledger; on-chain settlement is in USDC/USDT/native |
 | `AgentPassport` | Soulbound identity NFT; KYC is the backend's responsibility | Backend maintains passport state; quote signature binds wallet to verified identity |
-| `B2BSplitterV13` (multi-deployment per route) | One contract serves both routes via `routeId` | n/a (replaced by v1.4) |
+| `B2BSplitterV13` (single-route per deployment) | One contract serves both routes via `routeId` | n/a (replaced by v1.4) |
 
-### 2.2 Retained contracts
+### 2.2 Retained / reused contracts
 
 | Contract | Status |
 |---|---|
 | `B2BSplitterV14` | **New.** Splitter-only with EIP-712 quote signature, two-role RBAC, multi-route profile |
-| `Whitelist` | Reused; identical library |
+| `TokenList` | **New.** Standalone stablecoin allow-list satellite, deployed by `B2BSplitterV14` constructor |
+| `Profiles` | **New.** Standalone per-route economics storage, deployed by `B2BSplitterV14` constructor |
+| `Whitelist` | Reused library inside `TokenList` |
 | `MockERC20` | Test-only; reused |
 | `MockReverter` | Test-only; reused |
 | `MockPyth` | Test-only; **drop** (no oracle integration in v1.4) |
-| `TimelockWrapper` | **Reused.** Bootstrap helper that deploys `TimelockController` and transfers target ownership. `TimelockController` becomes the `ADMIN_ROLE` holder of `B2BSplitterV14` in production. The wrapper is used once at deploy-time and self-destructs after `transferToTimelock(target)` (see `scripts/deploy-timelock.ts`); `transferMultiple(Ownable[])` becomes redundant but is kept as a defensive no-op for the v1.3 → v1.4 transition window. Foundry tests in `TimelockTest.t.sol` are kept and rewritten to target v1.4 admin functions (`configureRoute`, `grantSignerRole`) instead of the removed v1.2 `setSplit`. |
+| `TimelockWrapper` | **Reused and retained.** Bootstrap helper that deploys a 48-hour `TimelockController` and transfers `Ownable` ownership of legacy contracts. For v1.4 it is used only to deploy the `TimelockController` (see `scripts/deploy-timelock.ts`) — `B2BSplitterV14` itself is not `Ownable`, so `transferToTimelock`/`transferMultiple` are not used on it. Instead, the deployer EOA grants `ADMIN_ROLE` to the `TimelockController` via `grantRole`. `TimelockWrapper` self-destructs after deployment. Foundry tests in `TimelockTest.t.sol` are kept and rewritten to target v1.4 admin functions (`configureRoute`, `grantSignerRole`) instead of the removed v1.2 `setSplit`. |
 | `TimelockController` (OZ) | Used as-is from OpenZeppelin for governance |
 
 ### 2.3 Removed runtime errors
@@ -80,15 +82,33 @@ The v1.3 splitter-only deployment model has a third problem: a single deployment
                          │                  ✓ nonce(payer)            │           │
                          │                  ✓ msg.value == quote     │           │
                          │                  ✓ profile(routeId)       │           │
+                         │                  ✓ token in allow-list      │           │
                          │                  ✓ split gross → 3 legs    │           │
                          │                  ✓ mark nonce consumed    │           │
-                         └──────────────────────────┬───────────────┘           │
-                                                    │                           │
-                         3 atomic transfers          │                           │
-                                                    ▼                           │
-                         ┌──────────────────────────────────────────────────────┐ │
-                         │  Merchant     Treasury (Gnosis Safe)    IP creator   │◄┘
+                         └───────┬───────────────┬────────────────────┘           │
+                                 │               │
+              route economics   │               │   stablecoin allow-list
+                 (read-only)    │               │      (admin callable)
+                                 ▼               ▼
+                         ┌──────────┐    ┌──────────┐
+                         │ Profiles │    │ TokenList│
+                         └──────────┘    └──────────┘
+                                 │               │
+                                 └───────┬───────┘
+                                         │
+                         3 atomic transfers│
+                                         ▼
+                         ┌──────────────────────────────────────────────────────┐
+                         │  Merchant     Treasury / routeTreasury    IP creator │
                          └──────────────────────────────────────────────────────┘
+
+   Production governance bootstrap:
+
+   Safe (4-of-4)  ──propose/execute──▶  TimelockController (48h delay)
+                                             │
+                                             └── grant/revoke ADMIN_ROLE ──▶ B2BSplitterV14
+                                             └── grant/revoke SIGN_OPERATOR_ROLE
+                                             └── pause / configureRoute / setTreasury
 ```
 
 ### 3.2 Roles
@@ -107,37 +127,46 @@ The contract inherits OpenZeppelin's `AccessControl` and adds two custom roles. 
 
 The `DEFAULT_ADMIN_ROLE` is the role that grants/revokes `SIGN_OPERATOR_ROLE`. During signer rotation the admin role holds both keys briefly; see §7.2.
 
-### 3.3 Storage layout (single contract)
+### 3.3 Storage layout
+
+`B2BSplitterV14` owns two satellite contracts deployed in its constructor. Their storage is separate, but the splitter holds their addresses and is their `DEFAULT_ADMIN_ROLE`.
 
 ```
-Pausable                 _paused
-AccessControl            ADMIN_ROLE, SIGN_OPERATOR_ROLE, role memberships
+B2BSplitterV14
+  Pausable                 _paused
+  AccessControl            ADMIN_ROLE, SIGN_OPERATOR_ROLE, role memberships
 
-Whitelist                mapping(address => bool) whitelistedTokens   (reused library)
-                         address treasury                              (mutable by ADMIN)
-                         bool treasuryAcceptsAllRoutes                  (settable per route via storage)
+  EIP-712                  bytes32 _CACHED_DOMAIN_SEPARATOR
+                           uint256 _CACHED_CHAIN_ID
+                           address _CACHED_THIS
+                           bytes32 _HASHED_NAME, _HASHED_VERSION
+                           bytes32 _QUOTE_TYPEHASH
 
-EIP-712                  bytes32 _CACHED_DOMAIN_SEPARATOR              (immutable)
-                         uint256 _CACHED_CHAIN_ID                      (immutable)
-                         address _CACHED_THIS                          (immutable)
-                         bytes32 _HASHED_NAME, _HASHED_VERSION         (immutable)
-                         bytes32 QUOTE_TYPEHASH                        (immutable)
+  State                    address treasury              (mutable by ADMIN_ROLE)
+                           ITokenList tokenList          (immutable reference)
+                           IProfiles  profiles           (immutable reference)
 
-Multi-route              mapping(bytes32 routeId => RouteProfile) profiles
-                         struct RouteProfile {
-                             uint16 treasuryBps;     // 0..500
-                             uint16 ipCreatorBps;   // 0..100
-                             bool   enabled;
-                             uint64 configuredAt;    // block.timestamp
-                             address routeTreasury;  // 0x0 means use treasury
-                         }
-                         bytes32[] enabledRouteIds                     (enumerable for off-chain)
+  Replay protection        mapping(address => uint256) payerNonce
+                           mapping(address => mapping(uint256 => bool)) consumedNonce
 
-Replay protection        mapping(address => uint256) payerNonce       // monotonic per payer
-                         mapping(address => mapping(uint256 => bool)) consumedNonce
+TokenList (satellite)
+  AccessControl            DEFAULT_ADMIN_ROLE == B2BSplitterV14
+  Whitelist library        mapping(address => bool) whitelistedTokens
+
+Profiles (satellite)
+  AccessControl            DEFAULT_ADMIN_ROLE == B2BSplitterV14
+  State                    mapping(bytes32 routeId => RouteProfile) profiles
+                           bytes32[] routeIds
+                           struct RouteProfile {
+                               uint16 treasuryBps;      // 0..500
+                               uint16 ipCreatorBps;     // 0..100
+                               bool   enabled;
+                               uint64 configuredAt;     // block.timestamp
+                               address routeTreasury;   // 0x0 means use treasury
+                           }
 ```
 
-A single storage layout is auditable in one read. There is no cross-contract reentrancy class because the contract holds no references to other contracts.
+The splitter holds references to `TokenList` and `Profiles`, but those satellites are stateless from the splitter's perspective: no reentrancy path exists because they do not call back into the splitter.
 
 The `RouteProfile.routeTreasury` field is optional: by default, every profile routes fees to `treasury` (the global treasury). A profile may override with a route-specific treasury (e.g. a partner's fee wallet that batches into the Safe). This keeps one Safe as the global treasury but allows route-level fee splitting if needed.
 
@@ -161,37 +190,31 @@ Two routes are configured at construction and remain the canonical production ec
 ### 4.2 Initial constructor
 
 ```solidity
-constructor(
-    address initialAdmin,           // ADMIN_ROLE holder = TimelockController or Safe
-    address initialSigner,          // SIGN_OPERATOR_ROLE holder = backend KMS public key
-    address _treasury,              // global treasury (Gnosis Safe)
-    address[] memory _stablecoins,  // USDC/USDT for this chain
-    bytes32[] memory _routeIds,     // ordered list of routeId to pre-configure
-    uint16[] memory _treasuryBps,   // aligned with _routeIds
-    uint16[] memory _ipCreatorBps   // aligned with _routeIds
-) Ownable(initialAdmin) {
-    _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
-    _grantRole(SIGN_OPERATOR_ROLE, initialSigner);
-    treasury = _treasury;
-    // ... whitelist init ...
-    for (uint256 i = 0; i < _routeIds.length; i++) {
-        profiles[_routeIds[i]] = RouteProfile({
-            treasuryBps: _treasuryBps[i],
-            ipCreatorBps: _ipCreatorBps[i],
-            enabled: true,
-            configuredAt: uint64(block.timestamp),
-            routeTreasury: address(0)
-        });
-        enabledRouteIds.push(_routeIds[i]);
-    }
+constructor(ConstructorParams memory _params) EIP712(EIP712_NAME, EIP712_VERSION) {
+    if (_params.initialAdmin == address(0)) revert ZeroAdmin();
+    if (_params.initialSigner == address(0)) revert ZeroSigner();
+    if (_params.initialAdmin == _params.initialSigner) revert AdminEqualsSigner();
+    if (_params.treasury == address(0)) revert ZeroTreasury();
+
+    _grantRole(ADMIN_ROLE, _params.initialAdmin);
+    _grantRole(SIGN_OPERATOR_ROLE, _params.initialSigner);
+
+    treasury = _params.treasury;
+
+    tokenList = ITokenList(address(new TokenList(address(this), _params.stablecoins)));
+    profiles = IProfiles(
+        address(new Profiles(address(this), _params.routeIds, _params.treasuryBps, _params.ipCreatorBps))
+    );
 }
 ```
 
 The constructor enforces:
-- `initialAdmin != address(0)` and `initialAdmin != initialSigner` (separation of duties from byte one).
-- At minimum the canonical routes (`agent-x402`, `merchant-aifp1`) must be present.
-- `treasuryBps <= MAX_TREASURY_BPS`, `ipCreatorBps <= MAX_IP_CREATOR_BPS` (security ceiling).
-- At least one stablecoin (defence-in-depth — same as v1.3).
+- `initialAdmin != address(0)` and `initialAdmin != initialSigner` (`AdminEqualsSigner`) — separation of duties from byte one.
+- `treasury != address(0)` (`ZeroTreasury`).
+- `TokenList` rejects empty `_stablecoins` and zero addresses.
+- `Profiles` validates per-route caps (`TreasuryFeeTooHigh`, `IPCreatorFeeTooHigh`) and array length equality.
+
+There is **no `Ownable`** in v1.4. Governance is pure `AccessControl`.
 
 ### 4.3 Per-route configuration
 
@@ -207,7 +230,7 @@ function disableRoute(bytes32 _routeId) external onlyRole(ADMIN_ROLE);
 function enableRoute(bytes32 _routeId) external onlyRole(ADMIN_ROLE);
 ```
 
-`configureRoute` enforces `_treasuryBps <= MAX_TREASURY_BPS` and `_ipCreatorBps <= MAX_IP_CREATOR_BPS`. The route becomes the new `treasuryBps`/`ipCreatorBps` for that route **immediately**. In-flight quotes that already carry the old `routeId` digest continue to use the old profile — see §5.4.
+`configureRoute` delegates to `Profiles.configureRoute`, which enforces `_treasuryBps <= MAX_TREASURY_BPS` and `_ipCreatorBps <= MAX_IP_CREATOR_BPS`. The route becomes the new `treasuryBps`/`ipCreatorBps` for that route **immediately**. In-flight quotes that already carry the old `routeId` digest use the **current** profile at settlement time — see §5.4.
 
 ADMIN can rotate profiles but cannot **remove** a routeId from the contract. A routeId, once added, exists forever; ADMIN can only toggle `enabled`. This guarantees quote digests remain verifiable across the contract lifetime.
 
@@ -218,7 +241,7 @@ ADMIN can rotate profiles but cannot **remove** a routeId from the contract. A r
 - The two built-in route names (`agent-x402`, `merchant-aifp1`) are protocol-defined identifiers; ADMIN can change their **profile** but cannot change the routeId.
 - Owner powers (`pause`, `setTreasury`, `setWhitelistedTokens`) are gated to `ADMIN_ROLE`. There is no `Ownable` owner: governance is pure `AccessControl`.
 
-What is **mutable**: per-route `treasuryBps`, `ipCreatorBps`, `enabled` flag, `routeTreasury` override. ADMIN can adjust economics within the security ceiling. This is a deliberate change from v1.3 (where everything was immutable) — the trade-off is documented in §9.
+What is **mutable**: per-route `treasuryBps`, `ipCreatorBps`, `enabled` flag, `routeTreasury` override, plus global `treasury` and the `TokenList` allow-list. ADMIN can adjust economics within the security ceiling. This is a deliberate change from v1.3 (where everything was immutable) — the trade-off is documented in §9.
 
 ---
 
@@ -321,18 +344,18 @@ If ADMIN wants to **lock** economics between signing and settlement, the model c
 function settleNative(Quote calldata _quote, bytes calldata _signature)
     external payable nonReentrant whenNotPaused
 {
-    _verifyQuote(_quote, _signature);
+    IProfiles.RouteProfile memory profile = _verifyQuote(_quote, _signature);
     if (_quote.token != address(0)) revert InvalidTokenForNative();
     if (msg.value != _quote.grossAmount) revert IncorrectNativeValue(_quote.grossAmount, msg.value);
 
-    RouteProfile memory p = _resolveProfile(_quote.routeId);
     (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) =
-        _splitGross(_quote.grossAmount, p, _quote.ipCreator);
+        _splitGross(_quote.grossAmount, profile, _quote.ipCreator);
 
-    (bool s1,) = _quote.merchant.call{value: merchantAmt}("");
+    address routeTreasury = profile.routeTreasury == address(0) ? treasury : profile.routeTreasury;
+
+    (bool s1,) = payable(_quote.merchant).call{value: merchantAmt}("");
     if (!s1) revert MerchantTransferFailed();
 
-    address routeTreasury = p.routeTreasury == address(0) ? treasury : p.routeTreasury;
     if (treasuryAmt > 0) {
         (bool s2,) = payable(routeTreasury).call{value: treasuryAmt}("");
         if (!s2) revert TreasuryTransferFailed();
@@ -342,7 +365,7 @@ function settleNative(Quote calldata _quote, bytes calldata _signature)
         if (!s3) revert IPCreatorTransferFailed();
     }
 
-    emit Payment(_quote.paymentId(), _quote, merchantAmt, treasuryAmt, ipAmt);
+    _emitPayment(_quote, merchantAmt, treasuryAmt, ipAmt);
 }
 ```
 
@@ -354,17 +377,37 @@ Same checks; ERC-20 path uses `safeTransferFrom` with `msg.sender` (the payer). 
 
 `quoteHash(Quote)` is exposed as a pure function so backend, SDK, and frontend can all compute the same digest without calling the contract.
 
-### 6.4 Route resolution
+### 6.4 Quote verification
 
 ```solidity
-function _resolveProfile(bytes32 _routeId) internal view returns (RouteProfile memory) {
-    RouteProfile storage p = profiles[_routeId];
-    if (!p.enabled) revert RouteDisabled(_routeId);
-    return p;
+function _verifyQuote(Quote calldata _quote, bytes calldata _signature)
+    internal returns (IProfiles.RouteProfile memory profile)
+{
+    if (_signature.length != 65) revert InvalidSignatureLength();
+    address recovered = ECDSA.recover(digest(_quote), _signature);
+    if (recovered == address(0)) revert InvalidSignature();
+    if (!hasRole(SIGN_OPERATOR_ROLE, recovered)) revert InvalidSigner();
+
+    if (block.timestamp > _quote.validUntil) revert SignatureExpired(_quote.validUntil, block.timestamp);
+    if (_quote.payer == address(0) || _quote.payer != msg.sender) revert InvalidPayer();
+    if (_quote.merchant == address(0)) revert ZeroMerchant();
+
+    profile = profiles.getProfile(_quote.routeId);
+    if (!profile.enabled) revert RouteDisabled(_quote.routeId);
+
+    if (_quote.nonce != payerNonce[_quote.payer]) revert InvalidNonce();
+    if (consumedNonce[_quote.payer][_quote.nonce]) revert NonceAlreadyConsumed();
+
+    uint256 nextNonce;
+    unchecked { nextNonce = _quote.nonce + 1; }
+    if (nextNonce < _quote.nonce) revert NonceOverflow();
+
+    payerNonce[_quote.payer] = nextNonce;
+    consumedNonce[_quote.payer][_quote.nonce] = true;
 }
 ```
 
-`_resolveProfile` checks `enabled`. If ADMIN disabled a route, settlements using that `routeId` revert `RouteDisabled`. Existing signed quotes with that `routeId` cannot settle until the route is re-enabled. This is a deliberate ADMIN power for emergency response (e.g. suspected route-level abuse).
+`_verifyQuote` recovers the signer, validates role/deadline/payer/merchant/route, and marks the nonce consumed **before** any external call (CEI ordering). If any external transfer reverts, the whole transaction rolls back and the nonce is not consumed.
 
 ---
 
@@ -389,7 +432,7 @@ There is **no** `Ownable`/`Ownable2Step` in v1.4. Governance is pure `AccessCont
 All ADMIN actions are gated by the timelock + multisig governance layer:
 
 - On testnet: deployer EOA is `ADMIN_ROLE`.
-- On production: the deploy script runs `scripts/deploy-timelock.ts`, which deploys `TimelockWrapper` (which deploys `TimelockController` with 48h delay), then deploys `B2BSplitterV14` with the deployer EOA as `ADMIN_ROLE`. The Safe then schedules `TimelockController` proposals to (a) grant `ADMIN_ROLE` to `TimelockController` and (b) revoke `ADMIN_ROLE` from the deployer EOA. After the 48-hour delay governance becomes Safe → `TimelockController` → splitter. The `signer role` is granted in a separate proposal. `TimelockWrapper` self-destructs after the transfer; `B2BSplitterV14` holds the canonical admin address via `getRoleAdmin` / `hasRole`.
+- On production: the deploy script runs `scripts/deploy-timelock.ts`, which deploys `TimelockWrapper` (which deploys a `TimelockController` with 48-hour delay). Then `B2BSplitterV14` is deployed with the deployer EOA as `ADMIN_ROLE`. The Safe schedules `TimelockController` proposals to (a) `grantRole(DEFAULT_ADMIN_ROLE, timelock)` on `B2BSplitterV14` and (b) `revokeRole(DEFAULT_ADMIN_ROLE, deployer)` from `B2BSplitterV14`. After the 48-hour delay governance becomes Safe → `TimelockController` → splitter. The `SIGN_OPERATOR_ROLE` is granted in a separate proposal. `TimelockWrapper` self-destructs after the bootstrap; `B2BSplitterV14` holds the canonical admin address via `getRoleAdmin` / `hasRole`.
 
 ### 7.2 Signer rotation
 
@@ -408,7 +451,7 @@ In the rotation window (between Step 3 and Step 6, ~24 hours), both keys can sig
 
 ### 7.3 Pause semantics
 
-Pause stops **settlement**, not signer rotation. The ADMIN can still rotate signers while the contract is paused, ensuring that a compromised signer does not also lock governance.
+  Pause stops **settlement**, not admin actions. The ADMIN can still rotate signers, configure routes, and update the treasury while the contract is paused, ensuring that a compromised signer does not also lock governance.
 
 ### 7.4 ADMIN_ROLE transfer
 
@@ -501,29 +544,32 @@ Full risk matrix in `V14_BACKEND_RISK_CLOSURE.md`.
 
 ---
 
-## 12. Implementation Phases (No Code in This Doc)
+## 12. Implementation Status
 
-This document is a design spec only. The implementation phases are listed in `V14_MIGRATION.md` and the actual code work will be scoped into separate tasks:
+This architecture is now implemented. The migration status is tracked in `V14_MIGRATION.md`:
 
-1. Phase 1 — write `B2BSplitterV14.sol` and update `errors/Errors.sol`.
-2. Phase 2 — write Foundry invariant tests for `_splitGross`, ECDSA fuzz tests for `ecrecover`, RBAC tests, multi-route tests.
-3. Phase 3 — delete `AiFinPayCore`, `MSECCOToken`, `AgentPassport`, `B2BSplitter.sol`, and their tests. Update `test/fixtures.ts`. Update deploy scripts. Update `ARCHITECTURE.md` and `IMPLEMENTATION.md`.
-4. Phase 4 — update SDK and backend to compute the EIP-712 digest and submit `settleNative` / `settleStable` with `routeId`.
-5. Phase 5 — re-audit (slither, solhint, manual), update `AUDIT_B2BSplitterV13.md` → `AUDIT_B2BSplitterV14.md`.
-
-No code is committed under this design spec. Implementation is tracked as future work.
+- ✅ `B2BSplitterV14.sol`, `TokenList.sol`, `Profiles.sol`, interfaces, and errors implemented.
+- ✅ Hardhat unit tests for native, stable, signature, RBAC, and route management.
+- ✅ Deploy scripts (`deploy-splitter-v14.ts`, `deploy-splitter-v14-production.ts`) and production config (`v14-production-config.ts`).
+- ✅ `TimelockWrapper.sol` retained as the bootstrap helper for `TimelockController`.
+- ⏳ Foundry invariant tests for `_splitGross`, ECDSA, `consumedNonce` monotonicity, RBAC separation.
+- ⏳ Independent re-audit and `AUDIT_B2BSplitTERV14.md`.
+- ⏳ SDK/backend integration to compute EIP-712 digest and submit `settleNative` / `settleStable`.
 
 ---
 
-## 13. Open Questions
+## 13. Decisions / Open Questions
 
-These are flagged for the next design pass, not for this spec:
+Resolved decisions are recorded here; remaining open work is tracked in `V14_FUTURE.md`.
 
-1. Should `routeTreasury` (per-route treasury override) be part of v1.4, or only the global `treasury`? **Spec decision:** keep `routeTreasury` field for forward compatibility, default to `address(0)` = use global.
-2. Should `payerNonce` reset on a per-route basis, or be globally monotonic? **TBD.** Global monotonic is simpler; per-route gives more flexibility.
-3. Should `configureRoute` be timelock-gated on top of `ADMIN_ROLE`? **TBD.** If ADMIN is already `TimelockController`, this is automatic. If ADMIN is a Safe without timelock, profile changes should be timelocked.
-4. Should we expose `consumedNonce(payer, nonce)` as a public mapping for indexers? **Yes** (free with `mapping` declaration).
-5. Should the contract hold a list of historical `SIGN_OPERATOR_ROLE` members for off-chain auditability? **No.** Events only.
+1. ✅ `routeTreasury` (per-route treasury override) **kept** for forward compatibility; default `address(0)` = use global treasury.
+2. ✅ `payerNonce` is **globally monotonic per payer**, not per-route.
+3. ✅ `consumedNonce(payer, nonce)` is a **public mapping** (free with `mapping` declaration).
+4. ✅ `configureRoute` is gated by `ADMIN_ROLE` only; in production `ADMIN_ROLE` is the `TimelockController`, so the 48-hour delay applies automatically.
+5. ✅ Historical `SIGN_OPERATOR_ROLE` members are tracked via `RoleGranted` / `RoleRevoked` events only; no on-chain list.
+6. ⏳ Profile-bound digest (freeze economics at signing time) — deferred to v1.4.x. See `V14_FUTURE.md`.
+7. ⏳ Governance recovery after lost `ADMIN_ROLE` — deferred to v1.4.x. See `V14_FUTURE.md`.
+8. ⏳ Storage pruning / TTL for `consumedNonce` — deferred. See `V14_FUTURE.md`.
 
 ---
 
