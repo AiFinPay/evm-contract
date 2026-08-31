@@ -3,15 +3,21 @@ pragma solidity 0.8.35;
 
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ZeroAddress, ZeroProposer, DelayTooShort, NotProposer, TreasuryTransferFailed} from "./errors/Errors.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {ZeroAddress, ZeroProposer, DelayTooShort, NotProposer, EthForwardFailed} from "./errors/Errors.sol";
 
 /// @title TimelockWrapper — Helper for deploying TimelockController
-/// @notice Deploys a TimelockController and transfers ownership of target contracts
-/// @dev Use this pattern:
+/// @notice Deploys a TimelockController and transfers ownership / RBAC roles
+///         of target contracts to the timelock.
+/// @dev Supports both Ownable targets (legacy v1.3/v5.3) and AccessControl
+///      targets (v1.4+). Use this pattern:
 ///      1. Deploy TimelockWrapper with proposer (multisig) and executor addresses
-///      2. Deploy target contracts with TimelockWrapper as owner
-///      3. Call transferToTimelock() to transfer ownership
-///      4. TimelockWrapper self-destructs, leaving TimelockController as owner
+///      2. For Ownable contracts: deploy with TimelockWrapper as owner, then
+///         call transferToTimelock() / transferMultiple()
+///      3. For AccessControl contracts: grant the relevant role to the wrapper,
+///         then call grantRoleToTimelock() / renounceRoleOnTarget()
+///      4. Call destroy() to renounce the wrapper's optional TimelockController
+///         admin role and forward any balance to the timelock.
 contract TimelockWrapper {
     // forge-lint: disable-next-line(screaming-snake-case-immutable)
     TimelockController public immutable timelock;
@@ -45,24 +51,40 @@ contract TimelockWrapper {
             _minDelay,
             proposers,
             executors,
-            address(this) // admin (self-destructs after transfer)
+            address(this) // optional admin (renounced via destroy())
         );
 
         emit TimelockDeployed(address(timelock), _minDelay);
     }
 
-    /// @notice Transfer ownership of a contract to the timelock
+    /// @notice Transfer ownership of an Ownable contract to the timelock
+    ///         (legacy v1.3/v5.3 targets).
     function transferToTimelock(Ownable target) external onlyProposer {
         target.transferOwnership(address(timelock));
         emit OwnershipTransferred(address(target), address(timelock));
     }
 
-    /// @notice Transfer ownership of multiple contracts atomically
+    /// @notice Transfer ownership of multiple Ownable contracts atomically.
     function transferMultiple(Ownable[] calldata targets) external onlyProposer {
         for (uint256 i = 0; i < targets.length; i++) {
             targets[i].transferOwnership(address(timelock));
             emit OwnershipTransferred(address(targets[i]), address(timelock));
         }
+    }
+
+    /// @notice Grant an AccessControl role on `_target` to the timelock.
+    /// @dev The wrapper must already hold the role's admin role on `_target`.
+    ///      Typical v1.4 bootstrap: deployer grants `ADMIN_ROLE` to the wrapper,
+    ///      then the Safe proposer calls this helper to move admin to timelock.
+    function grantRoleToTimelock(IAccessControl target, bytes32 role) external onlyProposer {
+        target.grantRole(role, address(timelock));
+    }
+
+    /// @notice Renounce the wrapper's own AccessControl role on `_target`.
+    /// @dev Call after `grantRoleToTimelock` so the wrapper no longer holds
+    ///      the privileged role.
+    function renounceRoleOnTarget(IAccessControl target, bytes32 role) external onlyProposer {
+        target.renounceRole(role, address(this));
     }
 
     /// @notice Renounce the wrapper's optional TimelockController admin role
@@ -76,7 +98,7 @@ contract TimelockWrapper {
         timelock.renounceRole(timelock.DEFAULT_ADMIN_ROLE(), address(this));
         emit AdminRenounced(address(timelock));
         (bool success, ) = payable(address(timelock)).call{value: address(this).balance}("");
-        if (!success) revert TreasuryTransferFailed();
+        if (!success) revert EthForwardFailed();
     }
 
     modifier onlyProposer() {

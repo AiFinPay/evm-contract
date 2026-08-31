@@ -3,6 +3,7 @@ pragma solidity 0.8.35;
 
 import {Test} from "forge-std/Test.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {TimelockWrapper} from "../contracts/TimelockWrapper.sol";
 import {B2BSplitterV14} from "../contracts/B2BSplitterV14.sol";
 import {Profiles} from "../contracts/Profiles.sol";
@@ -258,6 +259,38 @@ contract TimelockTest is Test {
             1 ether,
             "Wrapper balance should be forwarded to timelock"
         );
+    }
+
+    /// Wrapper can move an AccessControl role from itself to the timelock.
+    function test_WrapperCanGrantRoleToTimelock() public {
+        bytes32 adminRole = splitter.ADMIN_ROLE();
+
+        // The deployer already renounced admin in setUp; timelock is the admin.
+        // Schedule a timelock operation to grant the wrapper the admin role.
+        bytes memory grantData = abi.encodeCall(
+            B2BSplitterV14.grantRole,
+            (adminRole, address(wrapper))
+        );
+        bytes32 salt = keccak256("wrapper-grant");
+
+        vm.prank(proposer);
+        timelock.schedule(address(splitter), 0, grantData, bytes32(0), salt, MIN_DELAY);
+
+        vm.warp(block.timestamp + MIN_DELAY + 1);
+
+        vm.prank(executor);
+        timelock.execute(address(splitter), 0, grantData, bytes32(0), salt);
+        assertTrue(splitter.hasRole(adminRole, address(wrapper)), "Wrapper should hold admin role");
+
+        // Proposer moves the role to the timelock.
+        vm.prank(proposer);
+        wrapper.grantRoleToTimelock(IAccessControl(address(splitter)), adminRole);
+        assertTrue(splitter.hasRole(adminRole, address(timelock)), "Timelock should hold admin role");
+
+        // Proposer renounces the wrapper's own role.
+        vm.prank(proposer);
+        wrapper.renounceRoleOnTarget(IAccessControl(address(splitter)), adminRole);
+        assertFalse(splitter.hasRole(adminRole, address(wrapper)), "Wrapper should have renounced");
     }
 
     /// Fuzz: valid route configurations can be scheduled and executed.

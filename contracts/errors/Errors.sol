@@ -46,3 +46,4 @@ error ArrayLengthMismatch();
 error ZeroProposer();
 error DelayTooShort();
 error NotProposer();
+error EthForwardFailed();
