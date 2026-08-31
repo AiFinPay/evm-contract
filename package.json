@@ -14,6 +14,8 @@
     "deploy": "hardhat run scripts/deploy.ts --network polygon --build-profile production",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network amoy --build-profile production",
     "deploy:splitter": "hardhat run scripts/deploy-splitter-v12.ts --network polygon --build-profile production",
+    "deploy:v14": "hardhat run scripts/deploy-splitter-v14-production.ts --build-profile production",
+    "deploy:v14:testnet": "hardhat run scripts/deploy-splitter-v14.ts --network amoy --build-profile production",
     "deploy:timelock": "hardhat run scripts/deploy-timelock.ts --network polygon",
     "verify": "hardhat run scripts/verify.ts --network polygon --build-profile production",
     "lint": "solhint 'contracts/**/*.sol'",
