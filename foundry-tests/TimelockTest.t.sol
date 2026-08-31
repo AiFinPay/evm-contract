@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {Test} from "forge-std/Test.sol";
-import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
-import {TimelockWrapper} from "../contracts/TimelockWrapper.sol";
-import {B2BSplitterV14} from "../contracts/B2BSplitterV14.sol";
-import {Profiles} from "../contracts/Profiles.sol";
-import {IProfiles} from "../contracts/interfaces/IProfiles.sol";
+import { Test } from "forge-std/Test.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { TimelockWrapper } from "../contracts/TimelockWrapper.sol";
+import { B2BSplitterV14 } from "../contracts/B2BSplitterV14.sol";
+import { Profiles } from "../contracts/Profiles.sol";
+import { IProfiles } from "../contracts/interfaces/IProfiles.sol";
 
 /// @title Timelock Tests - v1.4 timelock governance + instant PAUSER_ROLE pause
 contract TimelockTest is Test {
@@ -223,10 +223,8 @@ contract TimelockTest is Test {
 
     /// Verify multiple operations can be scheduled.
     function test_MultipleOperationsScheduled() public {
-        bytes memory data1 = abi.encodeCall(
-            B2BSplitterV14.configureRoute,
-            (keccak256(bytes("r1")), 200, 50, address(0))
-        );
+        bytes memory data1 =
+            abi.encodeCall(B2BSplitterV14.configureRoute, (keccak256(bytes("r1")), 200, 50, address(0)));
         bytes memory data2 = abi.encodeCall(B2BSplitterV14.pause, ());
 
         vm.prank(proposer);
@@ -267,10 +265,7 @@ contract TimelockTest is Test {
 
         // The deployer already renounced admin in setUp; timelock is the admin.
         // Schedule a timelock operation to grant the wrapper the admin role.
-        bytes memory grantData = abi.encodeCall(
-            B2BSplitterV14.grantRole,
-            (adminRole, address(wrapper))
-        );
+        bytes memory grantData = abi.encodeCall(B2BSplitterV14.grantRole, (adminRole, address(wrapper)));
         bytes32 salt = keccak256("wrapper-grant");
 
         vm.prank(proposer);
@@ -300,10 +295,7 @@ contract TimelockTest is Test {
         vm.assume(uint256(treasuryBps) + uint256(ipBps) < 10_000);
 
         bytes32 newRoute = keccak256(abi.encode(treasuryBps, ipBps));
-        bytes memory data = abi.encodeCall(
-            B2BSplitterV14.configureRoute,
-            (newRoute, treasuryBps, ipBps, address(0))
-        );
+        bytes memory data = abi.encodeCall(B2BSplitterV14.configureRoute, (newRoute, treasuryBps, ipBps, address(0)));
         bytes32 salt = keccak256(abi.encode(treasuryBps, ipBps));
 
         vm.prank(proposer);

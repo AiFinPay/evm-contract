@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ITokenList} from "./interfaces/ITokenList.sol";
-import {Whitelist} from "./Whitelist.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { ITokenList } from "./interfaces/ITokenList.sol";
+import { Whitelist } from "./Whitelist.sol";
 
 /// @title TokenList
 /// @notice Standalone whitelist registry for ERC-20 tokens accepted by a

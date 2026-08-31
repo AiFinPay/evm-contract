@@ -14,12 +14,8 @@ interface IProfiles {
     }
 
     /// @notice Configure a route profile. Creates a new route if it does not exist.
-    function configureRoute(
-        bytes32 _routeId,
-        uint16 _treasuryBps,
-        uint16 _ipCreatorBps,
-        address _routeTreasury
-    ) external;
+    function configureRoute(bytes32 _routeId, uint16 _treasuryBps, uint16 _ipCreatorBps, address _routeTreasury)
+        external;
 
     /// @notice Disable an existing route.
     function disableRoute(bytes32 _routeId) external;

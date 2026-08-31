@@ -7,7 +7,7 @@ contract MockPyth {
         int64 price;
         uint64 conf;
         int32 expo;
-        uint publishTime;
+        uint256 publishTime;
     }
 
     // Fixed MATIC/USD = $0.50 (50_000_000 with expo -8)
@@ -18,7 +18,7 @@ contract MockPyth {
         mockPrice = _price;
     }
 
-    function getUpdateFee(bytes[] calldata) external pure returns (uint) {
+    function getUpdateFee(bytes[] calldata) external pure returns (uint256) {
         return 1; // 1 wei
     }
 
@@ -26,7 +26,7 @@ contract MockPyth {
         // no-op
     }
 
-    function getPriceNoOlderThan(bytes32, uint) external view returns (Price memory) {
-        return Price({price: mockPrice, conf: 100_000, expo: mockExpo, publishTime: block.timestamp});
+    function getPriceNoOlderThan(bytes32, uint256) external view returns (Price memory) {
+        return Price({ price: mockPrice, conf: 100_000, expo: mockExpo, publishTime: block.timestamp });
     }
 }

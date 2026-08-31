@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {Test} from "forge-std/Test.sol";
-import {B2BSplitterV14} from "../contracts/B2BSplitterV14.sol";
-import {MockERC20} from "../contracts/mocks/MockERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { B2BSplitterV14 } from "../contracts/B2BSplitterV14.sol";
+import { MockERC20 } from "../contracts/mocks/MockERC20.sol";
 
 /// @title B2BSplitterV14 Settlement + RBAC Tests
 /// @notice Foundry unit tests for signed multi-route settlement, replay
@@ -71,18 +71,17 @@ contract B2BSplitterV14Test is Test {
         uint256 _nonce,
         bytes32 _routeId
     ) private view returns (B2BSplitterV14.Quote memory) {
-        return
-            B2BSplitterV14.Quote({
-                payer: _payer,
-                merchant: _merchant,
-                token: _token,
-                grossAmount: _grossAmount,
-                ipCreator: address(0),
-                validUntil: block.timestamp + 1 hours,
-                orderIdHash: keccak256(abi.encodePacked("order", _nonce)),
-                nonce: _nonce,
-                routeId: _routeId
-            });
+        return B2BSplitterV14.Quote({
+            payer: _payer,
+            merchant: _merchant,
+            token: _token,
+            grossAmount: _grossAmount,
+            ipCreator: address(0),
+            validUntil: block.timestamp + 1 hours,
+            orderIdHash: keccak256(abi.encodePacked("order", _nonce)),
+            nonce: _nonce,
+            routeId: _routeId
+        });
     }
 
     function _signQuote(B2BSplitterV14.Quote memory quote_) private view returns (bytes memory) {
@@ -103,9 +102,9 @@ contract B2BSplitterV14Test is Test {
 
         vm.deal(payer, gross);
         vm.prank(payer);
-        splitter.settleNative{value: gross}(quote, sig);
+        splitter.settleNative{ value: gross }(quote, sig);
 
-        assertEq(merchant.balance - mb, 9_900, "merchant receives 99%");
+        assertEq(merchant.balance - mb, 9900, "merchant receives 99%");
         assertEq(treasury.balance - tb, 100, "treasury receives 1%");
         assertEq(address(splitter).balance, 0, "no dust left in splitter");
     }
@@ -117,7 +116,7 @@ contract B2BSplitterV14Test is Test {
 
         vm.deal(payer, gross);
         vm.prank(payer);
-        splitter.settleNative{value: gross}(quote, sig);
+        splitter.settleNative{ value: gross }(quote, sig);
 
         assertEq(merchant.balance, gross, "merchant receives full amount");
         assertEq(address(splitter).balance, 0, "no dust left in splitter");
@@ -147,7 +146,7 @@ contract B2BSplitterV14Test is Test {
         vm.deal(payer, gross);
         vm.prank(payer);
         vm.expectRevert();
-        splitter.settleNative{value: gross - 1}(quote, sig);
+        splitter.settleNative{ value: gross - 1 }(quote, sig);
     }
 
     function test_RejectsExpiredSignature() public {
@@ -158,19 +157,20 @@ contract B2BSplitterV14Test is Test {
         vm.deal(payer, 1 ether);
         vm.prank(payer);
         vm.expectRevert();
-        splitter.settleNative{value: 1 ether}(quote, sig);
+        splitter.settleNative{ value: 1 ether }(quote, sig);
     }
 
     function test_RejectsInvalidSigner() public {
         B2BSplitterV14.Quote memory quote = _quote(payer, merchant, address(0), 1 ether, 0, routeIdMerchant);
         bytes32 digest = splitter.digest(quote);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d, digest);
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d, digest);
         bytes memory sig = abi.encodePacked(r, s, v);
 
         vm.deal(payer, 1 ether);
         vm.prank(payer);
         vm.expectRevert();
-        splitter.settleNative{value: 1 ether}(quote, sig);
+        splitter.settleNative{ value: 1 ether }(quote, sig);
     }
 
     function test_RejectsNonPayer() public {
@@ -180,7 +180,7 @@ contract B2BSplitterV14Test is Test {
         vm.deal(attacker, 1 ether);
         vm.prank(attacker);
         vm.expectRevert();
-        splitter.settleNative{value: 1 ether}(quote, sig);
+        splitter.settleNative{ value: 1 ether }(quote, sig);
     }
 
     function test_RejectsReplayedNonce() public {
@@ -190,11 +190,11 @@ contract B2BSplitterV14Test is Test {
 
         vm.deal(payer, 2 * gross);
         vm.prank(payer);
-        splitter.settleNative{value: gross}(quote, sig);
+        splitter.settleNative{ value: gross }(quote, sig);
 
         vm.prank(payer);
         vm.expectRevert();
-        splitter.settleNative{value: gross}(quote, sig);
+        splitter.settleNative{ value: gross }(quote, sig);
     }
 
     function test_RejectsUnknownRoute() public {
@@ -205,7 +205,7 @@ contract B2BSplitterV14Test is Test {
         vm.deal(payer, 1 ether);
         vm.prank(payer);
         vm.expectRevert();
-        splitter.settleNative{value: 1 ether}(quote, sig);
+        splitter.settleNative{ value: 1 ether }(quote, sig);
     }
 
     function test_RejectsDisabledRoute() public {
@@ -218,16 +218,13 @@ contract B2BSplitterV14Test is Test {
         vm.deal(payer, 1 ether);
         vm.prank(payer);
         vm.expectRevert();
-        splitter.settleNative{value: 1 ether}(quote, sig);
+        splitter.settleNative{ value: 1 ether }(quote, sig);
     }
 
     function test_QuoteTotal_MatchesSettlement() public view {
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt, uint256 total) = splitter.quoteTotal(
-            10_000,
-            routeIdMerchant,
-            address(0)
-        );
-        assertEq(merchantAmt, 9_900);
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt, uint256 total) =
+            splitter.quoteTotal(10_000, routeIdMerchant, address(0));
+        assertEq(merchantAmt, 9900);
         assertEq(treasuryAmt, 100);
         assertEq(ipAmt, 0);
         assertEq(total, 10_000);
@@ -303,7 +300,7 @@ contract B2BSplitterV14Test is Test {
 
         vm.deal(payer, grossAmount);
         vm.prank(payer);
-        splitter.settleNative{value: grossAmount}(quote, sig);
+        splitter.settleNative{ value: grossAmount }(quote, sig);
 
         assertEq(merchant.balance - tb + treasury.balance - mb, grossAmount, "sum of outputs equals gross");
         assertEq(address(splitter).balance, 0, "no dust left");

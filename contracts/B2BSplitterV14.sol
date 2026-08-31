@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {
     ZeroAmount,
     ZeroMerchant,
@@ -36,10 +36,11 @@ import {
     AdminEqualsSigner,
     ZeroAdmin
 } from "./errors/Errors.sol";
-import {ITokenList} from "./interfaces/ITokenList.sol";
-import {IProfiles} from "./interfaces/IProfiles.sol";
-import {TokenList} from "./TokenList.sol";
-import {Profiles} from "./Profiles.sol";
+import { ITokenList } from "./interfaces/ITokenList.sol";
+import { IProfiles } from "./interfaces/IProfiles.sol";
+import { TokenList } from "./TokenList.sol";
+import { Profiles } from "./Profiles.sol";
+
 /// @title B2BSplitter v1.4 — signed, multi-route gross settlement
 /// @notice The payer submits an EIP-712 signed quote. Route economics and the
 ///         stablecoin allow-list live in separate `Profiles` and `TokenList`
@@ -126,31 +127,30 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     }
 
     // ── Settlement functions ───────────────────────────────────────────────────
-    function settleNative(
-        Quote calldata _quote,
-        bytes calldata _signature
-    ) external payable nonReentrant whenNotPaused {
+    function settleNative(Quote calldata _quote, bytes calldata _signature)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+    {
         IProfiles.RouteProfile memory profile = _verifyQuote(_quote, _signature);
         if (_quote.token != address(0)) revert InvalidTokenForNative();
         if (msg.value != _quote.grossAmount) revert IncorrectNativeValue(_quote.grossAmount, msg.value);
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
-            _quote.grossAmount,
-            profile,
-            _quote.ipCreator
-        );
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) =
+            _splitGross(_quote.grossAmount, profile, _quote.ipCreator);
 
         address routeTreasury = profile.routeTreasury == address(0) ? treasury : profile.routeTreasury;
 
-        (bool s1, ) = payable(_quote.merchant).call{value: merchantAmt}("");
+        (bool s1,) = payable(_quote.merchant).call{ value: merchantAmt }("");
         if (!s1) revert MerchantTransferFailed();
 
         if (treasuryAmt > 0) {
-            (bool s2, ) = payable(routeTreasury).call{value: treasuryAmt}("");
+            (bool s2,) = payable(routeTreasury).call{ value: treasuryAmt }("");
             if (!s2) revert TreasuryTransferFailed();
         }
         if (ipAmt > 0) {
-            (bool s3, ) = payable(_quote.ipCreator).call{value: ipAmt}("");
+            (bool s3,) = payable(_quote.ipCreator).call{ value: ipAmt }("");
             if (!s3) revert IPCreatorTransferFailed();
         }
 
@@ -161,11 +161,8 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         IProfiles.RouteProfile memory profile = _verifyQuote(_quote, _signature);
         if (_quote.token == address(0) || !tokenList.isAllowed(_quote.token)) revert UnsupportedToken();
 
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
-            _quote.grossAmount,
-            profile,
-            _quote.ipCreator
-        );
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) =
+            _splitGross(_quote.grossAmount, profile, _quote.ipCreator);
 
         address routeTreasury = profile.routeTreasury == address(0) ? treasury : profile.routeTreasury;
         IERC20 tokenContract = IERC20(_quote.token);
@@ -197,10 +194,10 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         bytes32 routeId;
     }
 
-    function _verifyQuote(
-        Quote calldata _quote,
-        bytes calldata _signature
-    ) internal returns (IProfiles.RouteProfile memory profile) {
+    function _verifyQuote(Quote calldata _quote, bytes calldata _signature)
+        internal
+        returns (IProfiles.RouteProfile memory profile)
+    {
         if (_signature.length != 65) revert InvalidSignatureLength();
         address recovered = ECDSA.recover(digest(_quote), _signature);
         if (recovered == address(0)) revert InvalidSignature();
@@ -236,29 +233,28 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     }
 
     function quoteHash(Quote calldata _quote) public pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    _QUOTE_TYPEHASH,
-                    _quote.payer,
-                    _quote.merchant,
-                    _quote.token,
-                    _quote.grossAmount,
-                    _quote.ipCreator,
-                    _quote.validUntil,
-                    _quote.orderIdHash,
-                    _quote.nonce,
-                    _quote.routeId
-                )
-            );
+        return keccak256(
+            abi.encode(
+                _QUOTE_TYPEHASH,
+                _quote.payer,
+                _quote.merchant,
+                _quote.token,
+                _quote.grossAmount,
+                _quote.ipCreator,
+                _quote.validUntil,
+                _quote.orderIdHash,
+                _quote.nonce,
+                _quote.routeId
+            )
+        );
     }
 
     // ── Splitting logic ──────────────────────────────────────────────────────────
-    function _splitGross(
-        uint256 _grossAmount,
-        IProfiles.RouteProfile memory _profile,
-        address _ipCreator
-    ) internal pure returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
+    function _splitGross(uint256 _grossAmount, IProfiles.RouteProfile memory _profile, address _ipCreator)
+        internal
+        pure
+        returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt)
+    {
         if (_grossAmount == 0) revert ZeroAmount();
 
         uint256 feeBps = _profile.treasuryBps;
@@ -278,11 +274,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         if (merchantAmt == 0) revert ZeroAmount();
     }
 
-    function quoteTotal(
-        uint256 _grossAmount,
-        bytes32 _routeId,
-        address _ipCreator
-    )
+    function quoteTotal(uint256 _grossAmount, bytes32 _routeId, address _ipCreator)
         external
         view
         returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount)
@@ -324,12 +316,10 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     }
 
     /// @notice Configure a route in the downstream Profiles contract.
-    function configureRoute(
-        bytes32 _routeId,
-        uint16 _treasuryBps,
-        uint16 _ipCreatorBps,
-        address _routeTreasury
-    ) external onlyRole(ADMIN_ROLE) {
+    function configureRoute(bytes32 _routeId, uint16 _treasuryBps, uint16 _ipCreatorBps, address _routeTreasury)
+        external
+        onlyRole(ADMIN_ROLE)
+    {
         profiles.configureRoute(_routeId, _treasuryBps, _ipCreatorBps, _routeTreasury);
     }
 

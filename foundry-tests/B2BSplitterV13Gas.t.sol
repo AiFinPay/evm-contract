@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {Test, Vm} from "forge-std/Test.sol";
-import {B2BSplitterV13} from "../contracts/B2BSplitterV13.sol";
-import {MockERC20} from "../contracts/mocks/MockERC20.sol";
+import { Test, Vm } from "forge-std/Test.sol";
+import { B2BSplitterV13 } from "../contracts/B2BSplitterV13.sol";
+import { MockERC20 } from "../contracts/mocks/MockERC20.sol";
 
 /// @notice Gas benchmark for B2BSplitterV13 payment paths.
 /// @dev Run with `forge test --match-contract B2BSplitterV13Gas --gas-report`.
@@ -38,7 +38,7 @@ contract B2BSplitterV13Gas is Test {
     function testGas_PayNative_Aifp1() public {
         vm.deal(agent, 1 ether);
         vm.prank(agent);
-        splitter.payNative{value: 1 ether}(
+        splitter.payNative{ value: 1 ether }(
             B2BSplitterV13.NativePayment({
                 paymentId: _nextId(),
                 merchant: payable(merchant),
@@ -53,10 +53,11 @@ contract B2BSplitterV13Gas is Test {
     function testGas_PayNative_Aifp2() public {
         address[] memory tokens = new address[](1);
         tokens[0] = address(usdc);
-        B2BSplitterV13 zeroSplitter = new B2BSplitterV13(B2BSplitterV13.ConstructorParams(owner, treasury, tokens, 0, 0));
+        B2BSplitterV13 zeroSplitter =
+            new B2BSplitterV13(B2BSplitterV13.ConstructorParams(owner, treasury, tokens, 0, 0));
         vm.deal(agent, 1 ether);
         vm.prank(agent);
-        zeroSplitter.payNative{value: 1 ether}(
+        zeroSplitter.payNative{ value: 1 ether }(
             B2BSplitterV13.NativePayment({
                 paymentId: _nextId(),
                 merchant: payable(merchant),
@@ -86,7 +87,8 @@ contract B2BSplitterV13Gas is Test {
     function testGas_PayStable_Aifp2() public {
         address[] memory tokens = new address[](1);
         tokens[0] = address(usdc);
-        B2BSplitterV13 zeroSplitter = new B2BSplitterV13(B2BSplitterV13.ConstructorParams(owner, treasury, tokens, 0, 0));
+        B2BSplitterV13 zeroSplitter =
+            new B2BSplitterV13(B2BSplitterV13.ConstructorParams(owner, treasury, tokens, 0, 0));
         vm.prank(agent);
         usdc.approve(address(zeroSplitter), type(uint256).max);
         vm.prank(agent);

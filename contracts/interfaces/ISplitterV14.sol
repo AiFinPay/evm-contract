@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {ITokenList} from "./ITokenList.sol";
-import {IProfiles} from "./IProfiles.sol";
+import { ITokenList } from "./ITokenList.sol";
+import { IProfiles } from "./IProfiles.sol";
 
 /// @title ISplitterV14
 /// @notice Interface for B2BSplitter v1.4 — EIP-712 signed, multi-route,
@@ -91,12 +91,8 @@ interface ISplitterV14 {
     function unpause() external;
     function setTreasury(address _treasury) external;
     function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowedFlags) external;
-    function configureRoute(
-        bytes32 _routeId,
-        uint16 _treasuryBps,
-        uint16 _ipCreatorBps,
-        address _routeTreasury
-    ) external;
+    function configureRoute(bytes32 _routeId, uint16 _treasuryBps, uint16 _ipCreatorBps, address _routeTreasury)
+        external;
     function disableRoute(bytes32 _routeId) external;
     function enableRoute(bytes32 _routeId) external;
     function grantSignerRole(address _account) external;

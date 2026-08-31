@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
-import {ZeroAddress, ZeroProposer, DelayTooShort, NotProposer, EthForwardFailed} from "./errors/Errors.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { ZeroAddress, ZeroProposer, DelayTooShort, NotProposer, EthForwardFailed } from "./errors/Errors.sol";
 
 /// @title TimelockWrapper — Helper for deploying TimelockController
 /// @notice Deploys a TimelockController and transfers ownership / RBAC roles
@@ -97,7 +97,7 @@ contract TimelockWrapper {
     function destroy() external onlyProposer {
         timelock.renounceRole(timelock.DEFAULT_ADMIN_ROLE(), address(this));
         emit AdminRenounced(address(timelock));
-        (bool success, ) = payable(address(timelock)).call{value: address(this).balance}("");
+        (bool success,) = payable(address(timelock)).call{ value: address(this).balance }("");
         if (!success) revert EthForwardFailed();
     }
 

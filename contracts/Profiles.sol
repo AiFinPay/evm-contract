@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {IProfiles} from "./interfaces/IProfiles.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { IProfiles } from "./interfaces/IProfiles.sol";
 import {
     TreasuryFeeTooHigh,
     IPCreatorFeeTooHigh,
@@ -26,10 +26,7 @@ contract Profiles is AccessControl, IProfiles {
     bytes32[] private _routeIds;
 
     event RouteConfigured(
-        bytes32 indexed routeId,
-        uint16 treasuryBps,
-        uint16 ipCreatorBps,
-        address indexed routeTreasury
+        bytes32 indexed routeId, uint16 treasuryBps, uint16 ipCreatorBps, address indexed routeTreasury
     );
     event RouteStatusChanged(bytes32 indexed routeId, bool indexed enabled);
 
@@ -71,12 +68,10 @@ contract Profiles is AccessControl, IProfiles {
     }
 
     /// @notice Configure a route profile. Creates a new route if it does not exist.
-    function configureRoute(
-        bytes32 _routeId,
-        uint16 _treasuryBps,
-        uint16 _ipCreatorBps,
-        address _routeTreasury
-    ) external onlyRole(ADMIN_ROLE) {
+    function configureRoute(bytes32 _routeId, uint16 _treasuryBps, uint16 _ipCreatorBps, address _routeTreasury)
+        external
+        onlyRole(ADMIN_ROLE)
+    {
         _validateBps(_treasuryBps, _ipCreatorBps);
         RouteProfile storage profile = _profiles[_routeId];
         if (profile.configuredAt == 0) {

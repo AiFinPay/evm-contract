@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {ITokenList} from "./ITokenList.sol";
-import {IProfiles} from "./IProfiles.sol";
+import { ITokenList } from "./ITokenList.sol";
+import { IProfiles } from "./IProfiles.sol";
 
 /// @title ISplitterV14Basic
 /// @notice Minimal splitter-only surface for B2BSplitter v1.4. Contains the
@@ -56,11 +56,7 @@ interface ISplitterV14Basic {
     function digest(Quote calldata _quote) external view returns (bytes32);
 
     // ── Quoting / route readout ────────────────────────────────────────────────
-    function quoteTotal(
-        uint256 _grossAmount,
-        bytes32 _routeId,
-        address _ipCreator
-    )
+    function quoteTotal(uint256 _grossAmount, bytes32 _routeId, address _ipCreator)
         external
         view
         returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount);
