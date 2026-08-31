@@ -1,64 +1,52 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-// ── AiFinPayCore Errors ────────────────────────────────────────────────────────
-error ZeroOwner();
-error ZeroMSECCO();
-error ZeroPassport();
+// ── B2BSplitter v1.3 Errors ────────────────────────────────────────────────────
+error ZeroAmount();
+error ZeroMerchant();
+error ZeroPaymentId();
+error PaymentAlreadyProcessed();
 error ZeroTreasury();
-error ZeroPartner();
-error EmptyPartnerName();
-error InvalidAgreementHash();
-error ZeroNative();
-error InsufficientNativeForFee();
-error InvalidPythPrice();
-error UnexpectedPriceExponent();
-error BelowMinimum();
 error UnsupportedToken();
-error NoSeatFound();
-error PartnerNotActive();
-error AgentNotVerifiedB2B();
-error PaymentBelowMinimum();
-error SpendAmountTooLarge();
-error DailySpendLimitExceeded();
-error ProtocolFeeFailed();
+error PaymentTooSmallForRoyalty();
+error PaymentTooSmallForTreasury();
+error TreasuryFeeTooHigh();
+error IPCreatorFeeTooHigh();
 error MerchantTransferFailed();
 error TreasuryTransferFailed();
 error IPCreatorTransferFailed();
-error BonusAlreadyClaimed();
-error NoReferrals();
-error FeesExceed100();
-error TreasuryFeeTooLow();
-error TreasuryFeeTooHigh();
-error IPCreatorFeeTooHigh();
-error ARPFeeTooHigh();
-error ProtocolPaused();
+error IncorrectNativeValue(uint256 expected, uint256 received);
+error InvalidProductionSplit(uint256 treasuryBps, uint256 ipCreatorBps);
+error PaymentExpired(uint256 validUntil, uint256 currentTime);
+error MissingIPCreator();
+error ZeroStablecoins();
 
-// ── MSECCOToken Errors ─────────────────────────────────────────────────────────
-error CoreAlreadySet();
+// ── B2BSplitter v1.4 Errors ────────────────────────────────────────────────────
+error InvalidSigner();
+error InvalidSignature();
+error InvalidSignatureLength();
+error SignatureExpired(uint256 validUntil, uint256 currentTime);
+error InvalidPayer();
+error InvalidNonce();
+error NonceAlreadyConsumed();
+error NonceOverflow();
+error InvalidOrderIdHash();
+error InvalidTokenForNative();
+error UnknownRoute(bytes32 routeId);
+error RouteDisabled(bytes32 routeId);
+error RouteAlreadyExists(bytes32 routeId);
+error RouteNotFound(bytes32 routeId);
+error RouteTreasuryZero();
+error ZeroSigner();
+error AdminEqualsSigner();
+error ZeroAdmin();
+error NoAdminRoleHolder();
+
+// ── Shared / Whitelist / Timelock Errors ───────────────────────────────────────
 error ZeroAddress();
-error OnlyCore();
-error NonTransferable();
-
-// ── AgentPassport Errors ───────────────────────────────────────────────────────
-error PassportAlreadyExists();
-error NoPassport();
-error Soulbound();
-
-// ── B2BSplitter Errors ─────────────────────────────────────────────────────────
-error ZeroAmount();
-error ZeroMerchant();
-error PaymentTooSmall();
-error PaymentTooSmallForTreasury();
-error PaymentTooSmallForRoyalty();
-error PaymentTooSmallForMerchant();
-error ZeroPaymentId(); // AIFINP-35 — paymentId must be non-zero
-error PaymentAlreadyProcessed(); // AIFINP-35 — replay: paymentId already settled
-
-// ── TimelockWrapper Errors ─────────────────────────────────────────────────────
+error ArrayLengthMismatch();
 error ZeroProposer();
 error DelayTooShort();
 error NotProposer();
-
-// ── AiFinPayCore Whitelist Errors ──────────────────────────────────────────────
-error ArrayLengthMismatch();
+error PaymentTooSmall();
+error PaymentTooSmallForMerchant();
