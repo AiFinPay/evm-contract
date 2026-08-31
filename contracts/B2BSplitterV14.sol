@@ -15,14 +15,11 @@ import {
     UnsupportedToken,
     PaymentTooSmallForRoyalty,
     PaymentTooSmallForTreasury,
-    TreasuryFeeTooHigh,
-    IPCreatorFeeTooHigh,
     MerchantTransferFailed,
     TreasuryTransferFailed,
     IPCreatorTransferFailed,
     IncorrectNativeValue,
     MissingIPCreator,
-    ZeroStablecoins,
     InvalidSigner,
     InvalidSignature,
     InvalidSignatureLength,
@@ -32,26 +29,25 @@ import {
     NonceAlreadyConsumed,
     NonceOverflow,
     InvalidTokenForNative,
-    UnknownRoute,
     RouteDisabled,
-    RouteAlreadyExists,
     ZeroSigner,
     AdminEqualsSigner,
-    ZeroAdmin,
-    ArrayLengthMismatch,
-    RouteNotFound
+    ZeroAdmin
 } from "./errors/Errors.sol";
-import {Whitelist} from "./Whitelist.sol";
+import {ITokenList} from "./interfaces/ITokenList.sol";
+import {IProfiles} from "./interfaces/IProfiles.sol";
+import {TokenList} from "./TokenList.sol";
+import {Profiles} from "./Profiles.sol";
 
 /// @title B2BSplitter v1.4 — signed, multi-route gross settlement
-/// @notice The payer submits an EIP-712 signed quote. The route profile is selected
-///         at settlement time by `routeId`. ADMIN_ROLE governs the contract;
-///         SIGN_OPERATOR_ROLE signs quotes. Roles are deliberately orthogonal.
+/// @notice The payer submits an EIP-712 signed quote. Route economics and the
+///         stablecoin allow-list live in separate `Profiles` and `TokenList`
+///         contracts. This contract orchestrates signature verification,
+///         replay protection, and atomic fund splitting.
 /// @dev v1.4 intentionally breaks the v1.3 ABI: payments now require a signature
 ///      and a routeId. It must be deployed under a new address.
 contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EIP712 {
     using SafeERC20 for IERC20;
-    using Whitelist for mapping(address => bool);
 
     // ── Roles ────────────────────────────────────────────────────────────────────
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
@@ -59,8 +55,6 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
 
     // ── Constants ──────────────────────────────────────────────────────────────
     uint256 public constant BPS_DENOMINATOR = 10_000;
-    uint256 public constant MAX_TREASURY_BPS = 500;
-    uint256 public constant MAX_IP_CREATOR_BPS = 100;
     string public constant EIP712_NAME = "AiFinPayB2BSplitter";
     string public constant EIP712_VERSION = "1";
 
@@ -70,20 +64,11 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     //         address ipCreator,uint256 validUntil,bytes32 orderIdHash,uint256 nonce,bytes32 routeId)
     bytes32 private constant _QUOTE_TYPEHASH = 0xa8b0556d3a3a900bcde8265692fc8a2183d22e265f3bc658e04fe8162e02f4bf;
 
-    // ── Multi-route profile storage ──────────────────────────────────────────────
-    struct RouteProfile {
-        uint16 treasuryBps;
-        uint16 ipCreatorBps;
-        bool enabled;
-        uint64 configuredAt;
-        address routeTreasury;
-    }
+    // ── Satellite contracts ──────────────────────────────────────────────────────
+    ITokenList public tokenList;
+    IProfiles public profiles;
 
-    mapping(bytes32 => RouteProfile) public profiles;
-    bytes32[] public enabledRouteIds;
-
-    // ── Token + treasury state ───────────────────────────────────────────────────
-    mapping(address => bool) public whitelistedTokens;
+    // ── Treasury state ─────────────────────────────────────────────────────────
     address public treasury;
 
     // ── Replay protection ──────────────────────────────────────────────────────
@@ -105,14 +90,6 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         bytes32 orderIdHash
     );
     event TreasuryUpdated(address indexed newTreasury);
-    event WhitelistedTokensUpdated(address[] tokens, bool[] allowed);
-    event RouteConfigured(
-        bytes32 indexed routeId,
-        uint16 treasuryBps,
-        uint16 ipCreatorBps,
-        address indexed routeTreasury
-    );
-    event RouteStatusChanged(bytes32 indexed routeId, bool indexed enabled);
 
     // ── Constructor ──────────────────────────────────────────────────────────────
     struct ConstructorParams {
@@ -136,55 +113,10 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
 
         treasury = _params.treasury;
 
-        _initStablecoins(_params.stablecoins);
-        _initRoutes(_params.routeIds, _params.treasuryBps, _params.ipCreatorBps);
-    }
-
-    function _initStablecoins(address[] memory _stablecoins) internal {
-        uint256 length = _stablecoins.length;
-        if (length == 0) revert ZeroStablecoins();
-        for (uint256 i = 0; i < length; i++) {
-            if (_stablecoins[i] != address(0)) {
-                whitelistedTokens.set(_stablecoins[i], true);
-            }
-        }
-        address[] memory emittedTokens = new address[](length);
-        bool[] memory emittedAllowed = new bool[](length);
-        for (uint256 i = 0; i < length; i++) {
-            emittedTokens[i] = _stablecoins[i];
-            emittedAllowed[i] = _stablecoins[i] != address(0);
-        }
-        emit WhitelistedTokensUpdated(emittedTokens, emittedAllowed);
-    }
-
-    function _initRoutes(
-        bytes32[] memory _routeIds,
-        uint16[] memory _treasuryBps,
-        uint16[] memory _ipCreatorBps
-    ) internal {
-        uint256 routeCount = _routeIds.length;
-        if (routeCount == 0) revert RouteNotFound(0);
-        if (routeCount != _treasuryBps.length || routeCount != _ipCreatorBps.length) {
-            revert ArrayLengthMismatch();
-        }
-
-        for (uint256 i = 0; i < routeCount; i++) {
-            bytes32 routeId = _routeIds[i];
-            uint16 tBps = _treasuryBps[i];
-            uint16 iBps = _ipCreatorBps[i];
-            if (profiles[routeId].configuredAt != 0) revert RouteAlreadyExists(routeId);
-            _validateProfileBps(tBps, iBps);
-
-            profiles[routeId] = RouteProfile({
-                treasuryBps: tBps,
-                ipCreatorBps: iBps,
-                enabled: true,
-                configuredAt: uint64(block.timestamp),
-                routeTreasury: address(0)
-            });
-            enabledRouteIds.push(routeId);
-            emit RouteConfigured(routeId, tBps, iBps, address(0));
-        }
+        tokenList = ITokenList(address(new TokenList(address(this), _params.stablecoins)));
+        profiles = IProfiles(
+            address(new Profiles(address(this), _params.routeIds, _params.treasuryBps, _params.ipCreatorBps))
+        );
     }
 
     // ── Settlement functions ───────────────────────────────────────────────────
@@ -192,11 +124,10 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         Quote calldata _quote,
         bytes calldata _signature
     ) external payable nonReentrant whenNotPaused {
-        _verifyQuote(_quote, _signature);
+        IProfiles.RouteProfile memory profile = _verifyQuote(_quote, _signature);
         if (_quote.token != address(0)) revert InvalidTokenForNative();
         if (msg.value != _quote.grossAmount) revert IncorrectNativeValue(_quote.grossAmount, msg.value);
 
-        RouteProfile memory profile = profiles[_quote.routeId];
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
             _quote.grossAmount,
             profile,
@@ -221,10 +152,9 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     }
 
     function settleStable(Quote calldata _quote, bytes calldata _signature) external nonReentrant whenNotPaused {
-        _verifyQuote(_quote, _signature);
-        if (_quote.token == address(0) || !whitelistedTokens.isAllowed(_quote.token)) revert UnsupportedToken();
+        IProfiles.RouteProfile memory profile = _verifyQuote(_quote, _signature);
+        if (_quote.token == address(0) || !tokenList.isAllowed(_quote.token)) revert UnsupportedToken();
 
-        RouteProfile memory profile = profiles[_quote.routeId];
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
             _quote.grossAmount,
             profile,
@@ -258,7 +188,10 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         bytes32 routeId;
     }
 
-    function _verifyQuote(Quote calldata _quote, bytes calldata _signature) internal {
+    function _verifyQuote(
+        Quote calldata _quote,
+        bytes calldata _signature
+    ) internal returns (IProfiles.RouteProfile memory profile) {
         if (_signature.length != 65) revert InvalidSignatureLength();
         address recovered = ECDSA.recover(digest(_quote), _signature);
         if (recovered == address(0)) revert InvalidSignature();
@@ -268,8 +201,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         if (_quote.payer == address(0) || _quote.payer != msg.sender) revert InvalidPayer();
         if (_quote.merchant == address(0)) revert ZeroMerchant();
 
-        RouteProfile memory profile = profiles[_quote.routeId];
-        if (profile.configuredAt == 0) revert UnknownRoute(_quote.routeId);
+        profile = profiles.getProfile(_quote.routeId);
         if (!profile.enabled) revert RouteDisabled(_quote.routeId);
 
         if (_quote.nonce != payerNonce[_quote.payer]) revert InvalidNonce();
@@ -315,7 +247,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     // ── Splitting logic ──────────────────────────────────────────────────────────
     function _splitGross(
         uint256 _grossAmount,
-        RouteProfile memory _profile,
+        IProfiles.RouteProfile memory _profile,
         address _ipCreator
     ) internal pure returns (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) {
         if (_grossAmount == 0) revert ZeroAmount();
@@ -346,8 +278,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         view
         returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount)
     {
-        RouteProfile memory profile = profiles[_routeId];
-        if (profile.configuredAt == 0) revert UnknownRoute(_routeId);
+        IProfiles.RouteProfile memory profile = profiles.getProfile(_routeId);
         (merchantAmount, treasuryAmount, ipCreatorAmount) = _splitGross(_grossAmount, profile, _ipCreator);
         totalAmount = _grossAmount;
     }
@@ -367,41 +298,27 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         emit TreasuryUpdated(_treasury);
     }
 
+    /// @notice Update the downstream TokenList allow-list. Only `ADMIN_ROLE`.
     function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external onlyRole(ADMIN_ROLE) {
-        whitelistedTokens.updateAndEmit(_tokens, _allowed);
+        tokenList.setAllowed(_tokens, _allowed);
     }
 
+    /// @notice Configure a route in the downstream Profiles contract.
     function configureRoute(
         bytes32 _routeId,
         uint16 _treasuryBps,
         uint16 _ipCreatorBps,
         address _routeTreasury
     ) external onlyRole(ADMIN_ROLE) {
-        _validateProfileBps(_treasuryBps, _ipCreatorBps);
-        RouteProfile storage profile = profiles[_routeId];
-        if (profile.configuredAt == 0) {
-            profile.enabled = true;
-            profile.configuredAt = uint64(block.timestamp);
-            enabledRouteIds.push(_routeId);
-        }
-        profile.treasuryBps = _treasuryBps;
-        profile.ipCreatorBps = _ipCreatorBps;
-        profile.routeTreasury = _routeTreasury;
-        emit RouteConfigured(_routeId, _treasuryBps, _ipCreatorBps, _routeTreasury);
+        profiles.configureRoute(_routeId, _treasuryBps, _ipCreatorBps, _routeTreasury);
     }
 
     function disableRoute(bytes32 _routeId) external onlyRole(ADMIN_ROLE) {
-        RouteProfile storage profile = profiles[_routeId];
-        if (profile.configuredAt == 0) revert UnknownRoute(_routeId);
-        profile.enabled = false;
-        emit RouteStatusChanged(_routeId, false);
+        profiles.disableRoute(_routeId);
     }
 
     function enableRoute(bytes32 _routeId) external onlyRole(ADMIN_ROLE) {
-        RouteProfile storage profile = profiles[_routeId];
-        if (profile.configuredAt == 0) revert UnknownRoute(_routeId);
-        profile.enabled = true;
-        emit RouteStatusChanged(_routeId, true);
+        profiles.enableRoute(_routeId);
     }
 
     function grantSignerRole(address _account) external onlyRole(ADMIN_ROLE) {
@@ -414,11 +331,6 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────────
-    function _validateProfileBps(uint16 _treasuryBps, uint16 _ipCreatorBps) internal pure {
-        if (_treasuryBps > MAX_TREASURY_BPS) revert TreasuryFeeTooHigh();
-        if (_ipCreatorBps > MAX_IP_CREATOR_BPS) revert IPCreatorFeeTooHigh();
-    }
-
     function _emitPayment(Quote calldata _quote, uint256 _merchantAmt, uint256 _treasuryAmt, uint256 _ipAmt) internal {
         bytes32 paymentId = keccak256(
             abi.encode(

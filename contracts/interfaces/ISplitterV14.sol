@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
+import {ITokenList} from "./ITokenList.sol";
+import {IProfiles} from "./IProfiles.sol";
+
 /// @title ISplitterV14
 /// @notice Interface for B2BSplitter v1.4 — EIP-712 signed, multi-route,
-///         RBAC-gross payment settlement.
+///         RBAC-gross payment settlement. Token whitelist and route profiles
+///         are delegated to separate `ITokenList` and `IProfiles` contracts.
 interface ISplitterV14 {
     // ── Data structures ──────────────────────────────────────────────────────
     struct Quote {
@@ -51,10 +55,7 @@ interface ISplitterV14 {
         bytes32 orderIdHash
     );
     event TreasuryUpdated(address indexed newTreasury);
-    event WhitelistedTokensUpdated(address[] tokens, bool[] allowed);
-    event RouteConfigured(bytes32 indexed routeId, uint16 treasuryBps, uint16 ipCreatorBps, address routeTreasury);
-    event RouteDisabled(bytes32 indexed routeId);
-    event RouteEnabled(bytes32 indexed routeId);
+    // Whitelist/route events are emitted by TokenList and Profiles satellite contracts.
 
     // ── Roles ──────────────────────────────────────────────────────────────────
     function ADMIN_ROLE() external view returns (bytes32);
@@ -62,16 +63,15 @@ interface ISplitterV14 {
 
     // ── Constants ──────────────────────────────────────────────────────────────
     function BPS_DENOMINATOR() external pure returns (uint256);
-    function MAX_TREASURY_BPS() external pure returns (uint256);
-    function MAX_IP_CREATOR_BPS() external pure returns (uint256);
     function EIP712_VERSION() external pure returns (string memory);
     function EIP712_NAME() external pure returns (string memory);
 
+    // ── Satellite contracts ────────────────────────────────────────────────────
+    function tokenList() external view returns (ITokenList);
+    function profiles() external view returns (IProfiles);
+
     // ── Mutable state ──────────────────────────────────────────────────────────
     function treasury() external view returns (address);
-    function whitelistedTokens(address _token) external view returns (bool);
-    function profiles(bytes32 _routeId) external view returns (RouteProfile memory);
-    function enabledRouteIds(uint256 _index) external view returns (bytes32);
     function payerNonce(address _payer) external view returns (uint256);
     function consumedNonce(address _payer, uint256 _nonce) external view returns (bool);
 

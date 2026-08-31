@@ -62,7 +62,7 @@ interface ISplitterV14Basic {
         view
         returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount);
 
-    function profiles(bytes32 _routeId) external view returns (RouteProfile memory);
     function treasury() external view returns (address);
-    function whitelistedTokens(address _token) external view returns (bool);
+    function tokenList() external view returns (address);
+    function profiles() external view returns (address);
 }
