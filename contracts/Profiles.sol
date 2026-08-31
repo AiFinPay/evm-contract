@@ -52,21 +52,21 @@ contract Profiles is AccessControl, IProfiles {
         }
 
         for (uint256 i = 0; i < routeCount; i++) {
-            bytes32 routeId = _initialRouteIds[i];
+            bytes32 id = _initialRouteIds[i];
             uint16 tBps = _treasuryBps[i];
             uint16 iBps = _ipCreatorBps[i];
-            if (_profiles[routeId].configuredAt != 0) revert RouteAlreadyExists(routeId);
+            if (_profiles[id].configuredAt != 0) revert RouteAlreadyExists(id);
             _validateBps(tBps, iBps);
 
-            _profiles[routeId] = RouteProfile({
+            _profiles[id] = RouteProfile({
                 treasuryBps: tBps,
                 ipCreatorBps: iBps,
                 enabled: true,
                 configuredAt: uint64(block.timestamp),
                 routeTreasury: address(0)
             });
-            _routeIds.push(routeId);
-            emit RouteConfigured(routeId, tBps, iBps, address(0));
+            _routeIds.push(id);
+            emit RouteConfigured(id, tBps, iBps, address(0));
         }
     }
 
@@ -122,6 +122,12 @@ contract Profiles is AccessControl, IProfiles {
     /// @notice Enumerable list of configured route IDs.
     function routeIds() external view returns (bytes32[] memory) {
         return _routeIds;
+    }
+
+    /// @notice Helper to compute a canonical routeId from a UTF-8 route name.
+    ///         Matches the off-chain convention `keccak256(bytes(_name))`.
+    function routeId(string calldata _name) external pure returns (bytes32) {
+        return keccak256(bytes(_name));
     }
 
     function _validateBps(uint16 _treasuryBps, uint16 _ipCreatorBps) private pure {

@@ -35,4 +35,7 @@ interface IProfiles {
 
     /// @notice Enumerable list of configured route IDs.
     function routeIds() external view returns (bytes32[] memory);
+
+    /// @notice Helper: `keccak256(bytes(_name))` — canonical routeId for a route name.
+    function routeId(string calldata _name) external pure returns (bytes32);
 }
