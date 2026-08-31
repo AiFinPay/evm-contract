@@ -2,9 +2,19 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    # This said `develop`, a branch that has never existed in this repository.
+    # The long-lived branch is `dev`, so every pull request opened against it
+    # ran no CI at all while appearing to be covered by it.
+    branches: [main, dev]
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
+  # The registry job reads live chain state. Between pull requests nothing
+  # would notice a governance transaction, a whitelist change or a provider
+  # disagreement, so it also runs on a clock. A scheduled failure is a page,
+  # not a nuisance: it means chain state moved without a matching review.
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
 
 # CodeQL actions/missing-workflow-permissions: an unrestricted GITHUB_TOKEN is
 # write-capable by default, so a compromised action in any step could push to
@@ -17,12 +27,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.1
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: latest
+          bun-version: 1.3.11
 
       - name: Install dependencies
         run: bun install
@@ -43,14 +53,19 @@ jobs:
     name: Canonical registry · drift + chain state
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.1
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          node-version: 20
+          bun-version: 1.3.11
 
+      # This job used `npm ci`, which cannot run here: the repository moved to
+      # Bun and the tracked package-lock.json is no longer in sync with
+      # package.json. The install step therefore failed on every run, taking
+      # both gates below down with it — a registry gate that never executes is
+      # worse than none, because it reads as green history.
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: bun install --frozen-lockfile
 
       # The generated table is a derived artifact. Hand-editing it would change
       # where the SDK sends money without touching the registry, so the gate is
@@ -58,7 +73,26 @@ jobs:
       - name: Generated splitter table matches the registry
         run: node scripts/generate-sdk-table.mjs --check
 
+      # A stable on-chain hash proves a deployment has not changed. It does not
+      # prove the reviewed source produced it. This compiles contracts/ with
+      # the pinned toolchain, writes each route's immutable profile into the
+      # runtime, and requires the hash to equal the one pinned for that route.
+      - name: Compile with the production profile
+        run: bun run hardhat compile --build-profile production
+
+      - name: Reviewed source reproduces every deployed runtime
+        run: node scripts/verify-build.mjs
+
       # Chain state is the source of truth. This fails when a required chain is
       # unreachable, on purpose: "could not check" must not pass as "verified".
+      # Every value is read from two independent providers and must agree.
       - name: Registry matches live chain state
         run: node scripts/verify-registry.mjs
+
+      # The timelock documents claimed a 48-hour delay that was never deployed,
+      # and nothing could notice. A status banner fixes today; a machine-readable
+      # marker held to the chain keeps it fixed. Fails in both directions, so it
+      # also catches docs still describing direct ownership after a timelock
+      # goes live.
+      - name: Governance documents match on-chain ownership
+        run: node scripts/verify-governance-docs.mjs

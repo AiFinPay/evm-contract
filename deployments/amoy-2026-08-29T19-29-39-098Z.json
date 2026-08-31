@@ -1,16 +1,16 @@
 {
   "network": "amoy",
   "chainId": 80002,
-  "timestamp": "2026-08-29T22:44:17.519Z",
+  "timestamp": "2026-08-29T19:29:39.098Z",
   "splitterVersion": "1.3",
   "splitter": {
-    "address": "0xFd1622847A89FB3De240d64DFCbd09C65c77D99d",
+    "address": "0xdB772E64F63854bf31f2366BF27e47D5699fe7fC",
     "owner": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
     "treasury": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
     "usdc": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
     "usdt": "0x0000000000000000000000000000000000000000"
   },
-  "runtimeCodeHash": "0x0eb0f8ca7792b13ab70f2aa3e779609cd352d279e925ddcd9e901fd9fd68b1b0",
+  "runtimeCodeHash": "0x4ba01815b55bf6ed2d608bed91f480c179fd644d706680c3e4a91d8181ba5c6b",
   "tokenDecimals": {
     "usdc": 6,
     "usdt": null
@@ -18,11 +18,11 @@
   "registryEntryStaged": {
     "chainId": 80002,
     "version": "1.3",
-    "splitter": "0xFd1622847A89FB3De240d64DFCbd09C65c77D99d",
-    "runtimeCodeHash": "0x0eb0f8ca7792b13ab70f2aa3e779609cd352d279e925ddcd9e901fd9fd68b1b0",
+    "splitter": "0xdB772E64F63854bf31f2366BF27e47D5699fe7fC",
+    "runtimeCodeHash": "0x4ba01815b55bf6ed2d608bed91f480c179fd644d706680c3e4a91d8181ba5c6b",
     "treasury": "0x000035156F0cff1b4C36854773472fe0bd258E4d",
-    "feeProfile": "agent-x402",
-    "treasuryBps": 0,
+    "feeProfile": "merchant-aifp1",
+    "treasuryBps": 100,
     "ipCreatorBps": 0,
     "enabled": false
   }
