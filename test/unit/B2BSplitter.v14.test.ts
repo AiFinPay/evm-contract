@@ -1,6 +1,6 @@
 import { expect } from "chai";
-import { ethers, loadFixture } from "../v14-fixtures";
-import type { V14Fixture } from "../v14-fixtures";
+import { ethers, loadFixture, fixtureV14 } from "../fixtures";
+import type { V14Fixture } from "../fixtures";
 
 const ONE_USDC = 1_000_000n;
 const BPS_DENOMINATOR = 10_000n;
@@ -314,8 +314,6 @@ describe("B2BSplitter v1.4 — route management", () => {
     });
 });
 
-// Reference the undeclared helper used by loadFixture to satisfy TypeScript.
 async function deployV14(): Promise<V14Fixture> {
-    const { deployV14: fixture } = await import("../v14-fixtures");
-    return await fixture();
+    return await fixtureV14();
 }

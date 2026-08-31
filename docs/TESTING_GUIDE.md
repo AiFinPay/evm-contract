@@ -9,27 +9,28 @@ The AiFinPay protocol uses a **dual testing strategy** with both Hardhat/Mocha a
 ### 1. Hardhat/Mocha Tests (TypeScript)
 
 **Location:** `test/`  
-**Count:** 153 tests  
-**Purpose:** Integration tests, contract interactions, full protocol flows
+**Count:** 22 tests (v1.4) + 29 tests (v1.3)  
+**Purpose:** Unit tests, contract interactions, full protocol flows
 
 ```bash
 # Run all tests
 bun test
 
-# Run specific test file
-bun test test/unit/AiFinPayCore.test.ts
+# Run v1.4 unit tests
+bun test test/unit/B2BSplitter.v14.test.ts
+
+# Run v1.3 splitter tests
+bun test test/unit/B2BSplitter.v13.test.ts
+bun test test/unit/B2BSplitter.v13.stable.test.ts
 
 # Run with grep
 bun test --grep "B2B payment"
 ```
 
 **Coverage:**
-- ✅ MSECCOToken (18 tests)
-- ✅ AgentPassport (22 tests)
-- ✅ AiFinPayCore (45 tests)
-- ✅ B2BSplitter v1.2 (38 tests)
 - ✅ B2BSplitter v1.3 (15 tests)
-- ✅ Integration tests (15 tests)
+- ✅ B2BSplitter v1.3 stable (14 tests)
+- ✅ B2BSplitter v1.4 (22 tests)
 
 ### 2. Foundry/Forge Tests (Solidity)
 
@@ -119,13 +120,10 @@ forge test --gas-report
 
 | Feature | Hardhat Tests | Foundry Tests | Total |
 |---------|---------------|---------------|-------|
-| **Core Protocol** | 45 | 0 | 45 |
-| **Tokens** | 40 | 0 | 40 |
-| **Splitters** | 53 | 0 | 53 |
-| **Integration** | 15 | 0 | 15 |
+| **Splitters** | 51 | 0 | 51 |
 | **Math/Invariants** | 0 | 4 | 4 |
 | **Timelock** | 0 | 11 | 11 |
-| **TOTAL** | **153** | **15** | **168** |
+| **TOTAL** | **51** | **15** | **66** |
 
 ## Fuzz Testing Parameters
 
@@ -133,7 +131,7 @@ forge test --gas-report
 |------|-------------|------|---------|
 | Fee Split | 100k - 1000 ether | 256 | Fee calculation |
 | Stable Division | 1 - 1M USDC | 256 | Precision |
-| Pyth Price | $0.10 - $10.00 | 256 | Oracle conversion |
+
 | Treasury BPS | 1 - 500 | 256 | Fee caps |
 | Timelock Schedule | All valid params | 256 | Governance |
 
@@ -160,9 +158,9 @@ describe("MyContract", () => {
 function testFuzz_MyTest(uint256 value) public {
     value = bound(value, min, max);
     vm.assume(precision);
-    
+
     uint256 result = myFunction(value);
-    
+
     assertEq(result, expected, "Error message");
 }
 ```

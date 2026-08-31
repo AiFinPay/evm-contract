@@ -3,11 +3,22 @@
 > **Payment and identity infrastructure for the agentic economy.**
 > AI agents pay for services autonomously via the x402 protocol. Atomic on-chain splits in one transaction.
 
+This repo is in a dual-mode migration period: **v1.3/v5.3 Core+Passport+mSECCO contracts** are still deployed and supported, while **v1.4 B2BSplitterV14** (EIP-712 signed quotes, multi-route, RBAC) is being added alongside them. Legacy contracts will be removed from the repo once SDK/backend have fully migrated (Phase 6 of `docs/V14_MIGRATION.md`).
+
 ## Deployed Contracts (Polygon Mainnet)
+
+### v1.4 (current — splitter-only, signed, multi-route)
 
 | Contract | Address |
 |----------|---------|
-| AiFinPayCore | `0x8Ad9830D16b1f10333866a3f38C949CbB19f4BAD` |
+| B2BSplitterV14 | *(pending production deploy)* |
+| TimelockController | *(pending production deploy)* |
+
+### v5.3 / v1.3 (legacy — Core+Passport+mSECCO+Splitter)
+
+| Contract | Address |
+|----------|---------|
+| AiFinPayCore | `0x8Ad9830D16b1f10333866a3f38C949CbB19F4BAD` |
 | AgentPassport | `0x66fFe91eE0B80f386EB07F97354e2889CD162185` |
 | MSECCOToken | `0x83936231c80fdF17eC2786BD7DcF09014552182B` |
 | B2BSplitter | `0xE34Fc0E6694821c600Fa0955C0F74720ea6d8440` |
@@ -64,25 +75,32 @@ bun test --grep "agent pays merchant"
 
 ## Deploy
 
-### Polygon Mainnet
+### v1.4 B2BSplitterV14 (current)
 
 ```bash
+# Polygon mainnet
+bun run deploy:v14
+
+# Amoy testnet
+bun run deploy:v14:testnet
+```
+
+Records the splitter in `deployments/<network>-v14-latest.json`. Full production bootstrap (timelock + multisig + KMS signer) is in `docs/V14_DEPLOYMENT_CHECKLIST.md`.
+
+### Legacy v5.3 Core + v1.3 Splitter
+
+```bash
+# Polygon mainnet
 bun run deploy
-```
 
-### Polygon Amoy (Testnet)
-
-```bash
+# Amoy testnet
 bun run deploy:testnet
-```
 
-### B2BSplitter only
-
-```bash
+# B2BSplitter v1.3 only
 bun run deploy:splitter
 ```
 
-**Deployment order:**
+**Legacy deployment order:**
 1. Deploy `MSECCOToken` with deployer as owner
 2. Deploy `AgentPassport` with deployer as owner
 3. Deploy `AiFinPayCore` (links to MSECCOToken + AgentPassport)
@@ -90,7 +108,7 @@ bun run deploy:splitter
 5. Deploy `B2BSplitter`
 6. Transfer ownership of all contracts to the Gnosis Safe
 
-> **Note:** `setCore()` is one-time only on all contracts — cannot be changed after setting.
+> **Note:** `setCore()` is one-time only on all legacy contracts — cannot be changed after setting.
 
 Required environment variables in `.env`:
 - Testnets: `DEV_DEPLOYER_KEY`
@@ -120,29 +138,35 @@ bun run prettify:check # prettier --check
 
 ## Contract Overview
 
-### AiFinPayCore
+### B2BSplitterV14 (v1.4)
+New splitter-only contract. Receives an EIP-712 signed quote and atomically splits payment to merchant, treasury, and IP creator. Supports multiple `routeId`s (`agent-x402`, `merchant-aifp1`) in a single deployment. Governed by `AccessControl` (`ADMIN_ROLE` + `SIGN_OPERATOR_ROLE`).
+
+### AiFinPayCore (v5.3, legacy)
 Main protocol contract. Handles top-ups, B2B payment routing, and agent registration.
 
-### AgentPassport
+### AgentPassport (v5.3, legacy)
 Soulbound ERC-721 NFT. One per agent wallet. Non-transferable. Stores daily spend limit, status, and IP creator.
 
-### MSECCOToken
+### MSECCOToken (v5.3, legacy)
 Non-transferable ERC-20 compute credits. 1 USD cent = 1 mSECCO. Only mintable/burnable by AiFinPayCore.
 
-### B2BSplitter
+### B2BSplitter (v1.2/v1.3, legacy)
 Atomic payment splitter. Receives payment and forwards 98.99% / 1% / 0.01% in one transaction.
 
 ---
 
 ## Audit
 
-Security audit by **Pironmind Tech** (May 2026). All findings resolved — v5.3.
-See `docs/IMPLEMENTATION.md` for full list of fixes.
+- **v5.3 / v1.3:** Security audit by **Pironmind Tech** (May 2026). All findings resolved. See `docs/IMPLEMENTATION.md` for full list of fixes.
+- **v1.4:** Pending re-audit. Tracked in `docs/V14_MIGRATION.md` Phase 5.
 
 ---
 
 ## Related
 
+- **v1.4 migration plan:** `docs/V14_MIGRATION.md`
+- **v1.4 architecture:** `docs/V14_ARCHITECTURE.md`
+- **v1.4 deployment checklist:** `docs/V14_DEPLOYMENT_CHECKLIST.md`
 - **Solana contract:** https://github.com/syedhassan125/aifinpay
 - **SDK (Node + Python):** https://github.com/AiFinPay/sdk
-- **Protocol version:** v5.3
+- **Protocol versions:** v5.3 (legacy Core/Passport), v1.4 (current splitter)

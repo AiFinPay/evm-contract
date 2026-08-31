@@ -64,14 +64,17 @@ This document is the **destructive** migration plan. It assumes the v1.4 design 
 | File | Purpose |
 |---|---|
 | `contracts/B2BSplitterV14.sol` | The new splitter-only contract with multi-route profiles and two-role RBAC |
-| `test/unit/B2BSplitter.v14.test.ts` | Native path unit tests |
-| `test/unit/B2BSplitter.v14.stable.test.ts` | Stable path unit tests |
-| `test/unit/B2BSplitter.v14.signature.test.ts` | EIP-712 signature path unit tests |
-| `test/unit/B2BSplitter.v14.rbac.test.ts` | RBAC + role rotation tests |
-| `test/unit/B2BSplitter.v14.route.test.ts` | Multi-route profile tests (configure/disable/enable) |
+| `contracts/TokenList.sol` | Standalone stablecoin allow-list, deployed by `B2BSplitterV14` constructor |
+| `contracts/Profiles.sol` | Per-route economics storage, deployed by `B2BSplitterV14` constructor |
+| `contracts/interfaces/ISplitterV14.sol` | External interface for `B2BSplitterV14` |
+| `contracts/interfaces/ISplitterV14Basic.sol` | Lightweight view interface for SDK/frontend |
+| `contracts/interfaces/ITokenList.sol` | Interface for the stablecoin allow-list |
+| `contracts/interfaces/IProfiles.sol` | Interface for per-route profile storage |
+| `test/unit/B2BSplitter.v14.test.ts` | Combined v1.4 unit tests: native, stable, signature, RBAC, routes |
+| `test/v14-fixtures.ts` | v1.4-only fixture (will be merged into `test/fixtures.ts` in Phase 3) |
 | `foundry-tests/B2BSplitterV14.invariant.t.sol` | Foundry invariants for `_splitGross`, `ecrecover`, `consumedNonce` monotonicity, RBAC separation |
 | `scripts/deploy-splitter-v14-production.ts` | v1.4 production deploy script |
-| `scripts/deploy-splitter-v14.ts` | Generic v1.4 deploy |
+| `scripts/deploy-splitter-v14.ts` | Generic v1.4 deploy (testnet + production bootstrap helper) |
 | `scripts/verify-v14.ts` | Source-verification of v1.4 contracts |
 | `scripts/v14-production-config.ts` | Production config with route profile bootstrap |
 | `config/v14-production-config.ts` | Chain configs (USDC/USDT addresses, governance addresses) for v1.4 |
@@ -85,7 +88,8 @@ This document is the **destructive** migration plan. It assumes the v1.4 design 
 |---|---|
 | `contracts/errors/Errors.sol` | Strip Core/Passport/mSECCO/Pyth/manifesto errors; add v1.4 EIP-712 + RBAC + multi-route errors |
 | `contracts/Whitelist.sol` | No change |
-| `test/fixtures.ts` | Drop Core/Passport/mSECCO deployment; add `B2BSplitterV14` |
+| `test/fixtures.ts` | Convert to dual-mode: keep Core/Passport/mSECCO `fixtureV13()` and add `fixtureV14()` for `B2BSplitterV14`. Drop `fixture` / `fixtureWithSplitter` v1.2 exports. |
+| `test/v14-fixtures.ts` | Merged into `test/fixtures.ts` in Phase 3; deleted when dual-mode fixtures land. |
 | `hardhat.config.ts` | Confirm network configurations unchanged; remove any Core-specific config (none expected) |
 | `package.json` | Add new scripts: `deploy:v14`, `deploy:v14:testnet`, `verify:v14` |
 | `foundry.toml` | Confirm no change |
@@ -107,6 +111,8 @@ Each phase ends with a green CI. No phase is committed unless its preceding phas
 
 ### Phase 0 — Document the new design (this PR)
 
+**Status:** Done.
+
 **Goal:** Align all stakeholders on the design before any code lands.
 
 **Commits:**
@@ -119,6 +125,8 @@ Each phase ends with a green CI. No phase is committed unless its preceding phas
 
 ### Phase 1 — Update canonical docs to point at v1.4
 
+**Status:** Partially done. `AGENTS.md` and `TESTING_GUIDE.md` updated for dual-mode; canonical architecture/business-logic docs still reference v5.3 and will be rewritten after Phase 3 green CI.
+
 **Goal:** ARCHITECTURE, BUSINESS_LOGIC, IMPLEMENTATION, README, AGENTS, AI_DISCOVERY reflect the new model. **No code, no deletion of existing contracts.**
 
 **Commits:**
@@ -129,35 +137,44 @@ Each phase ends with a green CI. No phase is committed unless its preceding phas
 - `docs: update TIMELOCK_IMPLEMENTATION.md worked example for v1.4 admin functions`
 - `docs: update README.md, AGENTS.md, AI_DISCOVERY.md`
 
-**Done when:** `grep -r "AiFinPayCore" docs/` returns no matches except in `V14_MIGRATION.md` (which describes the migration itself).
+**Done when:** `grep -r "AiFinPayCore" docs/` returns no matches except in `V14_MIGRATION.md` (which describes the migration itself) and archived v5.3 docs.
 
 ### Phase 2 — Add v1.4 contracts and tests
+
+**Status:** In progress.
 
 **Goal:** Implement and test v1.4 **alongside** v1.3/v5.3. Both versions coexist temporarily so we can verify v1.4 without touching existing deploys.
 
 **Commits:**
 - `feat: add B2BSplitterV14.sol with EIP-712 quote verification, multi-route profile, RBAC`
+- `feat: add TokenList.sol and Profiles.sol satellite contracts + interfaces`
 - `test: add B2BSplitterV14 unit tests (native, stable, signature, RBAC, routes)`
 - `foundry: add B2BSplitterV14 invariant and fuzz tests`
 - `feat: add v1.4 deploy scripts and v1.4 production config`
 - `feat: add config/v14-production-config.ts`
 
 **Done when:**
-- `bun test` passes with both v1.3 and v1.4 tests green.
-- `forge test` passes with both v1.3 and v1.4 Foundry tests green.
+- `bun test test/unit/B2BSplitter.v14.test.ts` passes.
+- `bun run build` passes for v1.4.
 - `bun run lint` and `bun run prettify:check` pass on v1.4 files.
 - v1.4 contract size is under the 24,576 byte EIP-170 limit.
 - Constructor bootstrap enforces `initialAdmin != initialSigner` (test confirms).
 
-### Phase 3 — Update fixtures and deploy scripts to dual-mode
+### Phase 3 — Update fixtures and trim legacy tests
 
-**Goal:** `test/fixtures.ts` exposes both `fixtureV13` and `fixtureV14`. Deploy scripts are selectable via env var. Existing v1.3 deploy flow continues to work.
+**Status:** Done as part of Phase 6 cleanup; fixtures are v1.4-only because Core/Passport/mSECCO contracts were already removed.
+
+**Goal:** `test/fixtures.ts` exposes `fixtureV14()`. Existing v1.3 splitter tests keep their own inline fixtures; all other legacy tests are removed.
 
 **Commits:**
-- `test: split fixtures into v13/v14 deployments`
-- `chore: deploy scripts support V14_PROFILE env var`
+- `test: remove legacy Core/Passport/mSECCO/v1.2 tests`
+- `test: keep B2BSplitterV13 tests with inline fixtures`
+- `test: fixtures.ts is v1.4-only`
 
-**Done when:** Both v1.3 and v1.4 deploy flows work on a local hardhat node.
+**Done when:**
+- `bun test` passes with v1.3 splitter tests and v1.4 tests green.
+- `bun run build`, `bun run lint`, and `bun run prettify:check` pass.
+- `fixtureV14()` deploys `B2BSplitterV14` with `MockERC20`, `TokenList`, `Profiles` and the canonical `agent-x402`/`merchant-aifp1` routes.
 
 ### Phase 4 — Source verification of v1.4
 
@@ -186,17 +203,20 @@ Each phase ends with a green CI. No phase is committed unless its preceding phas
 
 ### Phase 6 — Remove v1.3 / v5.3 contracts and tests
 
+**Status:** In progress — Core/Passport/mSECCO/v1.2 contracts and tests already removed; v1.3 splitter tests retained until v1.4 fully replaces v1.3 in production.
+
 **Goal:** Clean removal of legacy code. This is the destructive phase. SDK and backend are assumed to have moved off v1.3/v5.3 by this point (separate, parallel work).
 
 **Commits (each in a separate PR for reviewability):**
-- `chore: remove AiFinPayCore.sol`
-- `chore: remove AgentPassport.sol`
-- `chore: remove MSECCOToken.sol`
-- `chore: remove B2BSplitter.sol (v1.2)`
+- ~~`chore: remove AiFinPayCore.sol`~~ (already removed)
+- ~~`chore: remove AgentPassport.sol`~~ (already removed)
+- ~~`chore: remove MSECCOToken.sol`~~ (already removed)
+- ~~`chore: remove B2BSplitter.sol (v1.2)`~~ (already removed)
 - `chore: remove B2BSplitterV13.sol`
 - `chore: remove mocks/MockPyth.sol, interfaces/IPyth.sol`
-- `test: remove AiFinPayCore, AgentPassport, MSECCOToken, B2BSplitter v1.2/v1.3 tests`
-- `test: remove integration/contracts.test.ts`
+- ~~`test: remove AiFinPayCore, AgentPassport, MSECCOToken, B2BSplitter v1.2 tests`~~ (already removed)
+- `test: remove B2BSplitterV13 tests when v1.4 replaces v1.3 in production`
+- ~~`test: remove integration/contracts.test.ts`~~ (already removed)
 - `chore: remove old deploy scripts (deploy.ts, e2e-stable-amoy.ts, deploy-mock-stable-amoy.ts, deploy-safe-amoy.ts, deploy-splitter-v13*)`
 - `chore: remove foundry-tests/Pironmind-Foundry.t.sol`
 - `chore: remove v1.3 config and registry records; preserve historicals under renamed files`

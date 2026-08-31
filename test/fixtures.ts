@@ -2,112 +2,69 @@ import { network } from "hardhat";
 import type { HardhatEthers } from "@nomicfoundation/hardhat-ethers/types";
 import type { NetworkHelpers } from "@nomicfoundation/hardhat-network-helpers/types";
 import type { Signer } from "ethers";
-import type {
-  AgentPassport,
-  AiFinPayCore,
-  B2BSplitter,
-  MockPyth,
-  MSECCOToken,
-} from "../typechain-types";
 
 const connection = await network.create();
 export const ethers: HardhatEthers = connection.ethers;
 export const networkHelpers: NetworkHelpers = connection.networkHelpers;
 export const loadFixture = networkHelpers.loadFixture;
 
-export interface ProtocolContracts {
-  owner: Signer;
-  treasury: Signer;
-  agent: Signer;
-  merchant: Signer;
-  ipCreator: Signer;
-  attacker: Signer;
-  msecco: MSECCOToken;
-  passport: AgentPassport;
-  core: AiFinPayCore;
-  mockPyth: MockPyth;
+export interface V14Fixture {
+    owner: Signer;
+    treasury: Signer;
+    signer: Signer;
+    agent: Signer;
+    merchant: Signer;
+    ipCreator: Signer;
+    attacker: Signer;
+    splitter: any;
+    tokenList: any;
+    profiles: any;
+    usdc: any;
+    usdt: any;
+    routeIdAgent: string;
+    routeIdMerchant: string;
 }
 
-export interface ProtocolWithSplitter extends ProtocolContracts {
-  splitter: B2BSplitter;
+const ROUTE_AGENT = "agent-x402";
+const ROUTE_MERCHANT = "merchant-aifp1";
+
+export async function fixtureV14(): Promise<V14Fixture> {
+    const [owner, treasury, signer, agent, merchant, ipCreator, attacker] = await ethers.getSigners();
+
+    const MockERC20Factory = await ethers.getContractFactory("MockERC20");
+    const usdc = await MockERC20Factory.deploy("Test USDC", "USDC", 6n);
+    const usdt = await MockERC20Factory.deploy("Test USDT", "USDT", 6n);
+
+    const B2BSplitterV14Factory = await ethers.getContractFactory("B2BSplitterV14");
+    const routeIdAgent = ethers.keccak256(ethers.toUtf8Bytes(ROUTE_AGENT));
+    const routeIdMerchant = ethers.keccak256(ethers.toUtf8Bytes(ROUTE_MERCHANT));
+
+    const splitter = await B2BSplitterV14Factory.deploy({
+        initialAdmin: await owner.getAddress(),
+        initialSigner: await signer.getAddress(),
+        treasury: await treasury.getAddress(),
+        stablecoins: [await usdc.getAddress(), await usdt.getAddress()],
+        routeIds: [routeIdAgent, routeIdMerchant],
+        treasuryBps: [0, 100],
+        ipCreatorBps: [0, 0],
+    });
+
+    return {
+        owner,
+        treasury,
+        signer,
+        agent,
+        merchant,
+        ipCreator,
+        attacker,
+        splitter,
+        tokenList: await ethers.getContractAt("TokenList", await splitter.tokenList()),
+        profiles: await ethers.getContractAt("Profiles", await splitter.profiles()),
+        usdc,
+        usdt,
+        routeIdAgent,
+        routeIdMerchant,
+    };
 }
 
-async function deployProtocol(): Promise<ProtocolContracts> {
-  const [
-    owner,
-    treasury,
-    agent,
-    merchant,
-    ipCreator,
-    attacker,
-  ] = await ethers.getSigners();
-
-  const MockPythFactory = await ethers.getContractFactory("MockPyth");
-  const mockPyth = (await MockPythFactory.deploy()) as unknown as MockPyth;
-
-  const MSECCOTokenFactory = await ethers.getContractFactory("MSECCOToken");
-  const AgentPassportFactory = await ethers.getContractFactory("AgentPassport");
-  const AiFinPayCoreFactory = await ethers.getContractFactory("AiFinPayCore");
-
-  const msecco = (await MSECCOTokenFactory.deploy(
-    await owner.getAddress()
-  )) as unknown as MSECCOToken;
-  const passport = (await AgentPassportFactory.deploy(
-    await owner.getAddress()
-  )) as unknown as AgentPassport;
-
-  // Mock stablecoin addresses for testing (any non-zero address works —
-  // logic tests don't call stable transfers).
-  const mockUsdc = "0x1000000000000000000000000000000000000001";
-  const mockUsdt = "0x1000000000000000000000000000000000000002";
-  const mockNativeUsdId =
-    "0x5de33a9112c2b700b8d30b8a3402c103578ccfa2856a12a2b20d7b0c67b6d82d";
-
-  const core = (await AiFinPayCoreFactory.deploy(
-    await owner.getAddress(),
-    await msecco.getAddress(),
-    await passport.getAddress(),
-    await treasury.getAddress(),
-    await mockPyth.getAddress(),
-    [mockUsdc, mockUsdt],
-    mockNativeUsdId
-  )) as unknown as AiFinPayCore;
-
-  await msecco.setCore(await core.getAddress());
-  await passport.setCore(await core.getAddress());
-
-  return {
-    owner,
-    treasury,
-    agent,
-    merchant,
-    ipCreator,
-    attacker,
-    msecco,
-    passport,
-    core,
-    mockPyth,
-  };
-}
-
-async function deployProtocolWithSplitter(): Promise<ProtocolWithSplitter> {
-  const base = await deployProtocol();
-
-  // v1.2: constructor now takes per-chain (owner, treasury, usdc, usdt) — AIFINP-34.
-  // Distinct non-zero placeholders; native/idempotency/zero-creator tests
-  // don't move ERC-20.
-  const testUsdc = "0x1000000000000000000000000000000000000001";
-  const testUsdt = "0x1000000000000000000000000000000000000002";
-  const B2BSplitterFactory = await ethers.getContractFactory("B2BSplitter");
-  const splitter = (await B2BSplitterFactory.deploy(
-    await base.owner.getAddress(),
-    await base.treasury.getAddress(),
-    testUsdc,
-    testUsdt
-  )) as unknown as B2BSplitter;
-
-  return { ...base, splitter };
-}
-
-export const fixture = deployProtocol;
-export const fixtureWithSplitter = deployProtocolWithSplitter;
+export { ROUTE_AGENT, ROUTE_MERCHANT };
