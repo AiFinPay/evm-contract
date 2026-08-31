@@ -39,7 +39,8 @@ contract TokenList is AccessControl, ITokenList {
         _allowed.updateAndEmit(_tokens, _allowedFlags);
     }
 
-    /// @notice Returns whether a token is whitelisted. Reverts for `address(0)`.
+    /// @notice Returns whether a token is whitelisted. `address(0)` is never
+    ///         whitelisted and returns `false` (no revert).
     function isAllowed(address _token) external view returns (bool) {
         return _allowed.isAllowed(_token);
     }

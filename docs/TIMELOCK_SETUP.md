@@ -131,10 +131,7 @@ cast send $TIMELOCK_ADDRESS \
 
 ## Emergency Pause
 
-The `pause()` function is **also timelocked** to prevent malicious pausing. However:
-
-- ✅ **Recommended**: Use Gnosis Safe with multiple signers as proposer
-- ✅ **Alternative**: Deploy separate `PausableRole` for emergency pause without timelock
+`v1.4` adds a dedicated `PAUSER_ROLE` (held by the Gnosis Safe) that can call `pause()` instantly, while `unpause()` remains `ADMIN_ROLE`-only and timelock-gated. For legacy contracts (`v1.3` and earlier), `pause()` is `onlyOwner` and therefore timelocked when the owner is the TimelockController.
 
 ## Security Benefits
 

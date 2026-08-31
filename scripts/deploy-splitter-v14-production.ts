@@ -6,6 +6,7 @@ import {
     configuredStableAddress,
     governanceEnv,
     initialSignerEnv,
+    pauserEnv,
     routeIdsV14,
 } from "./v14-production-config.js";
 
@@ -25,11 +26,16 @@ async function main() {
 
     const gov = governanceEnv(chainId);
     const signer = initialSignerEnv();
+    const pauser = pauserEnv(chainId, gov.admin);
 
     if (gov.admin === ZERO) throw new Error("Admin cannot be address(0).");
     if (signer === ZERO) throw new Error("Signer cannot be address(0).");
+    if (pauser === ZERO) throw new Error("Pauser cannot be address(0).");
     if (gov.admin.toLowerCase() === signer.toLowerCase()) {
         throw new Error("ADMIN and SIGNER must be different addresses.");
+    }
+    if (pauser.toLowerCase() === signer.toLowerCase()) {
+        throw new Error("PAUSER and SIGNER must be different addresses.");
     }
 
     const { agent, merchant } = await routeIdsV14();
@@ -41,6 +47,7 @@ async function main() {
     const splitter = await Factory.deploy({
         initialAdmin: gov.admin,
         initialSigner: signer,
+        initialPauser: pauser,
         treasury: gov.treasury,
         stablecoins,
         routeIds: [agent, merchant],
@@ -63,6 +70,7 @@ async function main() {
             address: addr,
             admin: gov.admin,
             signer,
+            pauser,
             treasury: gov.treasury,
             tokenList: tokenListAddr,
             profiles: profilesAddr,

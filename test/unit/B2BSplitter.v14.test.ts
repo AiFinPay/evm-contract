@@ -227,16 +227,24 @@ describe("B2BSplitter v1.4 — stable settlement", () => {
 });
 
 describe("B2BSplitter v1.4 — RBAC", () => {
-    it("only admin can pause", async () => {
+    it("pauser can pause instantly, signer/attacker cannot", async () => {
         const fixture = await loadFixture(deployV14);
-        const { splitter, attacker } = fixture;
+        const { splitter, owner, signer, attacker } = fixture;
+        await splitter.connect(owner).pause();
+        expect(await splitter.paused()).to.equal(true);
+
+        await splitter.connect(owner).unpause();
+        await expect(splitter.connect(signer).pause()).to.be.revertedWithCustomError(
+            splitter,
+            "AccessControlUnauthorizedAccount"
+        );
         await expect(splitter.connect(attacker).pause()).to.be.revertedWithCustomError(
             splitter,
             "AccessControlUnauthorizedAccount"
         );
     });
 
-    it("signer cannot call admin functions", async () => {
+    it("signer cannot call admin or pauser functions", async () => {
         const fixture = await loadFixture(deployV14);
         const { splitter, signer, routeIdAgent } = fixture;
         await expect(
@@ -246,16 +254,49 @@ describe("B2BSplitter v1.4 — RBAC", () => {
             splitter,
             "AccessControlUnauthorizedAccount"
         );
+        await expect(splitter.connect(signer).unpause()).to.be.revertedWithCustomError(
+            splitter,
+            "AccessControlUnauthorizedAccount"
+        );
     });
 
-    it("admin can grant and revoke signer role", async () => {
+    it("admin can grant and revoke signer and pauser roles", async () => {
         const fixture = await loadFixture(deployV14);
         const { splitter, owner, attacker } = fixture;
         const signerRole = await splitter.SIGN_OPERATOR_ROLE();
+        const pauserRole = await splitter.PAUSER_ROLE();
         await splitter.connect(owner).grantSignerRole(await attacker.getAddress());
         expect(await splitter.hasRole(signerRole, await attacker.getAddress())).to.equal(true);
         await splitter.connect(owner).revokeSignerRole(await attacker.getAddress());
         expect(await splitter.hasRole(signerRole, await attacker.getAddress())).to.equal(false);
+
+        await splitter.connect(owner).grantPauserRole(await attacker.getAddress());
+        expect(await splitter.hasRole(pauserRole, await attacker.getAddress())).to.equal(true);
+        await splitter.connect(owner).revokePauserRole(await attacker.getAddress());
+        expect(await splitter.hasRole(pauserRole, await attacker.getAddress())).to.equal(false);
+    });
+
+    it("prevents role-conflicting grants", async () => {
+        const fixture = await loadFixture(deployV14);
+        const { splitter, owner, signer, attacker } = fixture;
+        const signerRole = await splitter.SIGN_OPERATOR_ROLE();
+        const pauserRole = await splitter.PAUSER_ROLE();
+
+        // Owner has ADMIN_ROLE; cannot also receive SIGN_OPERATOR_ROLE.
+        await expect(
+            splitter.connect(owner).grantRole(signerRole, await owner.getAddress())
+        ).to.be.revertedWithCustomError(splitter, "AdminEqualsSigner");
+
+        // Signer cannot receive PAUSER_ROLE.
+        await expect(
+            splitter.connect(owner).grantRole(pauserRole, await signer.getAddress())
+        ).to.be.revertedWithCustomError(splitter, "PauserEqualsSigner");
+
+        // Attacker as pauser cannot then receive signer role.
+        await splitter.connect(owner).grantRole(pauserRole, await attacker.getAddress());
+        await expect(
+            splitter.connect(owner).grantRole(signerRole, await attacker.getAddress())
+        ).to.be.revertedWithCustomError(splitter, "AdminEqualsSigner");
     });
 
     it("constructor enforces admin != signer", async () => {
@@ -265,6 +306,7 @@ describe("B2BSplitter v1.4 — RBAC", () => {
             Factory.deploy({
                 initialAdmin: await owner.getAddress(),
                 initialSigner: await owner.getAddress(),
+                initialPauser: await owner.getAddress(),
                 treasury: await owner.getAddress(),
                 stablecoins: [ethers.ZeroAddress],
                 routeIds: [ethers.keccak256(ethers.toUtf8Bytes("r"))],
@@ -272,6 +314,32 @@ describe("B2BSplitter v1.4 — RBAC", () => {
                 ipCreatorBps: [0],
             })
         ).to.be.revertedWithCustomError(Factory, "AdminEqualsSigner");
+
+        await expect(
+            Factory.deploy({
+                initialAdmin: await owner.getAddress(),
+                initialSigner: await owner.getAddress(),
+                initialPauser: ethers.ZeroAddress,
+                treasury: await owner.getAddress(),
+                stablecoins: [ethers.ZeroAddress],
+                routeIds: [ethers.keccak256(ethers.toUtf8Bytes("r"))],
+                treasuryBps: [0],
+                ipCreatorBps: [0],
+            })
+        ).to.be.revertedWithCustomError(Factory, "ZeroPauser");
+
+        await expect(
+            Factory.deploy({
+                initialAdmin: await owner.getAddress(),
+                initialSigner: await (await ethers.getSigners())[1].getAddress(),
+                initialPauser: await (await ethers.getSigners())[1].getAddress(),
+                treasury: await owner.getAddress(),
+                stablecoins: [ethers.ZeroAddress],
+                routeIds: [ethers.keccak256(ethers.toUtf8Bytes("r"))],
+                treasuryBps: [0],
+                ipCreatorBps: [0],
+            })
+        ).to.be.revertedWithCustomError(Factory, "PauserEqualsSigner");
     });
 });
 

@@ -129,6 +129,14 @@ export function initialSignerEnv(): string {
     return signer;
 }
 
+export function pauserEnv(chainId: number, defaultAdmin: string): string {
+    const pauser = process.env[`AIFINPAY_PAUSER_${chainId}`]?.trim() || defaultAdmin;
+    if (!pauser) {
+        throw new Error(`Missing AIFINPAY_PAUSER_${chainId}. Production v1.4 needs an explicit pauser (usually the Safe).`);
+    }
+    return pauser;
+}
+
 /** Canonical route identifiers shared by contract, SDK, and backend. */
 export function routeIdsV14(): { agent: string; merchant: string } {
     const { ethers } = await import("ethers");

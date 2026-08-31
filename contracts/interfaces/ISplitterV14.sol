@@ -33,6 +33,7 @@ interface ISplitterV14 {
     struct ConstructorParams {
         address initialAdmin;
         address initialSigner;
+        address initialPauser;
         address treasury;
         address[] stablecoins;
         bytes32[] routeIds;
@@ -60,6 +61,7 @@ interface ISplitterV14 {
     // ── Roles ──────────────────────────────────────────────────────────────────
     function ADMIN_ROLE() external view returns (bytes32);
     function SIGN_OPERATOR_ROLE() external view returns (bytes32);
+    function PAUSER_ROLE() external view returns (bytes32);
 
     // ── Constants ──────────────────────────────────────────────────────────────
     function BPS_DENOMINATOR() external pure returns (uint256);
@@ -99,4 +101,6 @@ interface ISplitterV14 {
     function enableRoute(bytes32 _routeId) external;
     function grantSignerRole(address _account) external;
     function revokeSignerRole(address _account) external;
+    function grantPauserRole(address _account) external;
+    function revokePauserRole(address _account) external;
 }

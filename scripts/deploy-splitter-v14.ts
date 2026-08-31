@@ -6,6 +6,7 @@ import {
     configuredStableAddress,
     governanceEnv,
     initialSignerEnv,
+    pauserEnv,
     routeIdsV14,
 } from "./v14-production-config.js";
 
@@ -23,6 +24,7 @@ const { ethers, networkName } = await network.create();
  *   AIFINPAY_SAFE_<chainId>      — Gnosis Safe / TimelockController admin
  *   AIFINPAY_TREASURY_<chainId>  — treasury (defaults to admin)
  *   AIFINPAY_V14_SIGNER          — backend KMS public key for SIGN_OPERATOR_ROLE
+ *   AIFINPAY_PAUSER_<chainId>    — optional; defaults to the governance admin (Safe)
  */
 const ZERO = ethers.ZeroAddress;
 
@@ -33,6 +35,7 @@ async function main() {
 
     const gov = governanceEnv(chainId);
     const signer = initialSignerEnv();
+    const pauser = pauserEnv(chainId, gov.admin);
 
     const usdc = configuredStableAddress(chainId, "USDC");
     const usdt = configuredStableAddress(chainId, "USDT");
@@ -40,8 +43,12 @@ async function main() {
     // Ensure governance and signer are non-zero.
     if (gov.admin === ZERO) throw new Error("Admin cannot be address(0).");
     if (signer === ZERO) throw new Error("Signer cannot be address(0).");
+    if (pauser === ZERO) throw new Error("Pauser cannot be address(0).");
     if (gov.admin.toLowerCase() === signer.toLowerCase()) {
         throw new Error("ADMIN and SIGNER must be different addresses (separation of duties).");
+    }
+    if (pauser.toLowerCase() === signer.toLowerCase()) {
+        throw new Error("PAUSER and SIGNER must be different addresses (separation of duties).");
     }
 
     const { agent, merchant } = await routeIdsV14();
@@ -54,6 +61,7 @@ async function main() {
     console.log(`Constructor args:`);
     console.log(`  initialAdmin = ${gov.admin}`);
     console.log(`  initialSigner = ${signer}`);
+    console.log(`  initialPauser = ${pauser}`);
     console.log(`  treasury = ${gov.treasury}`);
     console.log(`  stablecoins = ${stablecoins.join(", ") || "(none)"}`);
     console.log(`  routeIds = agent, merchant`);
@@ -64,6 +72,7 @@ async function main() {
     const splitter = await Factory.deploy({
         initialAdmin: gov.admin,
         initialSigner: signer,
+        initialPauser: pauser,
         treasury: gov.treasury,
         stablecoins,
         routeIds: [agent, merchant],
@@ -87,6 +96,7 @@ async function main() {
             address: addr,
             admin: gov.admin,
             signer,
+            pauser,
             treasury: gov.treasury,
             tokenList: tokenListAddr,
             profiles: profilesAddr,
@@ -121,6 +131,7 @@ async function main() {
     console.log(`\nPost-deploy governance transfer (run after TimelockController deploy):`);
     console.log(`   splitter.grantRole(ADMIN_ROLE, timelockController)`);
     console.log(`   splitter.renounceRole(ADMIN_ROLE, deployer)`);
+    console.log(`   (PAUSER_ROLE is held by ${pauser} and can pause instantly if needed)`);
 }
 
 main().catch((e) => {

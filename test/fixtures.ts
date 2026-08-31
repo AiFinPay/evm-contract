@@ -42,6 +42,7 @@ export async function fixtureV14(): Promise<V14Fixture> {
     const splitter = await B2BSplitterV14Factory.deploy({
         initialAdmin: await owner.getAddress(),
         initialSigner: await signer.getAddress(),
+        initialPauser: await owner.getAddress(),
         treasury: await treasury.getAddress(),
         stablecoins: [await usdc.getAddress(), await usdt.getAddress()],
         routeIds: [routeIdAgent, routeIdMerchant],

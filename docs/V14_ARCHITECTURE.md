@@ -117,13 +117,15 @@ The contract inherits OpenZeppelin's `AccessControl` and adds two custom roles. 
 
 | Role | ID | Where | Powers |
 |---|---|---|---|
-| `DEFAULT_ADMIN_ROLE` (= `ADMIN_ROLE` alias) | `bytes32(0)` | TimelockController (which itself is owned by a Gnosis Safe) | Grant/revoke `ADMIN_ROLE` and `SIGN_OPERATOR_ROLE`; pause/unpause; set treasury; manage stablecoin whitelist; configure/disable routes; renounce role (in emergency) |
+| `DEFAULT_ADMIN_ROLE` (= `ADMIN_ROLE` alias) | `bytes32(0)` | TimelockController (which itself is owned by a Gnosis Safe) | Grant/revoke `ADMIN_ROLE`, `SIGN_OPERATOR_ROLE`, and `PAUSER_ROLE`; unpause; set treasury; manage stablecoin whitelist; configure/disable routes; renounce role (in emergency) |
 | `SIGN_OPERATOR_ROLE` | `keccak256("SIGN_OPERATOR_ROLE")` | Backend hot key (separate from admin, held in KMS) | Sign quotes only — no admin functions, no pause, no role management |
+| `PAUSER_ROLE` | `keccak256("PAUSER_ROLE")` | Gnosis Safe (proposer multisig) | Pause settlements instantly. Cannot unpause (unpause is `ADMIN_ROLE`-only / timelock-gated) |
 
 `ADMIN_ROLE` (held by `TimelockController`) and `SIGN_OPERATOR_ROLE` (held by the backend KMS key) are **deliberately orthogonal**:
 
 - A compromised admin **cannot forge quotes** (admin has no signing key).
-- A compromised signer **cannot drain funds, pause, change treasury, or change routes** (signer has no admin powers).
+- A compromised signer **cannot drain funds, pause, change treasury, or change routes** (signer has no admin or pauser powers).
+- A compromised pauser **can only pause** settlements; it cannot unpause, move funds, or change configuration.
 
 The `DEFAULT_ADMIN_ROLE` is the role that grants/revokes `SIGN_OPERATOR_ROLE`. During signer rotation the admin role holds both keys briefly; see §7.2.
 

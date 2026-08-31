@@ -54,10 +54,15 @@ async function main() {
   // Or transfer individually:
   // await wrapper.transferToTimelock(core);
 
+  // After all contracts are wired, renounce the wrapper's admin role and sweep
+  // any accidental balance to the timelock:
+  // await wrapper.destroy();
+
   console.log("\n⏰ Timelock is now active!");
   console.log("All privileged operations require", MIN_DELAY / 3600, "hour delay");
   console.log("Proposer (Safe) can schedule operations");
   console.log("Executor can execute scheduled operations");
+  console.log("Call wrapper.destroy() after wiring to renounce its admin role");
 }
 
 main()

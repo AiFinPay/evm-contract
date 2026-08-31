@@ -469,7 +469,7 @@ The backend must:
 
 If a Critical or High severity bug is found in v1.4 **after** production deploy:
 
-1. **Pause v1.4.** ADMIN calls `pause()`. All settlements revert `EnforcedPause()`. Existing routes stop processing.
+1. **Pause v1.4.** The Safe pauser (`PAUSER_ROLE`) calls `pause()` instantly. All settlements revert `EnforcedPause()`. Existing routes stop processing.
 2. **Disable affected route(s).** ADMIN calls `disableRoute(routeId)`. Settlements using that route revert `RouteDisabled`. Other routes continue.
 3. **Rotate SDK back to v1.3.** SDK 5.x still supports v1.3 endpoints. Traffic reverts to v1.3 contracts.
 4. **Investigate.** Bug is reproduced on a testnet fork; fix is written, audited, deployed as v1.4.1.

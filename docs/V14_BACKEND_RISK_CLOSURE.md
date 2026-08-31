@@ -36,10 +36,10 @@ This separation is the **primary** defense against several catastrophic risks. T
 | | |
 |---|---|
 | **v1.3** | n/a (no signing) |
-| **v1.4** | Signer can forge quotes, but only **to existing whitelisted merchants** and **for amounts the payer has pre-approved**. They cannot change `treasury` (no admin power). They cannot pause. They cannot remove USDC/USDT from the whitelist. They cannot change route profiles. They can only issue valid quotes. |
-| **Defense** | HSM/KMS-backed key. Timelock-gated rotation. Monitoring of quote issuance volume. `pause()` as kill switch (ADMIN-only). |
-| **Residual** | Between compromise detection and revocation, the attacker can issue forged quotes for payers who have pre-approved the contract. Mitigation: monitoring + immediate `pause()` on detection. |
-| **Status** | **Operationally bounded; pause is the kill switch** |
+| **v1.4** | Signer can forge quotes for any non-zero `merchant` and **for amounts the payer has pre-approved**. The contract does not enforce a merchant allow-list; blast radius is bounded by the payer-submitted transaction model (a forged quote still requires the victim payer to broadcast the settlement themselves). They cannot change `treasury`, pause, unpause, remove tokens from the whitelist, or change route profiles. |
+| **Defense** | HSM/KMS-backed key. Timelock-gated rotation. Monitoring of quote issuance volume. `PAUSER_ROLE` (Gnosis Safe) can call `pause()` as an instant kill switch; `unpause()` remains `ADMIN_ROLE`-only / timelock-gated. |
+| **Residual** | Between compromise detection and revocation, the attacker can issue forged quotes for payers who have pre-approved the contract. Mitigation: monitoring + immediate `pause()` by the Safe pauser. |
+| **Status** | **Operationally bounded; `PAUSER_ROLE` is the instant kill switch** |
 
 ### 1.3 Signer can grant itself ADMIN_ROLE
 
@@ -240,10 +240,10 @@ This separation is the **primary** defense against several catastrophic risks. T
 | | |
 |---|---|
 | **v1.3** | n/a (no signer role). |
-| **v1.4** | Attacker with the signer private key can forge quotes for any `payer`, `merchant`, `amount` — but only **to existing whitelisted merchants** and **for amounts the payer has approved**. They cannot drain arbitrary wallets. They cannot change treasury or whitelist. They cannot pause. |
-| **Defense** | HSM/KMS-backed key. Timelock-gated rotation (ADMIN holds the rotation authority). Monitoring of quote issuance volume. `pause()` as kill switch (ADMIN-only). |
-| **Residual** | Between compromise detection and revocation, the attacker can issue forged quotes. Mitigation: monitoring + immediate `pause()` on detection. |
-| **Status** | **Operationally bounded; pause is the kill switch** |
+| **v1.4** | Attacker with the signer private key can forge quotes for any `payer` and any non-zero `merchant`, for **amounts the payer has approved**. They cannot drain arbitrary wallets, change treasury or whitelist, or pause. The payer must still broadcast the settlement transaction, so a compromised signer cannot move funds unilaterally. |
+| **Defense** | HSM/KMS-backed key. Timelock-gated rotation (ADMIN holds the rotation authority). Monitoring of quote issuance volume. `PAUSER_ROLE` (Safe) can call `pause()` instantly; `unpause()` is timelocked. |
+| **Residual** | Between compromise detection and revocation, the attacker can issue forged quotes. Mitigation: monitoring + immediate `pause()` by the Safe pauser. |
+| **Status** | **Operationally bounded; `PAUSER_ROLE` is the instant kill switch** |
 
 ### 2.16 Backend database tampering
 

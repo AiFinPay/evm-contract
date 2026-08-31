@@ -31,6 +31,8 @@ import {
     InvalidTokenForNative,
     RouteDisabled,
     ZeroSigner,
+    ZeroPauser,
+    PauserEqualsSigner,
     AdminEqualsSigner,
     ZeroAdmin
 } from "./errors/Errors.sol";
@@ -52,6 +54,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     // ── Roles ────────────────────────────────────────────────────────────────────
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
     bytes32 public constant SIGN_OPERATOR_ROLE = keccak256("SIGN_OPERATOR_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     // ── Constants ──────────────────────────────────────────────────────────────
     uint256 public constant BPS_DENOMINATOR = 10_000;
@@ -65,8 +68,8 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     bytes32 private constant _QUOTE_TYPEHASH = 0xa8b0556d3a3a900bcde8265692fc8a2183d22e265f3bc658e04fe8162e02f4bf;
 
     // ── Satellite contracts ──────────────────────────────────────────────────────
-    ITokenList public tokenList;
-    IProfiles public profiles;
+    ITokenList public immutable tokenList;
+    IProfiles public immutable profiles;
 
     // ── Treasury state ─────────────────────────────────────────────────────────
     address public treasury;
@@ -95,6 +98,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     struct ConstructorParams {
         address initialAdmin;
         address initialSigner;
+        address initialPauser;
         address treasury;
         address[] stablecoins;
         bytes32[] routeIds;
@@ -105,11 +109,14 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     constructor(ConstructorParams memory _params) EIP712(EIP712_NAME, EIP712_VERSION) {
         if (_params.initialAdmin == address(0)) revert ZeroAdmin();
         if (_params.initialSigner == address(0)) revert ZeroSigner();
+        if (_params.initialPauser == address(0)) revert ZeroPauser();
         if (_params.initialAdmin == _params.initialSigner) revert AdminEqualsSigner();
+        if (_params.initialPauser == _params.initialSigner) revert PauserEqualsSigner();
         if (_params.treasury == address(0)) revert ZeroTreasury();
 
         _grantRole(ADMIN_ROLE, _params.initialAdmin);
         _grantRole(SIGN_OPERATOR_ROLE, _params.initialSigner);
+        _grantRole(PAUSER_ROLE, _params.initialPauser);
 
         treasury = _params.treasury;
 
@@ -176,6 +183,9 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     }
 
     // ── Quote verification ───────────────────────────────────────────────────────
+    /// @notice orderIdHash is a backend correlation key only. It is signed for
+    ///         integrity but the contract does not enforce idempotency on it;
+    ///         uniqueness and ordering are guaranteed by `payerNonce`.
     struct Quote {
         address payer;
         address merchant;
@@ -279,12 +289,23 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount)
     {
         IProfiles.RouteProfile memory profile = profiles.getProfile(_routeId);
+        if (!profile.enabled) revert RouteDisabled(_routeId);
         (merchantAmount, treasuryAmount, ipCreatorAmount) = _splitGross(_grossAmount, profile, _ipCreator);
         totalAmount = _grossAmount;
     }
 
     // ── Governance ─────────────────────────────────────────────────────────────────
-    function pause() external onlyRole(ADMIN_ROLE) {
+    modifier onlyAdminOrPauser() {
+        if (!hasRole(ADMIN_ROLE, msg.sender) && !hasRole(PAUSER_ROLE, msg.sender)) {
+            revert AccessControlUnauthorizedAccount(msg.sender, PAUSER_ROLE);
+        }
+        _;
+    }
+
+    /// @notice Emergency pause — can be called by either ADMIN_ROLE or PAUSER_ROLE.
+    ///         The pauser is expected to be a Gnosis Safe for instant response;
+    ///         unpausing remains ADMIN_ROLE-only and timelock-gated in production.
+    function pause() external onlyAdminOrPauser {
         _pause();
     }
 
@@ -323,11 +344,34 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
 
     function grantSignerRole(address _account) external onlyRole(ADMIN_ROLE) {
         if (_account == address(0)) revert ZeroSigner();
-        _grantRole(SIGN_OPERATOR_ROLE, _account);
+        grantRole(SIGN_OPERATOR_ROLE, _account);
     }
 
     function revokeSignerRole(address _account) external onlyRole(ADMIN_ROLE) {
         _revokeRole(SIGN_OPERATOR_ROLE, _account);
+    }
+
+    function grantPauserRole(address _account) external onlyRole(ADMIN_ROLE) {
+        if (_account == address(0)) revert ZeroPauser();
+        grantRole(PAUSER_ROLE, _account);
+    }
+
+    function revokePauserRole(address _account) external onlyRole(ADMIN_ROLE) {
+        _revokeRole(PAUSER_ROLE, _account);
+    }
+
+    /// @dev Enforce role separation on every public grant path, including the
+    ///      convenience wrappers. Keeps ADMIN/SIGN/PAUSER holders mutually
+    ///      exclusive except for the explicit overlap of ADMIN and PAUSER.
+    function grantRole(bytes32 _role, address _account) public override {
+        if (_role == SIGN_OPERATOR_ROLE) {
+            if (hasRole(ADMIN_ROLE, _account) || hasRole(PAUSER_ROLE, _account)) revert AdminEqualsSigner();
+        } else if (_role == ADMIN_ROLE) {
+            if (hasRole(SIGN_OPERATOR_ROLE, _account) || hasRole(PAUSER_ROLE, _account)) revert AdminEqualsSigner();
+        } else if (_role == PAUSER_ROLE) {
+            if (hasRole(SIGN_OPERATOR_ROLE, _account)) revert PauserEqualsSigner();
+        }
+        super.grantRole(_role, _account);
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────────

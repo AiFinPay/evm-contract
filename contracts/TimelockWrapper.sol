@@ -3,7 +3,7 @@ pragma solidity 0.8.35;
 
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ZeroProposer, DelayTooShort, NotProposer} from "./errors/Errors.sol";
+import {ZeroAddress, ZeroProposer, DelayTooShort, NotProposer, TreasuryTransferFailed} from "./errors/Errors.sol";
 
 /// @title TimelockWrapper — Helper for deploying TimelockController
 /// @notice Deploys a TimelockController and transfers ownership of target contracts
@@ -24,9 +24,11 @@ contract TimelockWrapper {
 
     event TimelockDeployed(address indexed timelock, uint256 minDelay);
     event OwnershipTransferred(address indexed contract_, address indexed timelock);
+    event AdminRenounced(address indexed timelock);
 
     constructor(address _proposer, address _executor, uint256 _minDelay) {
         if (_proposer == address(0)) revert ZeroProposer();
+        if (_executor == address(0)) revert ZeroAddress();
         if (_minDelay < 48 hours) revert DelayTooShort();
 
         proposer = _proposer;
@@ -63,9 +65,18 @@ contract TimelockWrapper {
         }
     }
 
-    /// @notice Self-destruct and send remaining ETH to timelock
+    /// @notice Renounce the wrapper's optional TimelockController admin role
+    ///         and forward any accumulated ETH balance to the timelock.
+    /// @dev Post-EIP-6780 (Cancun) `selfdestruct` no longer removes code in a
+    ///      subsequent transaction, so this routine sheds privileges by
+    ///      renouncing the admin role instead of relying on code destruction.
+    ///      The wrapper contract will persist but will no longer hold any
+    ///      TimelockController admin privileges.
     function destroy() external onlyProposer {
-        selfdestruct(payable(address(timelock)));
+        timelock.renounceRole(timelock.DEFAULT_ADMIN_ROLE(), address(this));
+        emit AdminRenounced(address(timelock));
+        (bool success, ) = payable(address(timelock)).call{value: address(this).balance}("");
+        if (!success) revert TreasuryTransferFailed();
     }
 
     modifier onlyProposer() {
