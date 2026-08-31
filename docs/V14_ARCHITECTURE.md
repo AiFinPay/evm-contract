@@ -68,11 +68,9 @@ The v1.3 splitter-only deployment model has a third problem: a single deployment
                          │       (splitter-only multi-route payment router)      │
                          │                                                      │
    Backend signer ──────┐ │   AccessControl {                                   │
-   (SIGN_OPERATOR_ROLE) │ │       ADMIN_ROLE        : owner / governance        │
+   (SIGN_OPERATOR_ROLE) │ │       ADMIN_ROLE        : governance (Timelock)     │
    off-chain, ECDSA     │ │       SIGN_OPERATOR_ROLE: backend hot key (KMS)     │
    secp256k1            │ │   }                                                  │
-                        ││                                                       │
-                        ││   Ownable2Step (transferOwnership in two steps)       │
    ─────────────────────┘│   Pausable (whenPaused)                              │
                          │                                                       │
                          │   ┌──────────┐    settle(Quote, signature)            │
@@ -99,7 +97,7 @@ The contract inherits OpenZeppelin's `AccessControl` and adds two custom roles. 
 
 | Role | ID | Where | Powers |
 |---|---|---|---|
-| `DEFAULT_ADMIN_ROLE` (= `ADMIN_ROLE` alias) | `bytes32(0)` | TimelockController (which itself is owned by a Gnosis Safe) | Grant/revoke `ADMIN_ROLE` and `SIGN_OPERATOR_ROLE`; pause/unpause; set treasury; manage stablecoin whitelist; configure/disable routes; transfer ownership; renounce role (in emergency) |
+| `DEFAULT_ADMIN_ROLE` (= `ADMIN_ROLE` alias) | `bytes32(0)` | TimelockController (which itself is owned by a Gnosis Safe) | Grant/revoke `ADMIN_ROLE` and `SIGN_OPERATOR_ROLE`; pause/unpause; set treasury; manage stablecoin whitelist; configure/disable routes; renounce role (in emergency) |
 | `SIGN_OPERATOR_ROLE` | `keccak256("SIGN_OPERATOR_ROLE")` | Backend hot key (separate from admin, held in KMS) | Sign quotes only — no admin functions, no pause, no role management |
 
 `ADMIN_ROLE` (held by `TimelockController`) and `SIGN_OPERATOR_ROLE` (held by the backend KMS key) are **deliberately orthogonal**:
@@ -112,7 +110,6 @@ The `DEFAULT_ADMIN_ROLE` is the role that grants/revokes `SIGN_OPERATOR_ROLE`. D
 ### 3.3 Storage layout (single contract)
 
 ```
-Ownable2Step             owner, pendingOwner
 Pausable                 _paused
 AccessControl            ADMIN_ROLE, SIGN_OPERATOR_ROLE, role memberships
 
@@ -219,7 +216,7 @@ ADMIN can rotate profiles but cannot **remove** a routeId from the contract. A r
 - `MAX_TREASURY_BPS = 500`, `MAX_IP_CREATOR_BPS = 100` (security ceiling; hardcoded).
 - The routeId set is monotonic — once a `bytes32` is configured as a route, it stays.
 - The two built-in route names (`agent-x402`, `merchant-aifp1`) are protocol-defined identifiers; ADMIN can change their **profile** but cannot change the routeId.
-- Owner powers (`pause`, `setTreasury`, `setWhitelistedTokens`, `transferOwnership`) are gated to `ADMIN_ROLE`.
+- Owner powers (`pause`, `setTreasury`, `setWhitelistedTokens`) are gated to `ADMIN_ROLE`. There is no `Ownable` owner: governance is pure `AccessControl`.
 
 What is **mutable**: per-route `treasuryBps`, `ipCreatorBps`, `enabled` flag, `routeTreasury` override. ADMIN can adjust economics within the security ceiling. This is a deliberate change from v1.3 (where everything was immutable) — the trade-off is documented in §9.
 
@@ -385,14 +382,14 @@ function disableRoute(bytes32) external onlyRole(ADMIN_ROLE)
 function enableRoute(bytes32) external onlyRole(ADMIN_ROLE)
 function grantSignerRole(address) external onlyRole(ADMIN_ROLE)
 function revokeSignerRole(address) external onlyRole(ADMIN_ROLE)
-function transferOwnership(address) external onlyRole(ADMIN_ROLE)              // inherited from Ownable2Step
-function acceptOwnership() external                                          // inherited from Ownable2Step
 ```
+
+There is **no** `Ownable`/`Ownable2Step` in v1.4. Governance is pure `AccessControl`. ADMIN transfer is performed by granting `ADMIN_ROLE` to the new governor and (optionally) revoking it from the old one. The TimelockController becomes `ADMIN_ROLE` holder in production.
 
 All ADMIN actions are gated by the timelock + multisig governance layer:
 
 - On testnet: deployer EOA is `ADMIN_ROLE`.
-- On production: the deploy script runs `scripts/deploy-timelock.ts`, which deploys `TimelockWrapper` (which deploys `TimelockController` with 48h delay), then deploys `B2BSplitterV14` with the deployer EOA as `ADMIN_ROLE`, then calls `TimelockWrapper.transferToTimelock(splitter)` (or `transferMultiple([splitter])` if multiple targets are involved) to hand ownership to `TimelockController`. The Safe becomes the proposer, schedules `TimelockController` proposals to (a) grant `ADMIN_ROLE` to `TimelockController` and (b) revoke `ADMIN_ROLE` from the deployer EOA. After the 48-hour delay the proposal executes and governance becomes Safe → `TimelockController` → splitter. The `signer role` is then granted in a separate proposal. `TimelockWrapper` self-destructs after the transfer; `B2BSplitterV14` holds the canonical admin address.
+- On production: the deploy script runs `scripts/deploy-timelock.ts`, which deploys `TimelockWrapper` (which deploys `TimelockController` with 48h delay), then deploys `B2BSplitterV14` with the deployer EOA as `ADMIN_ROLE`. The Safe then schedules `TimelockController` proposals to (a) grant `ADMIN_ROLE` to `TimelockController` and (b) revoke `ADMIN_ROLE` from the deployer EOA. After the 48-hour delay governance becomes Safe → `TimelockController` → splitter. The `signer role` is granted in a separate proposal. `TimelockWrapper` self-destructs after the transfer; `B2BSplitterV14` holds the canonical admin address via `getRoleAdmin` / `hasRole`.
 
 ### 7.2 Signer rotation
 
@@ -413,16 +410,15 @@ In the rotation window (between Step 3 and Step 6, ~24 hours), both keys can sig
 
 Pause stops **settlement**, not signer rotation. The ADMIN can still rotate signers while the contract is paused, ensuring that a compromised signer does not also lock governance.
 
-### 7.4 Ownership transfer
+### 7.4 ADMIN_ROLE transfer
 
-`Ownable2Step` is used (not `Ownable`). The owner is the EOA or Safe that initially deploys. Ownership transfer is a two-step process:
+v1.4 deliberately does **not** use `Ownable` or `Ownable2Step`. Governance is pure `AccessControl`. Transferring the admin authority is done by role grant/revoke:
 
-1. Current owner calls `transferOwnership(newOwner)`.
-2. New owner calls `acceptOwnership()`.
+1. Current `ADMIN_ROLE` holder schedules a `TimelockController` proposal to grant `ADMIN_ROLE` to the new governor (e.g. a new TimelockController or Safe).
+2. After the 48-hour delay, execute the proposal.
+3. Optionally schedule a second proposal to revoke `ADMIN_ROLE` from the old governor after the new one is confirmed.
 
-This prevents accidental loss of ADMIN_ROLE through a typo.
-
-The `OWNER_ROLE` semantics: in this design, `owner == ADMIN_ROLE holder`. The contract's `owner()` getter returns the address with `DEFAULT_ADMIN_ROLE`. If a transfer leaves no ADMIN, the contract becomes ungovernable — recoverable only by a signer using `governanceRecovery()` if implemented (out of v1.4 scope, tracked in `V14_FUTURE.md`).
+This is a two-step process at the governance layer (Timelock + Safe), not in the contract. There is no `owner()` getter. If all `ADMIN_ROLE` holders are lost, the contract becomes ungovernable but settlements continue — recoverable only by a signer-controlled `governanceRecovery()` if implemented in a future version (out of v1.4 scope, tracked in `V14_FUTURE.md`).
 
 ### 7.5 Role renunciation
 
@@ -475,7 +471,7 @@ Documented honestly so future work is scoped correctly:
 | Cross-chain replay | Possible if same `paymentId` | Possible if same `paymentId` | Impossible (chainId + address in domain) |
 | Same-id cross-route | Possible | Possible | Impossible (routeId in digest) |
 | Economic mutability | `setFees` allowed | `immutable` | Per-route `configureRoute` (capped by `MAX_*_BPS`) |
-| RBAC roles | `Ownable` (single owner) | `Ownable` (single owner) | `AccessControl` (ADMIN + SIGN_OPERATOR) |
+| RBAC roles | `Ownable` (single owner) | `Ownable` (single owner) | `AccessControl` only (ADMIN + SIGN_OPERATOR) |
 | Pause | `isPaused` flag | OZ `Pausable` | OZ `Pausable` (orthogonal to sign) |
 | Backend key separation | n/a | n/a | Yes — signer ≠ admin |
 | Attack surface | ~1200 LoC | 331 LoC | ~600 LoC (estimated, multi-route) |

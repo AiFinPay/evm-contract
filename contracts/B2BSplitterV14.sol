@@ -4,7 +4,6 @@ pragma solidity 0.8.35;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
@@ -50,7 +49,7 @@ import {Whitelist} from "./Whitelist.sol";
 ///         SIGN_OPERATOR_ROLE signs quotes. Roles are deliberately orthogonal.
 /// @dev v1.4 intentionally breaks the v1.3 ABI: payments now require a signature
 ///      and a routeId. It must be deployed under a new address.
-contract B2BSplitterV14 is AccessControl, Ownable2Step, ReentrancyGuardTransient, Pausable, EIP712 {
+contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EIP712 {
     using SafeERC20 for IERC20;
     using Whitelist for mapping(address => bool);
 
@@ -126,7 +125,7 @@ contract B2BSplitterV14 is AccessControl, Ownable2Step, ReentrancyGuardTransient
         uint16[] ipCreatorBps;
     }
 
-    constructor(ConstructorParams memory _params) EIP712(EIP712_NAME, EIP712_VERSION) Ownable(_params.initialAdmin) {
+    constructor(ConstructorParams memory _params) EIP712(EIP712_NAME, EIP712_VERSION) {
         if (_params.initialAdmin == address(0)) revert ZeroAdmin();
         if (_params.initialSigner == address(0)) revert ZeroSigner();
         if (_params.initialAdmin == _params.initialSigner) revert AdminEqualsSigner();

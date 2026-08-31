@@ -43,7 +43,7 @@ The following operations now require a 48-hour timelock delay:
          │ 48h delay
          ↓
 ┌─────────────────┐
-│ TimelockController │ ← New owner of all contracts
+│ TimelockController │ ← ADMIN_ROLE holder of all contracts
 │  (48h delay)    │
 └────────┬────────┘
          │
@@ -65,22 +65,29 @@ export EXECUTOR_ADDRESS=0xExecutorAddress  # Can be same as SAFE
 bun run deploy:timelock --network polygon
 ```
 
-### 2. Transfer Ownership
+### 2. Transfer ADMIN_ROLE
 
-After deployment, transfer ownership of all contracts to the TimelockController:
+For v1.4 contracts there is no `Ownable` owner. After deployment, grant `ADMIN_ROLE` to the TimelockController and revoke it from the deployer EOA:
 
 ```typescript
-// In deploy-timelock.ts, uncomment and update addresses:
-await wrapper.transferMultiple([core, splitter, splitterV13]);
+// In deploy-timelock.ts or a follow-up proposal:
+await splitterV14.grantRole(await splitterV14.ADMIN_ROLE(), timelockController);
+await splitterV14.renounceRole(await splitterV14.ADMIN_ROLE(), deployer);
+```
+
+For legacy `Ownable` contracts (v1.2/v1.3), use `transferMultiple` as before:
+
+```typescript
+await wrapper.transferMultiple([core, splitterV12, splitterV13]);
 ```
 
 ### 3. Verify
 
 ```bash
-# Check new owner
-cast owner $CONTRACT_ADDRESS --rpc-url $RPC_URL
+# Check v1.4 admin
+cast call $CONTRACT_ADDRESS "hasRole(bytes32,address)" $(cast keccak "DEFAULT_ADMIN_ROLE") $TIMELOCK_ADDRESS --rpc-url $RPC_URL
 
-# Should return TimelockController address
+# Should return 0x0000000000000000000000000000000000000000000000000000000000000001
 ```
 
 ## Usage

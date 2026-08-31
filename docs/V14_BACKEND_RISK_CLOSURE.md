@@ -85,7 +85,7 @@ This separation is the **primary** defense against several catastrophic risks. T
 
 | | |
 |---|---|
-| **v1.3** | `Ownable(_owner)` with `address(0)` would brick the contract. |
+| **v1.3** | `Ownable(_owner)` with `address(0)` would brick the contract. v1.4 has no `Ownable`; `ADMIN_ROLE == address(0)` is rejected in the constructor and via role checks. |
 | **v1.4** | Constructor rejects `initialAdmin == address(0)` with `ZeroAdmin()`. `renounceRole(DEFAULT_ADMIN_ROLE, ...)` would also leave no admin; the `NoAdminRoleHolder()` guard checks on every admin-only function. |
 | **Defense** | Constructor + per-function check. |
 | **Residual** | None — enforced by code. |
@@ -230,7 +230,7 @@ This separation is the **primary** defense against several catastrophic risks. T
 | | |
 |---|---|
 | **v1.3** | Owner can `setTreasury(newAddress)`. A compromised owner can route future fees to an attacker. This is **by design** (owner authority) and bounded by timelock. |
-| **v1.4** | Same on-chain behaviour, gated by `ADMIN_ROLE`. Additionally: each route can have its own `routeTreasury` override. ADMIN controls all three: global treasury, per-route treasury, whitelist. |
+| **v1.4** | Same on-chain behaviour, gated by `ADMIN_ROLE` (no `Ownable` owner). Additionally: each route can have its own `routeTreasury` override. ADMIN controls all three: global treasury, per-route treasury, whitelist. |
 | **Defense** | Multisig + timelock. RBAC separates admin (treasury control) from signer (quote authority). |
 | **Residual** | If the multisig is compromised, attacker drains future fees. Standard risk of all admin-controlled contracts. |
 | **Status** | **Accepted — operational governance** |
@@ -417,11 +417,11 @@ The contract's surface is **deliberately narrow**. It does one thing: take an EI
 
 | Concern | v1.3 (single owner) | v1.4 (ADMIN + SIGN_OPERATOR) |
 |---|---|---|
-| Owner can forge quotes | n/a (no quotes) | **No** — owner has no signing key |
+| Owner/admin can forge quotes | n/a (no quotes) | **No** — `ADMIN_ROLE` has no signing key |
 | Signer can drain funds | n/a | **No** — signer has no admin power |
 | Owner can sign and be admin | Yes (single key) | **No** — constructor enforces separation |
-| Compromise of single key drains everything | Yes (if EOA owner) | **No** — orthogonal roles |
-| Recovery from compromised admin | Transfer ownership | Renounce admin + grant new admin via existing admin (requires admin to still exist) |
+| Compromise of single key drains everything | Yes (if EOA owner) | **No** — orthogonal `AccessControl` roles |
+| Recovery from compromised admin | Transfer ownership | Revoke `ADMIN_ROLE` from compromised account and grant to new governor via existing `ADMIN_ROLE` (Timelock). No `Ownable` transfer needed. |
 | Recovery from compromised signer | n/a | Revoke signer role + grant new signer (admin-gated, timelocked) |
 
 The v1.4 RBAC model is **strictly safer** than v1.3's single-owner model under every scenario except "ADMIN renounces their own role". That case is the price of the orthogonal design — recoverable only by signer-controlled `governanceRecovery()` in a future version.

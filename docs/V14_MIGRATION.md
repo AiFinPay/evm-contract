@@ -204,7 +204,7 @@ Each phase ends with a green CI. No phase is committed unless its preceding phas
 - `test: trim fixtures.ts to v1.4 only`
 - `test: rewrite TimelockTest.t.sol to target v1.4 admin functions (configureRoute, grantSignerRole, setTreasury, pause)` — contract under test changes from `B2BSplitter` to `B2BSplitterV14`; the `setSplit` calls are replaced with `configureRoute(...)` calls; the timelock flow itself is unchanged
 
-**`TimelockWrapper.sol`, `scripts/deploy-timelock.ts`, and `foundry-tests/TimelockTest.t.sol` are retained**, with the latter rewritten against `B2BSplitterV14`. The wrapper is the canonical bootstrap helper for `TimelockController` (which becomes `ADMIN_ROLE` holder of `B2BSplitterV14` in production); removing it would force every production deploy to reimplement the proposer/executor/delay wiring. The `transferMultiple(Ownable[])` method becomes a defensive no-op for the v1.3 → v1.4 transition window but stays in the contract.
+**`TimelockWrapper.sol`, `scripts/deploy-timelock.ts`, and `foundry-tests/TimelockTest.t.sol` are retained**, with the latter rewritten against `B2BSplitterV14`. The wrapper is the canonical bootstrap helper for `TimelockController` (which becomes `ADMIN_ROLE` holder of `B2BSplitterV14` in production); removing it would force every production deploy to reimplement the proposer/executor/delay wiring. The `transferMultiple(Ownable[])` method remains useful for legacy `Ownable` contracts (v1.2/v1.3); v1.4 uses role grant/revoke instead of ownership transfer.
 
 **Done when:**
 - `grep -r "AiFinPayCore\|MSECCOToken\|AgentPassport\|B2BSplitterV13\|B2BSplitter.sol" contracts/ test/ scripts/` returns no matches.
@@ -484,7 +484,7 @@ Total: 10-13 weeks, dominated by audit.
 4. Confirm EIP-712 `version` starts at `"1"` and bumps only on typed-data layout change.
 5. Confirm `validUntil` semantics: hard deadline (current spec) vs. soft (extendable by signer).
 6. Confirm `routeTreasury` field is required in v1.4 (vs. only global `treasury`).
-7. Confirm `Ownable2Step` is the right inheritance pattern for v1.4 (vs. plain `Ownable`).
+7. Confirm v1.4 uses **only** `AccessControl` for governance (no `Ownable`/`Ownable2Step`). Admin transfer is role grant/revoke via Timelock.
 8. Confirm constructor enforces `initialAdmin != initialSigner` (separation of duties).
 
 ---
