@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
+import {ITokenList} from "./ITokenList.sol";
+import {IProfiles} from "./IProfiles.sol";
+
 /// @title ISplitterV14Basic
 /// @notice Minimal splitter-only surface for B2BSplitter v1.4. Contains the
 ///         settlement entry points, the EIP-712 digest helpers, and read-only
@@ -63,6 +66,6 @@ interface ISplitterV14Basic {
         returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount);
 
     function treasury() external view returns (address);
-    function tokenList() external view returns (address);
-    function profiles() external view returns (address);
+    function tokenList() external view returns (ITokenList);
+    function profiles() external view returns (IProfiles);
 }

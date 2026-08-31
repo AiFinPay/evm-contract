@@ -40,7 +40,6 @@ import {ITokenList} from "./interfaces/ITokenList.sol";
 import {IProfiles} from "./interfaces/IProfiles.sol";
 import {TokenList} from "./TokenList.sol";
 import {Profiles} from "./Profiles.sol";
-
 /// @title B2BSplitter v1.4 — signed, multi-route gross settlement
 /// @notice The payer submits an EIP-712 signed quote. Route economics and the
 ///         stablecoin allow-list live in separate `Profiles` and `TokenList`

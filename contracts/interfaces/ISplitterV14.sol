@@ -90,7 +90,7 @@ interface ISplitterV14 {
     function pause() external;
     function unpause() external;
     function setTreasury(address _treasury) external;
-    function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external;
+    function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowedFlags) external;
     function configureRoute(
         bytes32 _routeId,
         uint16 _treasuryBps,

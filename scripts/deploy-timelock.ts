@@ -1,24 +1,31 @@
 /**
  * @title Deploy TimelockController for AiFinPay Protocol
- * @notice Deploys a 48-hour timelock and transfers ownership of all contracts
- * 
+ * @notice Deploys a 48-hour timelock and records wrapper + controller addresses.
+ *
  * Usage:
  *   bun run deploy:timelock --network polygon
- * 
+ *
  * Environment variables required:
- *   - PROD_DEPLOYER_KEY: Private key of deployer (must have ownership of contracts)
+ *   - PROD_DEPLOYER_KEY: Private key of deployer
  *   - SAFE_ADDRESS: Gnosis Safe multisig address (will be proposer)
  *   - EXECUTOR_ADDRESS: Address that can execute timelock operations (can be same as SAFE)
  */
 
 import { ethers } from "hardhat";
-import type { TimelockController, TimelockWrapper } from "../typechain-types";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import type { TimelockWrapper } from "../typechain-types";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIN_DELAY = 48 * 60 * 60; // 48 hours in seconds
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying timelock with account:", await deployer.getAddress());
+  const deployerAddress = await deployer.getAddress();
+  const chainId = Number((await ethers.provider.getNetwork()).chainId);
+  const networkName = (await ethers.provider.getNetwork()).name;
+  console.log("Deploying timelock with account:", deployerAddress);
 
   // Get addresses from environment or use defaults
   const safeAddress = process.env.SAFE_ADDRESS;
@@ -41,22 +48,41 @@ async function main() {
   ) as unknown as TimelockWrapper;
 
   await wrapper.waitForDeployment();
+  const wrapperAddress = await wrapper.getAddress();
   const timelockAddress = await wrapper.timelock();
-  
-  console.log("\n✅ TimelockWrapper deployed:", await wrapper.getAddress());
+  const runtimeCodeHash = ethers.keccak256(await ethers.provider.getCode(wrapperAddress));
+
+  console.log("\n✅ TimelockWrapper deployed:", wrapperAddress);
   console.log("✅ TimelockController deployed:", timelockAddress);
 
-  // If you have existing contracts, transfer ownership:
-  // const core = AiFinPayCore.attach(CORE_ADDRESS);
-  // const splitter = B2BSplitter.attach(SPLITTER_ADDRESS);
-  // await wrapper.transferMultiple([core, splitter]);
-  
-  // Or transfer individually:
-  // await wrapper.transferToTimelock(core);
+  // Legacy Ownable targets:
+  // await wrapper.transferToTimelock(Ownable.attach(CORE_ADDRESS));
+  // RBAC v1.4+ targets:
+  // await wrapper.grantRoleToTimelock(IAccessControl.attach(SPLITTER_V14), ADMIN_ROLE);
+  // await wrapper.renounceRoleOnTarget(IAccessControl.attach(SPLITTER_V14), ADMIN_ROLE);
 
-  // After all contracts are wired, renounce the wrapper's admin role and sweep
-  // any accidental balance to the timelock:
-  // await wrapper.destroy();
+  // Record deployment
+  const timestamp = new Date().toISOString();
+  const deploymentsDir = path.join(__dirname, "../deployments");
+  if (!fs.existsSync(deploymentsDir)) fs.mkdirSync(deploymentsDir, { recursive: true });
+  const safeTs = timestamp.replace(/[:.]/g, "-");
+
+  const record = {
+    network: networkName,
+    chainId,
+    timestamp,
+    timelock: {
+      wrapper: wrapperAddress,
+      controller: timelockAddress,
+      proposer: safeAddress,
+      executor: executorAddress,
+      minDelay: MIN_DELAY,
+      runtimeCodeHash,
+    },
+  };
+  const payload = JSON.stringify(record, null, 2) + "\n";
+  fs.writeFileSync(path.join(deploymentsDir, `${networkName}-timelock-${safeTs}.json`), payload);
+  fs.writeFileSync(path.join(deploymentsDir, `${networkName}-timelock-latest.json`), payload);
 
   console.log("\n⏰ Timelock is now active!");
   console.log("All privileged operations require", MIN_DELAY / 3600, "hour delay");

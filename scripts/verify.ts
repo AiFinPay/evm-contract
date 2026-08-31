@@ -10,28 +10,37 @@ const { ethers, networkName } = await network.create();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function findLatestDeploymentRecord(network: string): DeploymentRecord | null {
+function findDeploymentRecords(network: string): DeploymentRecord[] {
     const deploymentsDir = path.join(__dirname, "../deployments");
     if (!fs.existsSync(deploymentsDir)) {
-        return null;
+        return [];
     }
 
-    const latestRecordPath = path.join(deploymentsDir, `${network}-latest.json`);
-    if (fs.existsSync(latestRecordPath)) {
-        return JSON.parse(fs.readFileSync(latestRecordPath, "utf8")) as DeploymentRecord;
+    const records: DeploymentRecord[] = [];
+    const candidates = [
+        `${network}-latest.json`,
+        `${network}-v14-latest.json`,
+        `${network}-v14-production-latest.json`,
+    ];
+    for (const file of candidates) {
+        const p = path.join(deploymentsDir, file);
+        if (fs.existsSync(p)) {
+            records.push(JSON.parse(fs.readFileSync(p, "utf8")) as DeploymentRecord);
+        }
     }
-
-    return null;
+    return records;
 }
 
 function readDeployment(network: string): DeploymentRecord {
-    const record = findLatestDeploymentRecord(network);
-    if (record === null) {
+    const records = findDeploymentRecords(network);
+    if (records.length === 0) {
         throw new Error(
             `No deployment record found for network "${network}". Run deploy or create the file first.`
         );
     }
-    return record;
+    // Prefer the newest v1.4 record if available, otherwise fall back to latest.
+    const v14 = records.find((r) => r.splitterVersion === "1.4" || r.splitterV14);
+    return v14 ?? records[0];
 }
 
 async function verifyOne(args: VerifyContractArgs, label: string): Promise<void> {
@@ -49,65 +58,59 @@ async function verifyOne(args: VerifyContractArgs, label: string): Promise<void>
     }
 }
 
-async function verifyCore(record: DeploymentRecord): Promise<void> {
-    if (!record.core) {
-        console.log("No core deployment found; skipping core verification.");
+async function verifySplitterV13(record: DeploymentRecord): Promise<void> {
+    const splitter = record.splitter;
+    if (!splitter) {
+        console.log("No v1.3 splitter deployment found; skipping.");
         return;
     }
 
-    const { msecco, passport, core, owner } = record.core;
-
+    const { address, owner, treasury, usdc, usdt } = splitter;
     await verifyOne(
         {
-            address: msecco,
-            constructorArgs: [owner],
-            contract: "contracts/MSECCOToken.sol:MSECCOToken",
+            address,
+            constructorArgs: [owner, treasury, [usdc, usdt], 0, 0],
+            contract: "contracts/B2BSplitterV13.sol:B2BSplitterV13",
         },
-        "MSECCOToken"
-    );
-
-    await verifyOne(
-        {
-            address: passport,
-            constructorArgs: [owner],
-            contract: "contracts/AgentPassport.sol:AgentPassport",
-        },
-        "AgentPassport"
-    );
-
-    const configPath = path.join(__dirname, `../config/chains/${networkName}.json`);
-    if (!fs.existsSync(configPath)) {
-        throw new Error(`No chain config found for network "${networkName}".`);
-    }
-    const chainConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    const { pyth, usdc, usdt, nativeUsdId, treasury } = chainConfig;
-
-    await verifyOne(
-        {
-            address: core,
-            constructorArgs: [owner, msecco, passport, treasury, pyth, usdc, usdt, nativeUsdId],
-            contract: "contracts/AiFinPayCore.sol:AiFinPayCore",
-        },
-        "AiFinPayCore"
+        "B2BSplitterV13"
     );
 }
 
-async function verifySplitter(record: DeploymentRecord): Promise<void> {
-    if (!record.splitter) {
-        console.log("No splitter deployment found; skipping splitter verification.");
+async function verifySplitterV14(record: DeploymentRecord): Promise<void> {
+    const v14 = record.splitterV14 ?? (record.splitterVersion === "1.4" ? record.splitter as any : undefined);
+    if (!v14) {
+        console.log("No v1.4 splitter deployment found; skipping.");
         return;
     }
 
-    const { address, owner, treasury, usdc, usdt } = record.splitter;
+    const { address, admin, signer, pauser, treasury, usdc, usdt } = v14;
+
+    // v1.4 constructor is a struct: ConstructorParams
+    const constructorArgs = [
+        {
+            initialAdmin: admin,
+            initialSigner: signer,
+            initialPauser: pauser,
+            treasury,
+            stablecoins: [usdc, usdt].filter((t) => t !== ethers.ZeroAddress),
+            routeIds: [routeId("agent-x402"), routeId("merchant-aifp1")],
+            treasuryBps: [0, 100],
+            ipCreatorBps: [0, 0],
+        },
+    ];
 
     await verifyOne(
         {
             address,
-            constructorArgs: [owner, treasury, usdc, usdt],
-            contract: "contracts/B2BSplitter.sol:B2BSplitter",
+            constructorArgs,
+            contract: "contracts/B2BSplitterV14.sol:B2BSplitterV14",
         },
-        "B2BSplitter"
+        "B2BSplitterV14"
     );
+}
+
+function routeId(name: string): string {
+    return ethers.keccak256(ethers.toUtf8Bytes(name));
 }
 
 async function main() {
@@ -121,8 +124,8 @@ async function main() {
         );
     }
 
-    await verifyCore(record);
-    await verifySplitter(record);
+    await verifySplitterV13(record);
+    await verifySplitterV14(record);
 
     console.log("\n=== VERIFICATION COMPLETE ===");
 }

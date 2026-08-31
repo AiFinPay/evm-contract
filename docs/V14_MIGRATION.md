@@ -380,17 +380,15 @@ error NoAdminRoleHolder();                    // guard against ADMIN=address(0)
 
 | File | Coverage |
 |---|---|
-| `B2BSplitter.v14.test.ts` | Native split with signed quotes: happy path, replay, atomic rollback, deadline, msg.value mismatch |
-| `B2BSplitter.v14.stable.test.ts` | Stable split: USDC/USDT, decimal-agnostic, replay, dead-quote rejection, rogue token, dust edge |
-| `B2BSplitter.v14.signature.test.ts` | EIP-712 happy path, `ecrecover` fail, deadline expired, nonce mismatch, wrong signer role, replay same nonce, replay after cross-chain, replay after cross-contract, `routeId` mismatch, missing/invalid signature length |
-| `B2BSplitter.v14.rbac.test.ts` | ADMIN-only methods, SIGN_OPERATOR_ROLE grant/revoke, pause/unpause, renounce, role separation (signer cannot admin, admin cannot sign), two-step ownership transfer |
-| `B2BSplitter.v14.route.test.ts` | Constructor route bootstrap, `configureRoute` happy path, `configureRoute` reverts on cap violation, `disableRoute`/`enableRoute`, routeTreasury override, profile change race (settlements use new profile, see `V14_ARCHITECTURE.md` §5.4) |
+| `test/unit/B2BSplitter.v14.test.ts` | Native split with signed quotes: happy path, replay, atomic rollback, deadline, msg.value mismatch; RBAC (admin/pauser/signer separation, role-conflicting grants); constructor invariants |
+| `test/unit/B2BSplitter.v13.stable.test.ts` | Stable split: USDC/USDT, decimal-agnostic, replay, dead-quote rejection, rogue token, dust edge (v1.3 style, reused for token logic confidence) |
 
 ### 5.3 Foundry tests
 
-| Old test | New test |
+| File | Coverage |
 |---|---|
-| `Pironmind-Foundry.t.sol` (Core invariants) | `B2BSplitterV14.invariant.t.sol` (`_splitGross` invariant + `ecrecover` invariant + `consumedNonce` monotonicity + RBAC separation: signer cannot call admin functions; admin cannot forge signatures) |
+| `foundry-tests/B2BSplitterV14.t.sol` | Native/stable settlement splits, signature validation (expired/invalid signer/non-payer), replay protection, disabled/unknown routes, `quoteTotal`, RBAC pause/role-separation, fuzz value conservation |
+| `foundry-tests/TimelockTest.t.sol` | v1.4 timelock governance: schedule/execute `configureRoute`/`setTreasury`/`pause`, delay enforcement, cancellation, fee-cap execution failure, instant `PAUSER_ROLE` pause, TimelockWrapper admin renouncement and RBAC role transfer helpers |
 
 ### 5.4 RBAC test matrix (must pass)
 
@@ -405,11 +403,15 @@ error NoAdminRoleHolder();                    // guard against ADMIN=address(0)
 | EOA with `SIGN_OPERATOR_ROLE` | `pause()` | reverts (no admin role) |
 | EOA with `SIGN_OPERATOR_ROLE` | `setTreasury(...)` | reverts |
 | EOA with `SIGN_OPERATOR_ROLE` | `grantSignerRole(...)` | reverts |
+| EOA with `PAUSER_ROLE` | `pause()` | succeeds (instant, no timelock) |
+| EOA with `PAUSER_ROLE` | `unpause()` | reverts (`ADMIN_ROLE`-only) |
 | EOA with `ADMIN_ROLE` | `pause()` | succeeds |
+| EOA with `ADMIN_ROLE` | `unpause()` | succeeds |
 | EOA with `ADMIN_ROLE` | `setTreasury(...)` | succeeds |
 | EOA with `ADMIN_ROLE` | `configureRoute(...)` | succeeds |
 | EOA with `ADMIN_ROLE` | `settleNative(...)` | reverts (no signer role) |
-| EOA with both roles | everything | succeeds (purgatory state — discouraged but allowed) |
+| EOA with both `ADMIN_ROLE` and `SIGN_OPERATOR_ROLE` | everything | reverts via `grantRole` role-separation checks |
+| EOA with `SIGN_OPERATOR_ROLE` | `pause()` | reverts |
 
 ---
 
