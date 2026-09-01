@@ -9,7 +9,8 @@ import {
     RouteAlreadyExists,
     RouteNotFound,
     UnknownRoute,
-    ArrayLengthMismatch
+    ArrayLengthMismatch,
+    RouteDisabled
 } from "./errors/Errors.sol";
 
 /// @title Profiles
@@ -106,10 +107,11 @@ contract Profiles is AccessControl, IProfiles {
         emit RouteStatusChanged(_routeId, true);
     }
 
-    /// @notice Read a route profile. Reverts if the route was never configured.
+    /// @notice Read a route profile. Reverts if the route was never configured or disabled.
     function getProfile(bytes32 _routeId) external view returns (RouteProfile memory) {
         RouteProfile memory profile = _profiles[_routeId];
         if (profile.configuredAt == 0) revert UnknownRoute(_routeId);
+        if (!profile.enabled) revert RouteDisabled(_routeId);
         return profile;
     }
 

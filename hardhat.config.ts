@@ -7,24 +7,19 @@ import hardhatKeystore from "@nomicfoundation/hardhat-keystore";
 dotenv.config();
 
 const LEDGER_ACCOUNT = process.env.LEDGER_ACCOUNT ? [process.env.LEDGER_ACCOUNT] : [];
-
 const DEV_KEY = process.env.DEV_DEPLOYER_KEY ? [process.env.DEV_DEPLOYER_KEY] : [];
 const PROD_KEY = process.env.PROD_DEPLOYER_KEY ? [process.env.PROD_DEPLOYER_KEY] : [];
-
-function prodAccount(variableName: string): (string | ReturnType<typeof configVariable>)[] {
-  return PROD_KEY.length ? PROD_KEY : [configVariable(variableName)];
-}
 
 /**
  * Returns accounts/ledgerAccounts for production networks.
  * Priority:
- * 1. PROD_DEPLOYER_KEY (global private key for all mainnets).
- * 2. LEDGER_ACCOUNT env (Ledger hardware wallet).
+ * 1. LEDGER_ACCOUNT env (Ledger hardware wallet).
+ * 2. PROD_DEPLOYER_KEY (global private key for all mainnets).
  * 3. Network-specific *_DEPLOYER_KEY config variable as last resort.
  */
 function prodAccounts(networkKey: string): { accounts: string[]; ledgerAccounts?: string[] } {
-  if (PROD_KEY.length) return { accounts: PROD_KEY };
   if (LEDGER_ACCOUNT.length) return { accounts: [], ledgerAccounts: LEDGER_ACCOUNT };
+  if (PROD_KEY.length) return { accounts: PROD_KEY };
   return { accounts: [configVariable(`${networkKey}_DEPLOYER_KEY`)] as unknown as string[] };
 }
 
