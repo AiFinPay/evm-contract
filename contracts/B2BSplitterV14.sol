@@ -34,12 +34,12 @@ import {
     ZeroPauser,
     PauserEqualsSigner,
     AdminEqualsSigner,
-    ZeroAdmin
+    ZeroAdmin,
+    ZeroTokenList,
+    ZeroProfiles
 } from "./errors/Errors.sol";
 import { ITokenList } from "./interfaces/ITokenList.sol";
 import { IProfiles } from "./interfaces/IProfiles.sol";
-import { TokenList } from "./TokenList.sol";
-import { Profiles } from "./Profiles.sol";
 
 /// @title B2BSplitter v1.4 — signed, multi-route gross settlement
 /// @notice The payer submits an EIP-712 signed quote. Route economics and the
@@ -62,10 +62,11 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     string public constant EIP712_VERSION = "1";
 
     // ── EIP712 type hash ─────────────────────────────────────────────────────────
-    // precomputed typehash for:
     // Quote(address payer,address merchant,address token,uint256 grossAmount,
     //         address ipCreator,uint256 validUntil,bytes32 orderIdHash,uint256 nonce,bytes32 routeId)
-    bytes32 private constant _QUOTE_TYPEHASH = 0xa8b0556d3a3a900bcde8265692fc8a2183d22e265f3bc658e04fe8162e02f4bf;
+    bytes32 private constant _QUOTE_TYPEHASH = keccak256(
+        "Quote(address payer,address merchant,address token,uint256 grossAmount,address ipCreator,uint256 validUntil,bytes32 orderIdHash,uint256 nonce,bytes32 routeId)"
+    );
 
     // ── Satellite contracts ──────────────────────────────────────────────────────
     ITokenList public immutable tokenList;
@@ -100,10 +101,8 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         address initialSigner;
         address initialPauser;
         address treasury;
-        address[] stablecoins;
-        bytes32[] routeIds;
-        uint16[] treasuryBps;
-        uint16[] ipCreatorBps;
+        address tokenList;
+        address profiles;
     }
 
     constructor(ConstructorParams memory _params) EIP712(EIP712_NAME, EIP712_VERSION) {
@@ -113,17 +112,16 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         if (_params.initialAdmin == _params.initialSigner) revert AdminEqualsSigner();
         if (_params.initialPauser == _params.initialSigner) revert PauserEqualsSigner();
         if (_params.treasury == address(0)) revert ZeroTreasury();
+        if (_params.tokenList == address(0)) revert ZeroTokenList();
+        if (_params.profiles == address(0)) revert ZeroProfiles();
 
         _grantRole(ADMIN_ROLE, _params.initialAdmin);
         _grantRole(SIGN_OPERATOR_ROLE, _params.initialSigner);
         _grantRole(PAUSER_ROLE, _params.initialPauser);
 
         treasury = _params.treasury;
-
-        tokenList = ITokenList(address(new TokenList(address(this), _params.stablecoins)));
-        profiles = IProfiles(
-            address(new Profiles(address(this), _params.routeIds, _params.treasuryBps, _params.ipCreatorBps))
-        );
+        tokenList = ITokenList(_params.tokenList);
+        profiles = IProfiles(_params.profiles);
     }
 
     // ── Settlement functions ───────────────────────────────────────────────────
@@ -317,29 +315,6 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         if (_treasury == address(0)) revert ZeroTreasury();
         treasury = _treasury;
         emit TreasuryUpdated(_treasury);
-    }
-
-    /// @notice Update the downstream TokenList allow-list. Only `ADMIN_ROLE`.
-    function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowed) external onlyRole(ADMIN_ROLE) {
-        tokenList.setAllowed(_tokens, _allowed);
-    }
-
-    /// @notice Configure a route in the downstream Profiles contract.
-    function configureRoute(
-        bytes32 _routeId,
-        uint16 _treasuryBps,
-        uint16 _ipCreatorBps,
-        address _routeTreasury
-    ) external onlyRole(ADMIN_ROLE) {
-        profiles.configureRoute(_routeId, _treasuryBps, _ipCreatorBps, _routeTreasury);
-    }
-
-    function disableRoute(bytes32 _routeId) external onlyRole(ADMIN_ROLE) {
-        profiles.disableRoute(_routeId);
-    }
-
-    function enableRoute(bytes32 _routeId) external onlyRole(ADMIN_ROLE) {
-        profiles.enableRoute(_routeId);
     }
 
     function grantSignerRole(address _account) external onlyRole(ADMIN_ROLE) {

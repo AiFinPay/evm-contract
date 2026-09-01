@@ -39,6 +39,8 @@ error ZeroPauser();
 error PauserEqualsSigner();
 error AdminEqualsSigner();
 error ZeroAdmin();
+error ZeroTokenList();
+error ZeroProfiles();
 
 // ── Shared / Whitelist / Timelock Errors ───────────────────────────────────────
 error ZeroAddress();

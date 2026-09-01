@@ -35,10 +35,8 @@ interface ISplitterV14 {
         address initialSigner;
         address initialPauser;
         address treasury;
-        address[] stablecoins;
-        bytes32[] routeIds;
-        uint16[] treasuryBps;
-        uint16[] ipCreatorBps;
+        address tokenList;
+        address profiles;
     }
 
     // ── Events ─────────────────────────────────────────────────────────────────
