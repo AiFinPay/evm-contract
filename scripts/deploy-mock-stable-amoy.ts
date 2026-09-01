@@ -19,7 +19,9 @@ async function main() {
 
   const [deployer] = await ethers.getSigners();
   console.log(`Deployer: ${deployer.address}`);
-  console.log(`Balance:  ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} POL`);
+  console.log(
+    `Balance:  ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} POL`,
+  );
 
   const Factory = await ethers.getContractFactory("MockERC20");
   const token = await Factory.deploy("Amoy Test Stable", "tUSD", 6);

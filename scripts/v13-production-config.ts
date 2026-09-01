@@ -105,7 +105,7 @@ export function configuredStableAddress(chainId: number, symbol: "USDC" | "USDT"
   if (process.env.ALLOW_STABLE_OVERRIDE !== "true") {
     throw new Error(
       `${symbol} override supplied for chain ${chainId} but ALLOW_STABLE_OVERRIDE is not true. ` +
-      `An override must be independently verified and explicitly approved.`,
+        `An override must be independently verified and explicitly approved.`,
     );
   }
   return override;
@@ -117,7 +117,7 @@ export function governanceEnv(chainId: number): { owner: string; treasury: strin
   if (!owner || !treasury) {
     throw new Error(
       `Missing AIFINPAY_SAFE_${chainId}/AIFINPAY_TREASURY_${chainId}. ` +
-      `Production v1.3 deployment never falls back to a deployer EOA.`,
+        `Production v1.3 deployment never falls back to a deployer EOA.`,
     );
   }
   return { owner, treasury };

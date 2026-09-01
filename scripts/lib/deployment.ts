@@ -27,7 +27,7 @@ export interface DeployerInfo {
  */
 export async function getDeployerInfo(
   ethers: NetworkContext["ethers"],
-  networkName: string
+  networkName: string,
 ): Promise<DeployerInfo> {
   const [deployer] = await ethers.getSigners();
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
@@ -53,7 +53,7 @@ export function writeDeploymentRecord(
   networkName: string,
   chainId: number,
   record: Omit<DeploymentRecord, "network" | "chainId" | "timestamp">,
-  suffix: string = "latest"
+  suffix: string = "latest",
 ): { timestamped: string; latest: string } {
   const timestamp = new Date().toISOString();
   const deploymentsDir = path.join(__dirname, "../../deployments");
@@ -102,7 +102,7 @@ export function readLatestDeploymentRecord(networkName: string): DeploymentRecor
  */
 export async function computeRuntimeCodeHash(
   ethers: NetworkContext["ethers"],
-  address: string
+  address: string,
 ): Promise<string> {
   const runtimeCode = await ethers.provider.getCode(address);
   return ethers.keccak256(runtimeCode);

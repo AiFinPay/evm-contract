@@ -53,8 +53,9 @@ contract B2BSplitterV13Gas is Test {
     function testGas_PayNative_Aifp2() public {
         address[] memory tokens = new address[](1);
         tokens[0] = address(usdc);
-        B2BSplitterV13 zeroSplitter =
-            new B2BSplitterV13(B2BSplitterV13.ConstructorParams(owner, treasury, tokens, 0, 0));
+        B2BSplitterV13 zeroSplitter = new B2BSplitterV13(
+            B2BSplitterV13.ConstructorParams(owner, treasury, tokens, 0, 0)
+        );
         vm.deal(agent, 1 ether);
         vm.prank(agent);
         zeroSplitter.payNative{ value: 1 ether }(
@@ -87,8 +88,9 @@ contract B2BSplitterV13Gas is Test {
     function testGas_PayStable_Aifp2() public {
         address[] memory tokens = new address[](1);
         tokens[0] = address(usdc);
-        B2BSplitterV13 zeroSplitter =
-            new B2BSplitterV13(B2BSplitterV13.ConstructorParams(owner, treasury, tokens, 0, 0));
+        B2BSplitterV13 zeroSplitter = new B2BSplitterV13(
+            B2BSplitterV13.ConstructorParams(owner, treasury, tokens, 0, 0)
+        );
         vm.prank(agent);
         usdc.approve(address(zeroSplitter), type(uint256).max);
         vm.prank(agent);

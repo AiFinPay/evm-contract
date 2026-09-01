@@ -46,7 +46,9 @@ async function main() {
 
   const [deployer] = await ethers.getSigners();
   console.log(`Deployer: ${deployer.address}`);
-  console.log(`Balance:  ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} POL`);
+  console.log(
+    `Balance:  ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} POL`,
+  );
 
   // Prefer the L2 singleton (event-emitting variant used on Polygon chains);
   // fall back to the L1 singleton if L2 has no code on this network.
@@ -57,10 +59,13 @@ async function main() {
   const safeIface = new ethers.Interface(SAFE_ABI);
   const initializer = safeIface.encodeFunctionData("setup", [
     [owner1, owner2], // owners
-    2,                // threshold 2-of-2
-    ethers.ZeroAddress, "0x", // no delegate call
-    ethers.ZeroAddress,       // no fallback handler needed for plain ownership
-    ethers.ZeroAddress, 0, ethers.ZeroAddress, // no payment
+    2, // threshold 2-of-2
+    ethers.ZeroAddress,
+    "0x", // no delegate call
+    ethers.ZeroAddress, // no fallback handler needed for plain ownership
+    ethers.ZeroAddress,
+    0,
+    ethers.ZeroAddress, // no payment
   ]);
 
   const factory = new ethers.Contract(FACTORY, FACTORY_ABI, deployer);
@@ -70,7 +75,13 @@ async function main() {
   const receipt = await tx.wait();
 
   const creation = receipt!.logs
-    .map((l: any) => { try { return factory.interface.parseLog(l); } catch { return null; } })
+    .map((l: any) => {
+      try {
+        return factory.interface.parseLog(l);
+      } catch {
+        return null;
+      }
+    })
     .find((p: any) => p?.name === "ProxyCreation");
   if (!creation) throw new Error("ProxyCreation event not found");
   const safeAddr = creation.args.proxy as string;
@@ -89,4 +100,7 @@ async function main() {
   console.log(`Block:        ${receipt!.blockNumber}`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

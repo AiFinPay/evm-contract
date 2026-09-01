@@ -223,8 +223,10 @@ contract TimelockTest is Test {
 
     /// Verify multiple operations can be scheduled.
     function test_MultipleOperationsScheduled() public {
-        bytes memory data1 =
-            abi.encodeCall(B2BSplitterV14.configureRoute, (keccak256(bytes("r1")), 200, 50, address(0)));
+        bytes memory data1 = abi.encodeCall(
+            B2BSplitterV14.configureRoute,
+            (keccak256(bytes("r1")), 200, 50, address(0))
+        );
         bytes memory data2 = abi.encodeCall(B2BSplitterV14.pause, ());
 
         vm.prank(proposer);

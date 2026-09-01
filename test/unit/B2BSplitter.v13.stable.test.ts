@@ -18,12 +18,18 @@ async function fixture(decimals = 6, treasuryBps = 100, creatorBps = 0) {
   });
   return { owner, treasury, agent, merchant, creator, usdc, usdt, rogue, splitter };
 }
-async function fixture6() { return fixture(6, 100, 0); }
-async function fixture18() { return fixture(18, 100, 0); }
-async function fixtureZero() { return fixture(6, 0, 0); }
+async function fixture6() {
+  return fixture(6, 100, 0);
+}
+async function fixture18() {
+  return fixture(18, 100, 0);
+}
+async function fixtureZero() {
+  return fixture(6, 0, 0);
+}
 const paymentId = (n: number) => ethers.zeroPadValue(ethers.toBeHex(n), 32);
 async function deadline(offset = 3600) {
-  const block = await ethers.provider.getBlock('latest');
+  const block = await ethers.provider.getBlock("latest");
   return BigInt((block?.timestamp || Math.floor(Date.now() / 1000)) + offset);
 }
 
@@ -36,9 +42,15 @@ describe("B2BSplitter v1.3 — gross-inclusive stable settlement", () => {
     expect([m, t, c, total]).to.deep.equal([495n, 5n, 0n, 500n]);
     await usdc.mint(await agent.getAddress(), gross);
     await usdc.connect(agent).approve(await splitter.getAddress(), gross);
-    await splitter.connect(agent).payStable(
-      { paymentId: paymentId(1), token: await usdc.getAddress(), grossAmount: gross, merchant: await merchant.getAddress(), ipCreator: await creator.getAddress(), validUntil: until, orderId: "standard" }
-    );
+    await splitter.connect(agent).payStable({
+      paymentId: paymentId(1),
+      token: await usdc.getAddress(),
+      grossAmount: gross,
+      merchant: await merchant.getAddress(),
+      ipCreator: await creator.getAddress(),
+      validUntil: until,
+      orderId: "standard",
+    });
     expect(await usdc.balanceOf(await merchant.getAddress())).to.equal(495n);
     expect(await usdc.balanceOf(await treasury.getAddress())).to.equal(5n);
     expect(await usdc.balanceOf(await creator.getAddress())).to.equal(0n);
@@ -59,9 +71,15 @@ describe("B2BSplitter v1.3 — gross-inclusive stable settlement", () => {
       expect(total).to.equal(gross);
       await usdc.mint(await agent.getAddress(), gross);
       await usdc.connect(agent).approve(await splitter.getAddress(), gross);
-      await splitter.connect(agent).payStable(
-        { paymentId: paymentId(decimals), token: await usdc.getAddress(), grossAmount: gross, merchant: await merchant.getAddress(), ipCreator: ethers.ZeroAddress, validUntil: until, orderId: `d${decimals}` }
-      );
+      await splitter.connect(agent).payStable({
+        paymentId: paymentId(decimals),
+        token: await usdc.getAddress(),
+        grossAmount: gross,
+        merchant: await merchant.getAddress(),
+        ipCreator: ethers.ZeroAddress,
+        validUntil: until,
+        orderId: `d${decimals}`,
+      });
     }
   });
 
@@ -70,10 +88,17 @@ describe("B2BSplitter v1.3 — gross-inclusive stable settlement", () => {
     const until = await deadline();
     await rogue.mint(await agent.getAddress(), 500n);
     await rogue.connect(agent).approve(await splitter.getAddress(), 500n);
-    await expect(splitter.connect(agent).payStable(
-      { paymentId: paymentId(30), token: await rogue.getAddress(), grossAmount: 500n, merchant: await merchant.getAddress(), ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "rogue" }
-    ))
-      .to.be.revertedWithCustomError(splitter, "UnsupportedToken");
+    await expect(
+      splitter.connect(agent).payStable({
+        paymentId: paymentId(30),
+        token: await rogue.getAddress(),
+        grossAmount: 500n,
+        merchant: await merchant.getAddress(),
+        ipCreator: ethers.ZeroAddress,
+        validUntil: until,
+        orderId: "rogue",
+      }),
+    ).to.be.revertedWithCustomError(splitter, "UnsupportedToken");
   });
 
   it("owner can add and remove a token from the whitelist", async () => {
@@ -92,25 +117,31 @@ describe("B2BSplitter v1.3 — gross-inclusive stable settlement", () => {
 
   it("non-owner cannot update the whitelist", async () => {
     const { splitter, agent, rogue } = await loadFixture(fixture6);
-    await expect(splitter.connect(agent).setWhitelistedTokens([await rogue.getAddress()], [true]))
-      .to.be.revertedWithCustomError(splitter, "OwnableUnauthorizedAccount");
+    await expect(
+      splitter.connect(agent).setWhitelistedTokens([await rogue.getAddress()], [true]),
+    ).to.be.revertedWithCustomError(splitter, "OwnableUnauthorizedAccount");
   });
 
   it("setWhitelistedTokens reverts on array length mismatch", async () => {
     const { splitter, owner, rogue } = await loadFixture(fixture6);
-    await expect(splitter.connect(owner).setWhitelistedTokens([await rogue.getAddress()], [true, false]))
-      .to.be.revertedWithCustomError(splitter, "ArrayLengthMismatch");
+    await expect(
+      splitter.connect(owner).setWhitelistedTokens([await rogue.getAddress()], [true, false]),
+    ).to.be.revertedWithCustomError(splitter, "ArrayLengthMismatch");
   });
 
   it("setWhitelistedTokens reverts on zero address", async () => {
     const { splitter, owner } = await loadFixture(fixture6);
-    await expect(splitter.connect(owner).setWhitelistedTokens([ethers.ZeroAddress], [true]))
-      .to.be.revertedWithCustomError(splitter, "ZeroAddress");
+    await expect(
+      splitter.connect(owner).setWhitelistedTokens([ethers.ZeroAddress], [true]),
+    ).to.be.revertedWithCustomError(splitter, "ZeroAddress");
   });
 
   it("rejects only a charged fee leg that rounds to zero", async () => {
     const { splitter } = await loadFixture(fixture6);
-    await expect(splitter.quoteTotal(99n, ethers.ZeroAddress)).to.be.revertedWithCustomError(splitter, "PaymentTooSmallForTreasury");
+    await expect(splitter.quoteTotal(99n, ethers.ZeroAddress)).to.be.revertedWithCustomError(
+      splitter,
+      "PaymentTooSmallForTreasury",
+    );
     const [m, t, c, total] = await splitter.quoteTotal(100n, ethers.ZeroAddress);
     expect([m, t, c, total]).to.deep.equal([99n, 1n, 0n, 100n]);
   });
@@ -118,15 +149,22 @@ describe("B2BSplitter v1.3 — gross-inclusive stable settlement", () => {
   it("rejects an expired stable quote before transferFrom", async () => {
     const { splitter, usdc, agent, merchant } = await loadFixture(fixture6);
     const gross = 500n;
-    const block = await ethers.provider.getBlock('latest');
+    const block = await ethers.provider.getBlock("latest");
     const expired = BigInt(block?.timestamp || 1);
-    await ethers.provider.send('evm_mine', []);
+    await ethers.provider.send("evm_mine", []);
     await usdc.mint(await agent.getAddress(), gross);
     await usdc.connect(agent).approve(await splitter.getAddress(), gross);
-    await expect(splitter.connect(agent).payStable(
-      { paymentId: paymentId(35), token: await usdc.getAddress(), grossAmount: gross, merchant: await merchant.getAddress(), ipCreator: ethers.ZeroAddress, validUntil: expired, orderId: "expired" }
-    ))
-      .to.be.revertedWithCustomError(splitter, "PaymentExpired");
+    await expect(
+      splitter.connect(agent).payStable({
+        paymentId: paymentId(35),
+        token: await usdc.getAddress(),
+        grossAmount: gross,
+        merchant: await merchant.getAddress(),
+        ipCreator: ethers.ZeroAddress,
+        validUntil: expired,
+        orderId: "expired",
+      }),
+    ).to.be.revertedWithCustomError(splitter, "PaymentExpired");
     expect(await usdc.balanceOf(await merchant.getAddress())).to.equal(0n);
   });
 
@@ -137,9 +175,15 @@ describe("B2BSplitter v1.3 — gross-inclusive stable settlement", () => {
     expect([m, t, c, total]).to.deep.equal([1n, 0n, 0n, 1n]);
     await usdc.mint(await agent.getAddress(), 1n);
     await usdc.connect(agent).approve(await splitter.getAddress(), 1n);
-    await splitter.connect(agent).payStable(
-      { paymentId: paymentId(40), token: await usdc.getAddress(), grossAmount: 1n, merchant: await merchant.getAddress(), ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "one" }
-    );
+    await splitter.connect(agent).payStable({
+      paymentId: paymentId(40),
+      token: await usdc.getAddress(),
+      grossAmount: 1n,
+      merchant: await merchant.getAddress(),
+      ipCreator: ethers.ZeroAddress,
+      validUntil: until,
+      orderId: "one",
+    });
     expect(await usdc.balanceOf(await merchant.getAddress())).to.equal(1n);
     expect(await usdc.balanceOf(await treasury.getAddress())).to.equal(0n);
   });
@@ -150,8 +194,19 @@ describe("B2BSplitter v1.3 — gross-inclusive stable settlement", () => {
     const until = await deadline();
     await usdc.mint(await agent.getAddress(), gross * 2n);
     await usdc.connect(agent).approve(await splitter.getAddress(), gross * 2n);
-    const payment = { paymentId: paymentId(50), token: await usdc.getAddress(), grossAmount: gross, merchant: await merchant.getAddress(), ipCreator: ethers.ZeroAddress, validUntil: until, orderId: "replay" };
+    const payment = {
+      paymentId: paymentId(50),
+      token: await usdc.getAddress(),
+      grossAmount: gross,
+      merchant: await merchant.getAddress(),
+      ipCreator: ethers.ZeroAddress,
+      validUntil: until,
+      orderId: "replay",
+    };
     await splitter.connect(agent).payStable(payment);
-    await expect(splitter.connect(agent).payStable(payment)).to.be.revertedWithCustomError(splitter, "PaymentAlreadyProcessed");
+    await expect(splitter.connect(agent).payStable(payment)).to.be.revertedWithCustomError(
+      splitter,
+      "PaymentAlreadyProcessed",
+    );
   });
 });

@@ -41,11 +41,11 @@ async function main() {
 
   // Deploy TimelockWrapper
   const TimelockWrapperFactory = await ethers.getContractFactory("TimelockWrapper");
-  const wrapper = await TimelockWrapperFactory.deploy(
+  const wrapper = (await TimelockWrapperFactory.deploy(
     safeAddress,
     executorAddress,
-    MIN_DELAY
-  ) as unknown as TimelockWrapper;
+    MIN_DELAY,
+  )) as unknown as TimelockWrapper;
 
   await wrapper.waitForDeployment();
   const wrapperAddress = await wrapper.getAddress();

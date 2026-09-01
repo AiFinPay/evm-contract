@@ -58,7 +58,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
 
     // ── Constants ──────────────────────────────────────────────────────────────
     uint256 public constant BPS_DENOMINATOR = 10_000;
-    string public constant EIP712_NAME = "AiFinPayB2BSplitter";
+    string public constant EIP712_NAME = "B2BSplitterV14";
     string public constant EIP712_VERSION = "1";
 
     // ── EIP712 type hash ─────────────────────────────────────────────────────────

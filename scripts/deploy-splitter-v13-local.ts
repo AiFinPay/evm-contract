@@ -1,5 +1,9 @@
 import { network } from "hardhat";
-import { computeRuntimeCodeHash, getDeployerInfo, writeDeploymentRecord } from "./lib/deployment.js";
+import {
+  computeRuntimeCodeHash,
+  getDeployerInfo,
+  writeDeploymentRecord,
+} from "./lib/deployment.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -123,7 +127,9 @@ async function main() {
   console.log(`   treasury()      = ${await splitter.treasury()}`);
   console.log(`   owner()         = ${await splitter.owner()}`);
   console.log(`   treasuryBps     = ${onChainTreasuryBps}, ipCreatorBps = ${onChainIpCreatorBps}`);
-  console.log("\n⚠️  Local deployment only — not verified and not safe to enable in production registries.");
+  console.log(
+    "\n⚠️  Local deployment only — not verified and not safe to enable in production registries.",
+  );
 }
 
 main().catch((e) => {

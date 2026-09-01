@@ -14,7 +14,10 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { ethers, networkName } = await network.create();
 
-const FEE_PROFILES: Record<string, { treasuryBps: number; ipCreatorBps: number; description: string }> = {
+const FEE_PROFILES: Record<
+  string,
+  { treasuryBps: number; ipCreatorBps: number; description: string }
+> = {
   "agent-x402": {
     treasuryBps: 0,
     ipCreatorBps: 0,
@@ -56,21 +59,31 @@ async function inspectSafe(label: string, raw: string) {
     owners = (await safe.getOwners()).map((value: string) => ethers.getAddress(value));
     threshold = Number(await safe.getThreshold());
   } catch (error) {
-    throw new Error(`${label} ${address} does not expose the required Safe getOwners()/getThreshold() interface: ${String(error)}`);
+    throw new Error(
+      `${label} ${address} does not expose the required Safe getOwners()/getThreshold() interface: ${String(error)}`,
+    );
   }
   const uniqueOwners = new Set(owners.map((value) => value.toLowerCase()));
   if (owners.length < 2 || uniqueOwners.size !== owners.length) {
-    throw new Error(`${label} ${address} must have at least 2 unique Safe owners; observed ${owners.length}`);
+    throw new Error(
+      `${label} ${address} must have at least 2 unique Safe owners; observed ${owners.length}`,
+    );
   }
   if (!Number.isInteger(threshold) || threshold < 2 || threshold > owners.length) {
-    throw new Error(`${label} ${address} has unsafe/invalid threshold ${threshold} for ${owners.length} owners; production requires threshold >= 2`);
+    throw new Error(
+      `${label} ${address} has unsafe/invalid threshold ${threshold} for ${owners.length} owners; production requires threshold >= 2`,
+    );
   }
   return { address, owners, threshold };
 }
 
 async function inspectStable(symbol: "USDC" | "USDT", raw: string) {
   if (!raw || raw.toLowerCase() === ZERO_ADDRESS) {
-    return { address: ethers.ZeroAddress, decimals: null as number | null, symbol: null as string | null };
+    return {
+      address: ethers.ZeroAddress,
+      decimals: null as number | null,
+      symbol: null as string | null,
+    };
   }
   const address = await assertContractAddress(symbol, raw);
   const token = new ethers.Contract(
@@ -83,7 +96,11 @@ async function inspectStable(symbol: "USDC" | "USDT", raw: string) {
     throw new Error(`${symbol} ${address} returned invalid decimals=${decimals}`);
   }
   let chainSymbol: string | null = null;
-  try { chainSymbol = String(await token.symbol()); } catch { /* old tokens may omit string symbol */ }
+  try {
+    chainSymbol = String(await token.symbol());
+  } catch {
+    /* old tokens may omit string symbol */
+  }
   return { address, decimals, symbol: chainSymbol };
 }
 
@@ -101,9 +118,10 @@ async function main() {
 
   const govRaw = governanceEnv(chainId);
   const ownerSafe = await inspectSafe("Safe owner", govRaw.owner);
-  const treasurySafe = govRaw.treasury.toLowerCase() === govRaw.owner.toLowerCase()
-    ? ownerSafe
-    : await inspectSafe("treasury Safe", govRaw.treasury);
+  const treasurySafe =
+    govRaw.treasury.toLowerCase() === govRaw.owner.toLowerCase()
+      ? ownerSafe
+      : await inspectSafe("treasury Safe", govRaw.treasury);
   const owner = ownerSafe.address;
   const treasury = treasurySafe.address;
 
@@ -113,11 +131,21 @@ async function main() {
   console.log(`AiFinPay B2BSplitter v1.3 ${isTestnet ? "testnet" : "production"} deployment`);
   console.log(`network=${cfg.name} chainId=${chainId} hardhat=${networkName}`);
   console.log(`deployer=${deployer.address}`);
-  console.log(`owner=${owner} threshold=${ownerSafe.threshold} owners=${ownerSafe.owners.join(",")}`);
-  console.log(`treasury=${treasury} threshold=${treasurySafe.threshold} owners=${treasurySafe.owners.join(",")}`);
-  console.log(`profile=${profile.name} treasuryBps=${profile.treasuryBps} creatorBps=${profile.ipCreatorBps}`);
-  console.log(`USDC=${usdc.address} decimals=${usdc.decimals ?? "unsupported"} symbol=${usdc.symbol ?? "n/a"}`);
-  console.log(`USDT=${usdt.address} decimals=${usdt.decimals ?? "unsupported"} symbol=${usdt.symbol ?? "n/a"}`);
+  console.log(
+    `owner=${owner} threshold=${ownerSafe.threshold} owners=${ownerSafe.owners.join(",")}`,
+  );
+  console.log(
+    `treasury=${treasury} threshold=${treasurySafe.threshold} owners=${treasurySafe.owners.join(",")}`,
+  );
+  console.log(
+    `profile=${profile.name} treasuryBps=${profile.treasuryBps} creatorBps=${profile.ipCreatorBps}`,
+  );
+  console.log(
+    `USDC=${usdc.address} decimals=${usdc.decimals ?? "unsupported"} symbol=${usdc.symbol ?? "n/a"}`,
+  );
+  console.log(
+    `USDT=${usdt.address} decimals=${usdt.decimals ?? "unsupported"} symbol=${usdt.symbol ?? "n/a"}`,
+  );
 
   const confirmVar = isTestnet ? "CONFIRM_AMOY_DEPLOY" : "CONFIRM_MAINNET_DEPLOY";
   if (process.env[confirmVar] !== `${chainId}:${profile.name}`) {
@@ -172,7 +200,8 @@ async function main() {
     actual.treasuryBps === profile.treasuryBps || "treasuryBps",
     actual.ipCreatorBps === profile.ipCreatorBps || "ipCreatorBps",
   ].filter((x) => x !== true);
-  if (mismatches.length) throw new Error(`Post-deploy constructor mismatch: ${mismatches.join(", ")}`);
+  if (mismatches.length)
+    throw new Error(`Post-deploy constructor mismatch: ${mismatches.join(", ")}`);
 
   const timestamp = new Date().toISOString();
   const deploymentsDir = path.join(__dirname, "../deployments");
@@ -193,7 +222,11 @@ async function main() {
     },
     governance: {
       ownerSafe: { address: owner, owners: ownerSafe.owners, threshold: ownerSafe.threshold },
-      treasurySafe: { address: treasury, owners: treasurySafe.owners, threshold: treasurySafe.threshold },
+      treasurySafe: {
+        address: treasury,
+        owners: treasurySafe.owners,
+        threshold: treasurySafe.threshold,
+      },
     },
     tokenDecimals: { usdc: usdc.decimals, usdt: usdt.decimals },
     tokenSymbolsObserved: { usdc: usdc.symbol, usdt: usdt.symbol },
@@ -221,8 +254,14 @@ async function main() {
   };
   const safeTs = timestamp.replace(/[:.]/g, "-");
   const basename = `${networkName}-v13-${profile.name}`;
-  fs.writeFileSync(path.join(deploymentsDir, `${basename}-${safeTs}.json`), JSON.stringify(record, null, 2) + "\n");
-  fs.writeFileSync(path.join(deploymentsDir, `${basename}-latest.json`), JSON.stringify(record, null, 2) + "\n");
+  fs.writeFileSync(
+    path.join(deploymentsDir, `${basename}-${safeTs}.json`),
+    JSON.stringify(record, null, 2) + "\n",
+  );
+  fs.writeFileSync(
+    path.join(deploymentsDir, `${basename}-latest.json`),
+    JSON.stringify(record, null, 2) + "\n",
+  );
 
   console.log(`DEPLOYED ${profile.name}: ${address}`);
   console.log(`runtimeCodeHash=${runtimeCodeHash}`);

@@ -71,17 +71,18 @@ contract B2BSplitterV14Test is Test {
         uint256 _nonce,
         bytes32 _routeId
     ) private view returns (B2BSplitterV14.Quote memory) {
-        return B2BSplitterV14.Quote({
-            payer: _payer,
-            merchant: _merchant,
-            token: _token,
-            grossAmount: _grossAmount,
-            ipCreator: address(0),
-            validUntil: block.timestamp + 1 hours,
-            orderIdHash: keccak256(abi.encodePacked("order", _nonce)),
-            nonce: _nonce,
-            routeId: _routeId
-        });
+        return
+            B2BSplitterV14.Quote({
+                payer: _payer,
+                merchant: _merchant,
+                token: _token,
+                grossAmount: _grossAmount,
+                ipCreator: address(0),
+                validUntil: block.timestamp + 1 hours,
+                orderIdHash: keccak256(abi.encodePacked("order", _nonce)),
+                nonce: _nonce,
+                routeId: _routeId
+            });
     }
 
     function _signQuote(B2BSplitterV14.Quote memory quote_) private view returns (bytes memory) {
@@ -163,8 +164,10 @@ contract B2BSplitterV14Test is Test {
     function test_RejectsInvalidSigner() public {
         B2BSplitterV14.Quote memory quote = _quote(payer, merchant, address(0), 1 ether, 0, routeIdMerchant);
         bytes32 digest = splitter.digest(quote);
-        (uint8 v, bytes32 r, bytes32 s) =
-            vm.sign(0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d,
+            digest
+        );
         bytes memory sig = abi.encodePacked(r, s, v);
 
         vm.deal(payer, 1 ether);
@@ -222,8 +225,11 @@ contract B2BSplitterV14Test is Test {
     }
 
     function test_QuoteTotal_MatchesSettlement() public view {
-        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt, uint256 total) =
-            splitter.quoteTotal(10_000, routeIdMerchant, address(0));
+        (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt, uint256 total) = splitter.quoteTotal(
+            10_000,
+            routeIdMerchant,
+            address(0)
+        );
         assertEq(merchantAmt, 9900);
         assertEq(treasuryAmt, 100);
         assertEq(ipAmt, 0);

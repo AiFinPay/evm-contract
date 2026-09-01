@@ -71,8 +71,8 @@ if (process.env.AMOY_TEST_SAFE) {
 function refuseSupersededDeploy(): void {
   throw new Error(
     "scripts/deploy-splitter-v13.ts is superseded and its stablecoin table does not " +
-    "match the deployed v1.3 routes. Use scripts/deploy-splitter-v13-production.ts, " +
-    "which reads scripts/v13-production-config.ts.",
+      "match the deployed v1.3 routes. Use scripts/deploy-splitter-v13-production.ts, " +
+      "which reads scripts/v13-production-config.ts.",
   );
 }
 
@@ -134,7 +134,12 @@ const FEE_PROFILES: Record<string, { treasuryBps: number; ipCreatorBps: number; 
   },
 };
 
-function resolveFeeProfile(): { name: string; treasuryBps: number; ipCreatorBps: number; note: string } {
+function resolveFeeProfile(): {
+  name: string;
+  treasuryBps: number;
+  ipCreatorBps: number;
+  note: string;
+} {
   const name = process.env.FEE_PROFILE;
   if (!name) {
     throw new Error(
@@ -144,7 +149,9 @@ function resolveFeeProfile(): { name: string; treasuryBps: number; ipCreatorBps:
   }
   const profile = FEE_PROFILES[name];
   if (!profile) {
-    throw new Error(`Unknown FEE_PROFILE "${name}". Known profiles: ${Object.keys(FEE_PROFILES).join(", ")}.`);
+    throw new Error(
+      `Unknown FEE_PROFILE "${name}". Known profiles: ${Object.keys(FEE_PROFILES).join(", ")}.`,
+    );
   }
   return { name, ...profile };
 }
@@ -158,7 +165,11 @@ function resolveFeeProfile(): { name: string; treasuryBps: number; ipCreatorBps:
  */
 async function readDecimals(token: string): Promise<number | null> {
   if (token === ZERO) return null;
-  const erc20 = new ethers.Contract(token, ["function decimals() view returns (uint8)"], ethers.provider);
+  const erc20 = new ethers.Contract(
+    token,
+    ["function decimals() view returns (uint8)"],
+    ethers.provider,
+  );
   return Number(await erc20.decimals());
 }
 
@@ -184,7 +195,7 @@ async function main() {
   if (!gov) {
     throw new Error(
       `No governance configured for chainId ${chainId}. v1.3 will not deploy to an EOA owner — ` +
-        `create the chain's Safe, add it to GOVERNANCE, and re-run.`
+        `create the chain's Safe, add it to GOVERNANCE, and re-run.`,
     );
   }
   for (const [role, address] of [
@@ -276,12 +287,12 @@ async function main() {
   console.log(`   treasury()      = ${await splitter.treasury()}`);
   console.log(`   owner()         = ${await splitter.owner()}`);
   console.log(
-    `   treasuryBps     = ${await splitter.treasuryBps()}, ipCreatorBps = ${await splitter.ipCreatorBps()}`
+    `   treasuryBps     = ${await splitter.treasuryBps()}, ipCreatorBps = ${await splitter.ipCreatorBps()}`,
   );
 
   console.log(`\nVerify source:`);
   console.log(
-    `  npx hardhat verify --network ${networkName} ${addr} "${gov.owner}" "${gov.treasury}" "${cfg.usdc},${cfg.usdt}" ${fee.treasuryBps} ${fee.ipCreatorBps}`
+    `  npx hardhat verify --network ${networkName} ${addr} "${gov.owner}" "${gov.treasury}" "${cfg.usdc},${cfg.usdt}" ${fee.treasuryBps} ${fee.ipCreatorBps}`,
   );
   console.log(`\nRegistry entry is STAGED and disabled. Do not enable it until:`);
   console.log(`  1. source verification succeeded on the explorer,`);

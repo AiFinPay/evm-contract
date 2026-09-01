@@ -10,32 +10,26 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { ethers, networkName } = await network.create();
 
 async function main() {
-  const { address: deployer, chainId } = await getDeployerInfo(
-    ethers,
-    networkName
-  );
+  const { address: deployer, chainId } = await getDeployerInfo(ethers, networkName);
 
   // Load chain config
-  const configPath = path.join(
-    __dirname,
-    `../config/chains/${networkName}.json`
-  );
+  const configPath = path.join(__dirname, `../config/chains/${networkName}.json`);
   if (!fs.existsSync(configPath)) {
     throw new Error(
-      `No config found for network "${networkName}". Create config/chains/${networkName}.json first.`
+      `No config found for network "${networkName}". Create config/chains/${networkName}.json first.`,
     );
   }
   const chainConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
   if (chainConfig.treasury === "DEPLOY_GNOSIS_SAFE_FIRST") {
     throw new Error(
-      `Treasury not set for ${networkName}. Deploy a Gnosis Safe on this chain first and update config/chains/${networkName}.json`
+      `Treasury not set for ${networkName}. Deploy a Gnosis Safe on this chain first and update config/chains/${networkName}.json`,
     );
   }
 
   const { pyth, usdc, usdt, nativeUsdId, treasury } = chainConfig;
 
-  const stablecoins = [usdc, usdt].filter(n => n !== ethers.ZeroAddress)
+  const stablecoins = [usdc, usdt].filter((n) => n !== ethers.ZeroAddress);
   if (stablecoins.length == 0) {
     throw new Error("Stablecoins is not set");
   }
@@ -96,7 +90,7 @@ async function main() {
         owner: deployer,
       },
     } as DeploymentRecord,
-    "latest"
+    "latest",
   );
 
   console.log(`\nDeployment record written: ${timestamped}`);

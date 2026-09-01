@@ -25,7 +25,7 @@ The contract enforces signature validity via `ecrecover` + `hasRole(SIGN_OPERATO
 DOMAIN_SEPARATOR = keccak256(
     abi.encode(
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-        keccak256(bytes("AiFinPayB2BSplitter")),
+        keccak256(bytes("B2BSplitterV14")),
         keccak256(bytes("1")),
         block.chainid,           // ← per-chain binding
         address(this)            // ← per-contract binding at the same chain
@@ -33,12 +33,12 @@ DOMAIN_SEPARATOR = keccak256(
 )
 ```
 
-| Field | Type | Source | Purpose |
-|---|---|---|---|
-| `name` | `string` | literal `"AiFinPayB2BSplitter"` | Human-readable name shown in wallets |
-| `version` | `string` | literal `"1"` | Bumped if the typed-data layout ever changes; contract stores and asserts |
-| `chainId` | `uint256` | `block.chainid` | Prevents cross-chain replay |
-| `verifyingContract` | `address` | `address(this)` | Prevents cross-contract replay at the same chain |
+| Field               | Type      | Source                     | Purpose                                                                   |
+| ------------------- | --------- | -------------------------- | ------------------------------------------------------------------------- |
+| `name`              | `string`  | literal `"B2BSplitterV14"` | Human-readable name shown in wallets                                      |
+| `version`           | `string`  | literal `"1"`              | Bumped if the typed-data layout ever changes; contract stores and asserts |
+| `chainId`           | `uint256` | `block.chainid`            | Prevents cross-chain replay                                               |
+| `verifyingContract` | `address` | `address(this)`            | Prevents cross-contract replay at the same chain                          |
 
 The domain separator is computed once at construction and cached. If `block.chainid` ever changes (EIP-155 chain aliasing is rare), the cached value becomes stale; the contract must recompute on each settlement and store the new value if it differs. The standard OZ implementation does this in the constructor's `_domainSeparatorV4` flow.
 
@@ -60,31 +60,31 @@ The field order in the typehash **must match** the field order in `abi.encode`. 
 
 ```solidity
 struct Quote {
-    address payer;        // 20 bytes  — settlement is paid by this address
-    address merchant;     // 20 bytes  — receives gross − treasury − ip
-    address token;        // 20 bytes  — address(0) for native, USDC/USDT for stable
-    uint256 grossAmount;  // 32 bytes  — exactly what the payer sends (msg.value or approve amount)
-    address ipCreator;    // 20 bytes  — address(0) if route has no creator leg
-    uint256 validUntil;   // 32 bytes  — UNIX seconds; must be > block.timestamp
-    bytes32 orderIdHash;  // 32 bytes  — keccak256(bytes(orderId))
-    uint256 nonce;        // 32 bytes  — must equal payerNonce[payer] at settlement time
-    bytes32 routeId;      // 32 bytes  — keccak256(route name)
+  address payer; // 20 bytes  — settlement is paid by this address
+  address merchant; // 20 bytes  — receives gross − treasury − ip
+  address token; // 20 bytes  — address(0) for native, USDC/USDT for stable
+  uint256 grossAmount; // 32 bytes  — exactly what the payer sends (msg.value or approve amount)
+  address ipCreator; // 20 bytes  — address(0) if route has no creator leg
+  uint256 validUntil; // 32 bytes  — UNIX seconds; must be > block.timestamp
+  bytes32 orderIdHash; // 32 bytes  — keccak256(bytes(orderId))
+  uint256 nonce; // 32 bytes  — must equal payerNonce[payer] at settlement time
+  bytes32 routeId; // 32 bytes  — keccak256(route name)
 }
 ```
 
 ### 4.1 Field semantics
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `payer` | address | yes | Must equal `msg.sender` at settlement. The contract reverts `InvalidPayer` if not. |
-| `merchant` | address | yes | Cannot be `address(0)` (contract reverts `ZeroMerchant`). |
-| `token` | address | yes | `address(0)` for native settlement; one of `whitelistedTokens` for stable settlement. Contract reverts `InvalidTokenForNative` or `UnsupportedToken`. |
-| `grossAmount` | uint256 | yes | For native, must equal `msg.value` exactly. For stable, must equal the `safeTransferFrom` amount. Cannot be zero (`ZeroAmount`). |
-| `ipCreator` | address | depends | If the route's `ipCreatorBps == 0`, `address(0)` is allowed. If `ipCreatorBps > 0`, must be non-zero (contract reverts `MissingIPCreator`). |
-| `validUntil` | uint256 | yes | Must be `> block.timestamp` at settlement. Cannot be zero. Backend should set `validUntil = now + ttl` where `ttl` is per-route (recommended ≤ 1 hour). |
-| `orderIdHash` | bytes32 | yes | `keccak256(bytes(orderId))`. Backend must hash the off-chain `orderId` once and never re-publish a different `orderId` under the same hash. Frontend/SDK should also hash and verify. |
-| `nonce` | uint256 | yes | Must equal `payerNonce[payer]` exactly. Contract reverts `InvalidNonce` otherwise. |
-| `routeId` | bytes32 | yes | `keccak256("agent-x402")` or `keccak256("merchant-aifp1")` (or any other ADMIN-configured route). Contract checks the route exists and is enabled; reverts `UnknownRoute` or `RouteDisabled` otherwise. |
+| Field         | Type    | Required | Notes                                                                                                                                                                                                   |
+| ------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `payer`       | address | yes      | Must equal `msg.sender` at settlement. The contract reverts `InvalidPayer` if not.                                                                                                                      |
+| `merchant`    | address | yes      | Cannot be `address(0)` (contract reverts `ZeroMerchant`).                                                                                                                                               |
+| `token`       | address | yes      | `address(0)` for native settlement; one of `whitelistedTokens` for stable settlement. Contract reverts `InvalidTokenForNative` or `UnsupportedToken`.                                                   |
+| `grossAmount` | uint256 | yes      | For native, must equal `msg.value` exactly. For stable, must equal the `safeTransferFrom` amount. Cannot be zero (`ZeroAmount`).                                                                        |
+| `ipCreator`   | address | depends  | If the route's `ipCreatorBps == 0`, `address(0)` is allowed. If `ipCreatorBps > 0`, must be non-zero (contract reverts `MissingIPCreator`).                                                             |
+| `validUntil`  | uint256 | yes      | Must be `> block.timestamp` at settlement. Cannot be zero. Backend should set `validUntil = now + ttl` where `ttl` is per-route (recommended ≤ 1 hour).                                                 |
+| `orderIdHash` | bytes32 | yes      | `keccak256(bytes(orderId))`. Backend must hash the off-chain `orderId` once and never re-publish a different `orderId` under the same hash. Frontend/SDK should also hash and verify.                   |
+| `nonce`       | uint256 | yes      | Must equal `payerNonce[payer]` exactly. Contract reverts `InvalidNonce` otherwise.                                                                                                                      |
+| `routeId`     | bytes32 | yes      | `keccak256("agent-x402")` or `keccak256("merchant-aifp1")` (or any other ADMIN-configured route). Contract checks the route exists and is enabled; reverts `UnknownRoute` or `RouteDisabled` otherwise. |
 
 ### 4.2 Why these fields
 
@@ -100,10 +100,10 @@ struct Quote {
 
 ### 4.3 `routeId` enumeration
 
-| Route name (literal) | `routeId = keccak256(bytes(name))` | Default profile |
-|---|---|---|
-| `"agent-x402"` | `0x...` (literal bytes32) | `treasuryBps = 0`, `ipCreatorBps = 0` |
-| `"merchant-aifp1"` | `0x...` (literal bytes32) | `treasuryBps = 100`, `ipCreatorBps = 0` |
+| Route name (literal) | `routeId = keccak256(bytes(name))` | Default profile                         |
+| -------------------- | ---------------------------------- | --------------------------------------- |
+| `"agent-x402"`       | `0x...` (literal bytes32)          | `treasuryBps = 0`, `ipCreatorBps = 0`   |
+| `"merchant-aifp1"`   | `0x...` (literal bytes32)          | `treasuryBps = 100`, `ipCreatorBps = 0` |
 
 ADMIN can configure additional routes via `configureRoute(routeId, treasuryBps, ipCreatorBps, routeTreasury)`. The contract does **not** restrict the `routeId` to these two values; any `bytes32` is allowed, with caps (`treasuryBps ≤ 500`, `ipCreatorBps ≤ 100`).
 
@@ -113,29 +113,25 @@ ADMIN can configure additional routes via `configureRoute(routeId, treasuryBps, 
 
 ```solidity
 function _hashTypedDataV4(Quote calldata _quote) internal pure returns (bytes32) {
-    return keccak256(
-        abi.encode(
-            _QUOTE_TYPEHASH,
-            _quote.payer,
-            _quote.merchant,
-            _quote.token,
-            _quote.grossAmount,
-            _quote.ipCreator,
-            _quote.validUntil,
-            _quote.orderIdHash,
-            _quote.nonce,
-            _quote.routeId
-        )
+  return
+    keccak256(
+      abi.encode(
+        _QUOTE_TYPEHASH,
+        _quote.payer,
+        _quote.merchant,
+        _quote.token,
+        _quote.grossAmount,
+        _quote.ipCreator,
+        _quote.validUntil,
+        _quote.orderIdHash,
+        _quote.nonce,
+        _quote.routeId
+      )
     );
 }
 
 function _digest(Quote calldata _quote) internal view returns (bytes32) {
-    return keccak256(
-        abi.encode(
-            DOMAIN_SEPARATOR,
-            _hashTypedDataV4(_quote)
-        )
-    );
+  return keccak256(abi.encode(DOMAIN_SEPARATOR, _hashTypedDataV4(_quote)));
 }
 ```
 
@@ -153,6 +149,7 @@ if (_signature.length != 65) revert InvalidSignatureLength();
 ```
 
 The signature is 65 bytes:
+
 - `[0]` — recovery id (27 or 28)
 - `[1..32]` — r
 - `[33..64]` — s
@@ -160,6 +157,7 @@ The signature is 65 bytes:
 `s` must be in the lower half-order (EIP-2). OpenZeppelin's `ECDSA.recover` handles this; we delegate to it.
 
 `InvalidSigner` and `InvalidSignature` are distinct errors:
+
 - `InvalidSignature` — recovery returned `address(0)` (malformed signature) or wrong length
 - `InvalidSigner` — recovery returned a valid address, but that address is not a `SIGN_OPERATOR_ROLE` holder
 
@@ -228,39 +226,49 @@ The payer's wallet signature is the regular EOA signature on the `settle*` trans
 
 ```javascript
 // Off-chain
-const routeId    = ethers.keccak256(ethers.toUtf8Bytes("merchant-aifp1"));
-const payer      = "0xAgent...";
-const merchant   = "0xMerchant...";
-const token      = "0xUSDC...";            // or address(0) for native
-const grossAmount = 1_000_000n;            // 1 USDC (6 decimals)
-const ipCreator  = ethers.ZeroAddress;     // merchant-aifp1, no creator leg
-const validUntil = Math.floor(Date.now()/1000) + 900;  // 15 min
-const orderId    = "order-12345";
+const routeId = ethers.keccak256(ethers.toUtf8Bytes("merchant-aifp1"));
+const payer = "0xAgent...";
+const merchant = "0xMerchant...";
+const token = "0xUSDC..."; // or address(0) for native
+const grossAmount = 1_000_000n; // 1 USDC (6 decimals)
+const ipCreator = ethers.ZeroAddress; // merchant-aifp1, no creator leg
+const validUntil = Math.floor(Date.now() / 1000) + 900; // 15 min
+const orderId = "order-12345";
 const orderIdHash = ethers.keccak256(ethers.toUtf8Bytes(orderId));
-const nonce      = await splitter.payerNonce(payer);  // 0 for first-time
+const nonce = await splitter.payerNonce(payer); // 0 for first-time
 
 const domain = {
-  name: "AiFinPayB2BSplitter",
+  name: "B2BSplitterV14",
   version: "1",
   chainId: 137,
-  verifyingContract: await splitter.getAddress()
+  verifyingContract: await splitter.getAddress(),
 };
 
 const types = {
   Quote: [
-    { name: "payer",        type: "address" },
-    { name: "merchant",     type: "address" },
-    { name: "token",        type: "address" },
-    { name: "grossAmount",  type: "uint256" },
-    { name: "ipCreator",    type: "address" },
-    { name: "validUntil",   type: "uint256" },
-    { name: "orderIdHash",  type: "bytes32" },
-    { name: "nonce",        type: "uint256" },
-    { name: "routeId",      type: "bytes32" }
-  ]
+    { name: "payer", type: "address" },
+    { name: "merchant", type: "address" },
+    { name: "token", type: "address" },
+    { name: "grossAmount", type: "uint256" },
+    { name: "ipCreator", type: "address" },
+    { name: "validUntil", type: "uint256" },
+    { name: "orderIdHash", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+    { name: "routeId", type: "bytes32" },
+  ],
 };
 
-const quote = { payer, merchant, token, grossAmount, ipCreator, validUntil, orderIdHash, nonce, routeId };
+const quote = {
+  payer,
+  merchant,
+  token,
+  grossAmount,
+  ipCreator,
+  validUntil,
+  orderIdHash,
+  nonce,
+  routeId,
+};
 
 // Backend signs with hot key (KMS / HSM)
 const signature = await backendSigner.signTypedData(domain, types, quote);
@@ -285,32 +293,34 @@ const receipt = await tx.wait();
 ```solidity
 // Pseudocode of what the contract does
 function settleStable(Quote calldata q, bytes calldata sig) external nonReentrant whenNotPaused {
-    bytes32 digest = _digest(q);
-    address signer = ECDSA.recover(digest, sig);
-    if (signer == address(0)) revert InvalidSignature();
-    if (sig.length != 65) revert InvalidSignatureLength();
-    if (!hasRole(SIGN_OPERATOR_ROLE, signer)) revert InvalidSigner();
-    if (block.timestamp > q.validUntil) revert SignatureExpired(q.validUntil, block.timestamp);
-    if (q.payer != msg.sender) revert InvalidPayer();
-    if (q.nonce != payerNonce[q.payer]) revert InvalidNonce();
-    if (q.token == address(0) || !whitelistedTokens[q.token]) revert UnsupportedToken();
-    if (q.merchant == address(0)) revert ZeroMerchant();
+  bytes32 digest = _digest(q);
+  address signer = ECDSA.recover(digest, sig);
+  if (signer == address(0)) revert InvalidSignature();
+  if (sig.length != 65) revert InvalidSignatureLength();
+  if (!hasRole(SIGN_OPERATOR_ROLE, signer)) revert InvalidSigner();
+  if (block.timestamp > q.validUntil) revert SignatureExpired(q.validUntil, block.timestamp);
+  if (q.payer != msg.sender) revert InvalidPayer();
+  if (q.nonce != payerNonce[q.payer]) revert InvalidNonce();
+  if (q.token == address(0) || !whitelistedTokens[q.token]) revert UnsupportedToken();
+  if (q.merchant == address(0)) revert ZeroMerchant();
 
-    RouteProfile memory p = profiles[q.routeId];
-    if (!p.enabled) revert RouteDisabled(q.routeId);
+  RouteProfile memory p = profiles[q.routeId];
+  if (!p.enabled) revert RouteDisabled(q.routeId);
 
-    unchecked { payerNonce[q.payer] = q.nonce + 1; }
-    consumedNonce[q.payer][q.nonce] = true;
+  unchecked {
+    payerNonce[q.payer] = q.nonce + 1;
+  }
+  consumedNonce[q.payer][q.nonce] = true;
 
-    (uint256 m, uint256 t, uint256 i) = _splitGross(q.grossAmount, p, q.ipCreator);
+  (uint256 m, uint256 t, uint256 i) = _splitGross(q.grossAmount, p, q.ipCreator);
 
-    IERC20(q.token).safeTransferFrom(msg.sender, q.merchant, m);
+  IERC20(q.token).safeTransferFrom(msg.sender, q.merchant, m);
 
-    address routeTreasury = p.routeTreasury == address(0) ? treasury : p.routeTreasury;
-    if (t > 0) IERC20(q.token).safeTransferFrom(msg.sender, routeTreasury, t);
-    if (i > 0) IERC20(q.token).safeTransferFrom(msg.sender, q.ipCreator, i);
+  address routeTreasury = p.routeTreasury == address(0) ? treasury : p.routeTreasury;
+  if (t > 0) IERC20(q.token).safeTransferFrom(msg.sender, routeTreasury, t);
+  if (i > 0) IERC20(q.token).safeTransferFrom(msg.sender, q.ipCreator, i);
 
-    emit Payment(keccak256(abi.encode(q)), q, m, t, i, q.routeId);
+  emit Payment(keccak256(abi.encode(q)), q, m, t, i, q.routeId);
 }
 ```
 
@@ -318,27 +328,27 @@ function settleStable(Quote calldata q, bytes calldata sig) external nonReentran
 
 ## 11. Failure-Mode Reverts
 
-| Revert | Cause | Backend/SDK remediation |
-|---|---|---|
-| `InvalidSignature()` | ECDSA recovery returned `address(0)` | Backend bug — signature is malformed |
-| `InvalidSignatureLength()` | Signature not 65 bytes | Never accept non-65-byte signatures from backend |
-| `InvalidSigner()` | Recovery returned a valid address, but it has no `SIGN_OPERATOR_ROLE` | Signer key has been revoked or never granted; rotate to a new key |
-| `SignatureExpired(q.validUntil, block.timestamp)` | `validUntil <= now` | Request a new quote from backend |
-| `InvalidPayer()` | `quote.payer != msg.sender` | SDK/frontend bug — agent wallet must match backend-issued payer |
-| `InvalidNonce()` | `quote.nonce != payerNonce[payer]` | Backend must re-fetch nonce and re-issue |
-| `NonceAlreadyConsumed()` | `consumedNonce[payer][nonce] == true` | Replay attempt; do not retry |
-| `NonceOverflow()` | `payerNonce[payer]` would exceed `type(uint256).max` | Practically impossible; if hit, agent must migrate wallet |
-| `UnknownRoute(_routeId)` | `routeId` not in `profiles` mapping | Backend signed a typo; check routeId computation |
-| `RouteDisabled(_routeId)` | `profiles[routeId].enabled == false` | Backend rejected; user must request a quote under a different `routeId` |
-| `InvalidOrderIdHash()` | (reserved for future use) | n/a |
-| `UnsupportedToken()` | `quote.token` not whitelisted | Payer requested wrong quote; SDK must reject and request fresh |
-| `InvalidTokenForNative()` | `settleNative` called with non-zero `token` | SDK bug; `settleNative` requires `token == address(0)` |
-| `IncorrectNativeValue(expected, received)` | `msg.value != grossAmount` | SDK must set `msg.value = grossAmount` exactly |
-| `ZeroAmount()` | `grossAmount == 0` | Backend bug; do not issue zero-value quotes |
-| `ZeroMerchant()` | `merchant == address(0)` | Backend must require non-zero merchant |
-| `MissingIPCreator()` | `route.ipCreatorBps > 0` but `ipCreator == address(0)` | Backend must require creator if the route's profile demands it |
-| `PaymentTooSmallForTreasury()` / `PaymentTooSmallForRoyalty()` | Rounding to zero | Backend should refuse quotes that produce zero-fee legs |
-| `MerchantTransferFailed()` / `TreasuryTransferFailed()` / `IPCreatorTransferFailed()` | Recipient reverted on transfer | Atomic rollback — quote still valid; payer can retry after recipient recovers |
+| Revert                                                                                | Cause                                                                 | Backend/SDK remediation                                                       |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `InvalidSignature()`                                                                  | ECDSA recovery returned `address(0)`                                  | Backend bug — signature is malformed                                          |
+| `InvalidSignatureLength()`                                                            | Signature not 65 bytes                                                | Never accept non-65-byte signatures from backend                              |
+| `InvalidSigner()`                                                                     | Recovery returned a valid address, but it has no `SIGN_OPERATOR_ROLE` | Signer key has been revoked or never granted; rotate to a new key             |
+| `SignatureExpired(q.validUntil, block.timestamp)`                                     | `validUntil <= now`                                                   | Request a new quote from backend                                              |
+| `InvalidPayer()`                                                                      | `quote.payer != msg.sender`                                           | SDK/frontend bug — agent wallet must match backend-issued payer               |
+| `InvalidNonce()`                                                                      | `quote.nonce != payerNonce[payer]`                                    | Backend must re-fetch nonce and re-issue                                      |
+| `NonceAlreadyConsumed()`                                                              | `consumedNonce[payer][nonce] == true`                                 | Replay attempt; do not retry                                                  |
+| `NonceOverflow()`                                                                     | `payerNonce[payer]` would exceed `type(uint256).max`                  | Practically impossible; if hit, agent must migrate wallet                     |
+| `UnknownRoute(_routeId)`                                                              | `routeId` not in `profiles` mapping                                   | Backend signed a typo; check routeId computation                              |
+| `RouteDisabled(_routeId)`                                                             | `profiles[routeId].enabled == false`                                  | Backend rejected; user must request a quote under a different `routeId`       |
+| `InvalidOrderIdHash()`                                                                | (reserved for future use)                                             | n/a                                                                           |
+| `UnsupportedToken()`                                                                  | `quote.token` not whitelisted                                         | Payer requested wrong quote; SDK must reject and request fresh                |
+| `InvalidTokenForNative()`                                                             | `settleNative` called with non-zero `token`                           | SDK bug; `settleNative` requires `token == address(0)`                        |
+| `IncorrectNativeValue(expected, received)`                                            | `msg.value != grossAmount`                                            | SDK must set `msg.value = grossAmount` exactly                                |
+| `ZeroAmount()`                                                                        | `grossAmount == 0`                                                    | Backend bug; do not issue zero-value quotes                                   |
+| `ZeroMerchant()`                                                                      | `merchant == address(0)`                                              | Backend must require non-zero merchant                                        |
+| `MissingIPCreator()`                                                                  | `route.ipCreatorBps > 0` but `ipCreator == address(0)`                | Backend must require creator if the route's profile demands it                |
+| `PaymentTooSmallForTreasury()` / `PaymentTooSmallForRoyalty()`                        | Rounding to zero                                                      | Backend should refuse quotes that produce zero-fee legs                       |
+| `MerchantTransferFailed()` / `TreasuryTransferFailed()` / `IPCreatorTransferFailed()` | Recipient reverted on transfer                                        | Atomic rollback — quote still valid; payer can retry after recipient recovers |
 
 ---
 
@@ -368,7 +378,7 @@ bytes32 private immutable _HASHED_VERSION;
 bytes32 private immutable _TYPE_HASH;
 
 constructor(...) {
-    _HASHED_NAME = keccak256("AiFinPayB2BSplitter");
+    _HASHED_NAME = keccak256("B2BSplitterV14");
     _HASHED_VERSION = keccak256("1");
     _TYPE_HASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     _CACHED_CHAIN_ID = block.chainid;
