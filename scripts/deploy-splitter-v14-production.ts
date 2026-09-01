@@ -11,8 +11,8 @@ import {
   governanceEnv,
   initialSignerEnv,
   pauserEnv,
-  routeIdsV14,
-} from "./v14-production-config.js";
+  routeDeploymentConfigV14,
+} from "../config/v14-production-config.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -42,7 +42,7 @@ async function main() {
     throw new Error("PAUSER and SIGNER must be different addresses.");
   }
 
-  const { agent, merchant } = await routeIdsV14();
+  const { routeIds, treasuryBps, ipCreatorBps } = await routeDeploymentConfigV14();
   const usdc = configuredStableAddress(chainId, "USDC");
   const usdt = configuredStableAddress(chainId, "USDT");
   const stablecoins = [usdc, usdt].filter((t) => t !== ZERO);
@@ -54,9 +54,9 @@ async function main() {
     initialPauser: pauser,
     treasury: gov.treasury,
     stablecoins,
-    routeIds: [agent, merchant],
-    treasuryBps: [0, 100],
-    ipCreatorBps: [0, 0],
+    routeIds,
+    treasuryBps,
+    ipCreatorBps,
   });
 
   await splitter.waitForDeployment();

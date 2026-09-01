@@ -11,8 +11,8 @@ import {
   governanceEnv,
   initialSignerEnv,
   pauserEnv,
-  routeIdsV14,
-} from "./v14-production-config.js";
+  routeDeploymentConfigV14,
+} from "../config/v14-production-config.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -55,7 +55,7 @@ async function main() {
     throw new Error("PAUSER and SIGNER must be different addresses (separation of duties).");
   }
 
-  const { agent, merchant } = await routeIdsV14();
+  const { routeIds, treasuryBps, ipCreatorBps } = await routeDeploymentConfigV14();
   const stablecoins = [usdc, usdt].filter((t) => t !== ZERO);
   if (stablecoins.length === 0) {
     console.log("Warning: no stablecoins configured for this chain; native-only settlement.");
@@ -69,8 +69,8 @@ async function main() {
   console.log(`  treasury = ${gov.treasury}`);
   console.log(`  stablecoins = ${stablecoins.join(", ") || "(none)"}`);
   console.log(`  routeIds = agent, merchant`);
-  console.log(`  treasuryBps = 0, 100`);
-  console.log(`  ipCreatorBps = 0, 0`);
+  console.log(`  treasuryBps = ${treasuryBps.join(", ")}`);
+  console.log(`  ipCreatorBps = ${ipCreatorBps.join(", ")}`);
 
   const Factory = await ethers.getContractFactory("B2BSplitterV14");
   const splitter = await Factory.deploy({
@@ -79,9 +79,9 @@ async function main() {
     initialPauser: pauser,
     treasury: gov.treasury,
     stablecoins,
-    routeIds: [agent, merchant],
-    treasuryBps: [0, 100],
-    ipCreatorBps: [0, 0],
+    routeIds,
+    treasuryBps,
+    ipCreatorBps,
   });
 
   console.log(`\nDeploy tx: ${splitter.deploymentTransaction()?.hash}`);

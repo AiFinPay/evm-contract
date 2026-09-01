@@ -70,13 +70,13 @@ This document is the **destructive** migration plan. It assumes the v1.4 design 
 | `contracts/interfaces/ISplitterV14Basic.sol` | Lightweight view interface for SDK/frontend |
 | `contracts/interfaces/ITokenList.sol` | Interface for the stablecoin allow-list |
 | `contracts/interfaces/IProfiles.sol` | Interface for per-route profile storage |
-| `test/unit/B2BSplitter.v14.test.ts` | Combined v1.4 unit tests: native, stable, signature, RBAC, routes |
+| `../test/B2BSplitter.v14.test.ts` | Combined v1.4 unit tests: native, stable, signature, RBAC, routes |
 | `test/v14-fixtures.ts` | v1.4-only fixture (will be merged into `test/fixtures.ts` in Phase 3) |
 | `foundry-tests/B2BSplitterV14.invariant.t.sol` | Foundry invariants for `_splitGross`, `ecrecover`, `consumedNonce` monotonicity, RBAC separation |
 | `scripts/deploy-splitter-v14-production.ts` | v1.4 production deploy script |
 | `scripts/deploy-splitter-v14.ts` | Generic v1.4 deploy (testnet + production bootstrap helper) |
 | `scripts/verify-v14.ts` | Source-verification of v1.4 contracts |
-| `scripts/v14-production-config.ts` | Production config with route profile bootstrap |
+| `../config/v14-production-config.ts` | Production config with route profile bootstrap |
 | `config/v14-production-config.ts` | Chain configs (USDC/USDT addresses, governance addresses) for v1.4 |
 | `docs/AUDIT_B2BSplitterV14.md` | Audit report (after the actual code is written and reviewed) |
 | `docs/V14_DEPLOYMENT_CHECKLIST.md` | Step-by-step deployment checklist |
@@ -380,7 +380,7 @@ error NoAdminRoleHolder();                    // guard against ADMIN=address(0)
 
 | File | Coverage |
 |---|---|
-| `test/unit/B2BSplitter.v14.test.ts` | Native split with signed quotes: happy path, replay, atomic rollback, deadline, msg.value mismatch; RBAC (admin/pauser/signer separation, role-conflicting grants); constructor invariants |
+| `../test/B2BSplitter.v14.test.ts` | Native split with signed quotes: happy path, replay, atomic rollback, deadline, msg.value mismatch; RBAC (admin/pauser/signer separation, role-conflicting grants); constructor invariants |
 | `test/unit/B2BSplitter.v13.stable.test.ts` | Stable split: USDC/USDT, decimal-agnostic, replay, dead-quote rejection, rogue token, dust edge (v1.3 style, reused for token logic confidence) |
 
 ### 5.3 Foundry tests

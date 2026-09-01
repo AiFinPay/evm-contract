@@ -85,7 +85,11 @@ No separate typecheck step; Hardhat/TypeScript compilation is exercised during `
 - Mainnets: `PROD_DEPLOYER_KEY`
 - Verification: `ETHERSCAN_API_KEY` (unified Etherscan v2) or legacy `POLYGONSCAN_API_KEY`.
 - RPC overrides: `POLYGON_MAINNET_RPC`, `AMOY_RPC`, etc. — all have fallbacks.
-- `.env` files must **never** be committed (`.aiignore` + `.opencode/opencode.json` deny rules already in place).
+- `.env` and `.env.local` must **never** be committed (`.aiignore` + `.opencode/opencode.json` deny rules already in place).
+
+### Local development overrides
+
+Create `.env.local` at repo root. It is loaded **after** `.env`, so values in `.env.local` override `.env` while `.env` remains the shared default. This is useful for per-developer keys, local RPC forks, or a different `FEE_PROFILE` during local deployment.
 
 ## Deployment flow
 

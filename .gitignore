@@ -5,6 +5,8 @@ typechain-types/
 types/
 .env
 .env.local
+.env.testnet
+.env.production
 .idea/
 .vscode/
 .DS_Store
