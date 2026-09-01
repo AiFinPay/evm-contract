@@ -56,7 +56,11 @@ interface ISplitterV14Basic {
     function digest(Quote calldata _quote) external view returns (bytes32);
 
     // ── Quoting / route readout ────────────────────────────────────────────────
-    function quoteTotal(uint256 _grossAmount, bytes32 _routeId, address _ipCreator)
+    function quoteTotal(
+        uint256 _grossAmount,
+        bytes32 _routeId,
+        address _ipCreator
+    )
         external
         view
         returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount);

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ReentrancyGuardTransient } from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import {
     ZeroAmount,
     ZeroMerchant,
@@ -21,7 +21,7 @@ import {
     TreasuryTransferFailed,
     IPCreatorTransferFailed
 } from "./errors/Errors.sol";
-import {Whitelist} from "./Whitelist.sol";
+import { Whitelist } from "./Whitelist.sol";
 
 /// @title B2BSplitter v1.3 — gross-inclusive route-specific settlement
 /// @notice The payer supplies one gross settlement amount. The route profile is
@@ -163,16 +163,16 @@ contract B2BSplitterV13 is Ownable, ReentrancyGuardTransient, Pausable {
         if (msg.value != grossAmount) revert IncorrectNativeValue(grossAmount, msg.value);
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(grossAmount, ipCreator);
 
-        (bool s1, ) = merchant.call{value: merchantAmt}("");
+        (bool s1, ) = merchant.call{ value: merchantAmt }("");
         if (!s1) revert MerchantTransferFailed();
 
         address cachedTreasury = treasury;
         if (treasuryAmt > 0) {
-            (bool s2, ) = payable(cachedTreasury).call{value: treasuryAmt}("");
+            (bool s2, ) = payable(cachedTreasury).call{ value: treasuryAmt }("");
             if (!s2) revert TreasuryTransferFailed();
         }
         if (ipAmt > 0) {
-            (bool s3, ) = payable(ipCreator).call{value: ipAmt}("");
+            (bool s3, ) = payable(ipCreator).call{ value: ipAmt }("");
             if (!s3) revert IPCreatorTransferFailed();
         }
 

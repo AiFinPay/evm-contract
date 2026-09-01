@@ -91,8 +91,12 @@ interface ISplitterV14 {
     function unpause() external;
     function setTreasury(address _treasury) external;
     function setWhitelistedTokens(address[] calldata _tokens, bool[] calldata _allowedFlags) external;
-    function configureRoute(bytes32 _routeId, uint16 _treasuryBps, uint16 _ipCreatorBps, address _routeTreasury)
-        external;
+    function configureRoute(
+        bytes32 _routeId,
+        uint16 _treasuryBps,
+        uint16 _ipCreatorBps,
+        address _routeTreasury
+    ) external;
     function disableRoute(bytes32 _routeId) external;
     function enableRoute(bytes32 _routeId) external;
     function grantSignerRole(address _account) external;

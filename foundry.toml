@@ -24,13 +24,3 @@ remappings = [
 # Options: "high", "medium", "low", "info", "gas", "code-size"
 # Default: ["high", "medium", "low"]
 severity = ["high", "medium", "low", "info", "gas", "code-size"]
-
-[fmt]
-line_length = 120
-tab_width = 4
-bracket_spacing = true
-int_types = "long"
-#multiline_func_header = "params_first"
-quote_style = "double"
-number_underscore = "thousands"
-single_line_statement_blocks = "preserve"

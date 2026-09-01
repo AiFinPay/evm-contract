@@ -97,7 +97,7 @@ contract TimelockWrapper {
     function destroy() external onlyProposer {
         timelock.renounceRole(timelock.DEFAULT_ADMIN_ROLE(), address(this));
         emit AdminRenounced(address(timelock));
-        (bool success,) = payable(address(timelock)).call{ value: address(this).balance }("");
+        (bool success, ) = payable(address(timelock)).call{ value: address(this).balance }("");
         if (!success) revert EthForwardFailed();
     }
 
