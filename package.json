@@ -11,10 +11,9 @@
   "scripts": {
     "test": "hardhat test mocha",
     "build": "hardhat compile",
-    "deploy": "hardhat run scripts/deploy-splitter-v13-production.ts --build-profile production",
+    "deploy": "hardhat run scripts/deploy-splitter-v14.ts --build-profile production",
     "deploy:local": "hardhat run scripts/deploy-splitter-v14-local.ts --build-profile default",
-    "deploy:testnet": "hardhat run scripts/deploy-splitter-v14.ts --network amoy --build-profile production",
-    "deploy:timelock": "hardhat run scripts/deploy-timelock.ts --network polygon --build-profile production",
+    "deploy:timelock": "hardhat run scripts/deploy-timelock.ts --build-profile production",
     "verify": "hardhat run scripts/verify.ts --build-profile production",
     "lint": "solhint 'contracts/**/*.sol'",
     "prettify": "bun scripts/prettier-write.ts",

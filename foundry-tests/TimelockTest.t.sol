@@ -6,6 +6,7 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { TimelockWrapper } from "../contracts/TimelockWrapper.sol";
 import { B2BSplitterV14 } from "../contracts/B2BSplitterV14.sol";
+import { TokenList } from "../contracts/TokenList.sol";
 import { Profiles } from "../contracts/Profiles.sol";
 import { IProfiles } from "../contracts/interfaces/IProfiles.sol";
 
@@ -47,24 +48,29 @@ contract TimelockTest is Test {
         ipCreatorBps[1] = 0;
         address[] memory stablecoins = new address[](0);
 
+        TokenList tokenList = new TokenList(deployer, stablecoins);
+        profiles = new Profiles(deployer, routeIds, treasuryBps, ipCreatorBps);
+
         splitter = new B2BSplitterV14(
             B2BSplitterV14.ConstructorParams({
                 initialAdmin: deployer,
                 initialSigner: signer,
                 initialPauser: deployer,
                 treasury: treasury,
-                stablecoins: stablecoins,
-                routeIds: routeIds,
-                treasuryBps: treasuryBps,
-                ipCreatorBps: ipCreatorBps
+                tokenList: address(tokenList),
+                profiles: address(profiles)
             })
         );
-        profiles = Profiles(address(splitter.profiles()));
 
-        // Production bootstrap: timelock becomes the only ADMIN_ROLE holder.
+        // Production bootstrap: timelock becomes the only ADMIN_ROLE holder of the splitter
+        // and the direct admin of the satellite contracts.
         splitter.grantRole(splitter.ADMIN_ROLE(), address(timelock));
         splitter.renounceRole(splitter.ADMIN_ROLE(), deployer);
-        // deployer intentionally keeps PAUSER_ROLE for instant kill-switch tests.
+        tokenList.grantRole(tokenList.ADMIN_ROLE(), address(timelock));
+        tokenList.renounceRole(tokenList.ADMIN_ROLE(), deployer);
+        profiles.grantRole(profiles.ADMIN_ROLE(), address(timelock));
+        profiles.renounceRole(profiles.ADMIN_ROLE(), deployer);
+        // deployer intentionally keeps PAUSER_ROLE on splitter for instant kill-switch tests.
     }
 
     /// Verify the production bootstrap left ADMIN_ROLE with the timelock.
@@ -297,16 +303,16 @@ contract TimelockTest is Test {
         vm.assume(uint256(treasuryBps) + uint256(ipBps) < 10_000);
 
         bytes32 newRoute = keccak256(abi.encode(treasuryBps, ipBps));
-        bytes memory data = abi.encodeCall(B2BSplitterV14.configureRoute, (newRoute, treasuryBps, ipBps, address(0)));
+        bytes memory data = abi.encodeCall(Profiles.configureRoute, (newRoute, treasuryBps, ipBps, address(0)));
         bytes32 salt = keccak256(abi.encode(treasuryBps, ipBps));
 
         vm.prank(proposer);
-        timelock.schedule(address(splitter), 0, data, bytes32(0), salt, MIN_DELAY);
+        timelock.schedule(address(profiles), 0, data, bytes32(0), salt, MIN_DELAY);
 
         vm.warp(block.timestamp + MIN_DELAY + 1);
 
         vm.prank(executor);
-        timelock.execute(address(splitter), 0, data, bytes32(0), salt);
+        timelock.execute(address(profiles), 0, data, bytes32(0), salt);
 
         IProfiles.RouteProfile memory profile = profiles.getProfile(newRoute);
         assertEq(profile.treasuryBps, treasuryBps, "Treasury BPS mismatch");

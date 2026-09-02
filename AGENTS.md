@@ -27,9 +27,10 @@ forge test                 # foundry tests (default 256 fuzz runs each)
 ## v1.4-only commands
 
 ```bash
-bun test test/unit/B2BSplitter.v14.test.ts           # v14 unit tests
+bun test --grep "v1.4"      # v14 unit tests (file is test/B2BSplitter.v14.test.ts)
 bun run deploy:v14          # polygon mainnet v1.4
 bun run deploy:v14:testnet  # amoy testnet v1.4
+bun run deploy:local        # local EDR network v1.4 (deploys mocks)
 ```
 
 ## CI order
@@ -49,8 +50,7 @@ No separate typecheck step; Hardhat/TypeScript compilation is exercised during `
   import { network } from "hardhat";
   const { ethers, networkHelpers } = await network.create();
   ```
-  See `test/fixtures.ts` for the canonical dual-mode pattern (`fixtureV13` / `fixtureV14`).
-- `loadFixture` now lives on `networkHelpers` (not `@nomicfoundation/hardhat-toolbox/network-helpers`). Import `{ ethers, loadFixture }` from `./fixtures` in tests.
+  See `test/fixtures.ts` for the canonical pattern. Tests import `{ ethers, loadFixture }` from `./fixtures` (relative path; `../fixtures` is wrong and will fail at runtime).
 - Revert assertions use the Hardhat 3 matcher:
   - `.to.revert(ethers)` / `.not.to.revert(ethers)` (any revert)
   - `.to.be.revertedWith(...)` (revert reason string)

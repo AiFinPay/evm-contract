@@ -3,6 +3,8 @@ pragma solidity 0.8.35;
 
 import { Test } from "forge-std/Test.sol";
 import { B2BSplitterV14 } from "../contracts/B2BSplitterV14.sol";
+import { TokenList } from "../contracts/TokenList.sol";
+import { Profiles } from "../contracts/Profiles.sol";
 import { MockERC20 } from "../contracts/mocks/MockERC20.sol";
 
 /// @title B2BSplitterV14 Settlement + RBAC Tests
@@ -47,16 +49,17 @@ contract B2BSplitterV14Test is Test {
         address[] memory stablecoins = new address[](1);
         stablecoins[0] = address(usdc);
 
+        TokenList tokenList = new TokenList(admin, stablecoins);
+        Profiles profiles = new Profiles(admin, routeIds, treasuryBps, ipCreatorBps);
+
         splitter = new B2BSplitterV14(
             B2BSplitterV14.ConstructorParams({
                 initialAdmin: admin,
                 initialSigner: signer,
                 initialPauser: pauser,
                 treasury: treasury,
-                stablecoins: stablecoins,
-                routeIds: routeIds,
-                treasuryBps: treasuryBps,
-                ipCreatorBps: ipCreatorBps
+                tokenList: address(tokenList),
+                profiles: address(profiles)
             })
         );
     }

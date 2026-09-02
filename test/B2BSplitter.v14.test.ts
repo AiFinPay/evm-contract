@@ -1,6 +1,6 @@
 import { expect } from "chai";
-import { ethers, loadFixture, fixtureV14 } from "../fixtures";
-import type { V14Fixture } from "../fixtures";
+import { ethers, loadFixture, fixtureV14 } from "./fixtures";
+import type { V14Fixture } from "./fixtures";
 
 const ONE_USDC = 1_000_000n;
 const BPS_DENOMINATOR = 10_000n;
@@ -188,8 +188,8 @@ describe("B2BSplitter v1.4 — native settlement", () => {
 
   it("rejects a disabled route", async () => {
     const fixture = await loadFixture(deployV14);
-    const { splitter, owner, routeIdMerchant } = fixture;
-    await splitter.connect(owner).disableRoute(routeIdMerchant);
+    const { splitter, owner, profiles, routeIdMerchant } = fixture;
+    await profiles.connect(owner).disableRoute(routeIdMerchant);
     const gross = 10_000n;
     await expect(
       settleNative(fixture, { grossAmount: gross, routeId: routeIdMerchant }),
@@ -275,10 +275,10 @@ describe("B2BSplitter v1.4 — RBAC", () => {
 
   it("signer cannot call admin or pauser functions", async () => {
     const fixture = await loadFixture(deployV14);
-    const { splitter, signer, routeIdAgent } = fixture;
+    const { splitter, signer, profiles, routeIdAgent } = fixture;
     await expect(
-      splitter.connect(signer).configureRoute(routeIdAgent, 0, 0, ethers.ZeroAddress),
-    ).to.be.revertedWithCustomError(splitter, "AccessControlUnauthorizedAccount");
+      profiles.connect(signer).configureRoute(routeIdAgent, 0, 0, ethers.ZeroAddress),
+    ).to.be.revertedWithCustomError(profiles, "AccessControlUnauthorizedAccount");
     await expect(splitter.connect(signer).pause()).to.be.revertedWithCustomError(
       splitter,
       "AccessControlUnauthorizedAccount",
@@ -329,18 +329,32 @@ describe("B2BSplitter v1.4 — RBAC", () => {
   });
 
   it("constructor enforces admin != signer", async () => {
-    const [owner] = await ethers.getSigners();
+    const [owner, signer] = await ethers.getSigners();
     const Factory = await ethers.getContractFactory("B2BSplitterV14");
+    const TokenListFactory = await ethers.getContractFactory("TokenList");
+    const ProfilesFactory = await ethers.getContractFactory("Profiles");
+
+    const tokenList = await TokenListFactory.deploy(await owner.getAddress(), []);
+    await tokenList.waitForDeployment();
+    const profiles = await ProfilesFactory.deploy(
+      await owner.getAddress(),
+      [ethers.keccak256(ethers.toUtf8Bytes("r"))],
+      [0],
+      [0],
+    );
+    await profiles.waitForDeployment();
+
+    const tokenListAddr = await tokenList.getAddress();
+    const profilesAddr = await profiles.getAddress();
+
     await expect(
       Factory.deploy({
         initialAdmin: await owner.getAddress(),
         initialSigner: await owner.getAddress(),
         initialPauser: await owner.getAddress(),
         treasury: await owner.getAddress(),
-        stablecoins: [ethers.ZeroAddress],
-        routeIds: [ethers.keccak256(ethers.toUtf8Bytes("r"))],
-        treasuryBps: [0],
-        ipCreatorBps: [0],
+        tokenList: tokenListAddr,
+        profiles: profilesAddr,
       }),
     ).to.be.revertedWithCustomError(Factory, "AdminEqualsSigner");
 
@@ -350,23 +364,19 @@ describe("B2BSplitter v1.4 — RBAC", () => {
         initialSigner: await owner.getAddress(),
         initialPauser: ethers.ZeroAddress,
         treasury: await owner.getAddress(),
-        stablecoins: [ethers.ZeroAddress],
-        routeIds: [ethers.keccak256(ethers.toUtf8Bytes("r"))],
-        treasuryBps: [0],
-        ipCreatorBps: [0],
+        tokenList: tokenListAddr,
+        profiles: profilesAddr,
       }),
     ).to.be.revertedWithCustomError(Factory, "ZeroPauser");
 
     await expect(
       Factory.deploy({
         initialAdmin: await owner.getAddress(),
-        initialSigner: await (await ethers.getSigners())[1].getAddress(),
-        initialPauser: await (await ethers.getSigners())[1].getAddress(),
+        initialSigner: await signer.getAddress(),
+        initialPauser: await signer.getAddress(),
         treasury: await owner.getAddress(),
-        stablecoins: [ethers.ZeroAddress],
-        routeIds: [ethers.keccak256(ethers.toUtf8Bytes("r"))],
-        treasuryBps: [0],
-        ipCreatorBps: [0],
+        tokenList: tokenListAddr,
+        profiles: profilesAddr,
       }),
     ).to.be.revertedWithCustomError(Factory, "PauserEqualsSigner");
   });
@@ -386,9 +396,9 @@ describe("B2BSplitter v1.4 — route management", () => {
 
   it("admin can add a new route", async () => {
     const fixture = await loadFixture(deployV14);
-    const { splitter, owner, profiles } = fixture;
+    const { owner, profiles } = fixture;
     const newRoute = ethers.keccak256(ethers.toUtf8Bytes("new-route"));
-    await splitter.connect(owner).configureRoute(newRoute, 200, 50, ethers.ZeroAddress);
+    await profiles.connect(owner).configureRoute(newRoute, 200, 50, ethers.ZeroAddress);
     const profile = await profiles.getProfile(newRoute);
     expect(profile.treasuryBps).to.equal(200);
     expect(profile.ipCreatorBps).to.equal(50);
@@ -397,12 +407,12 @@ describe("B2BSplitter v1.4 — route management", () => {
 
   it("rejects route fees above caps", async () => {
     const fixture = await loadFixture(deployV14);
-    const { splitter, profiles, owner, routeIdAgent } = fixture;
+    const { profiles, owner, routeIdAgent } = fixture;
     await expect(
-      splitter.connect(owner).configureRoute(routeIdAgent, 501, 0, ethers.ZeroAddress),
+      profiles.connect(owner).configureRoute(routeIdAgent, 501, 0, ethers.ZeroAddress),
     ).to.be.revertedWithCustomError(profiles, "TreasuryFeeTooHigh");
     await expect(
-      splitter.connect(owner).configureRoute(routeIdAgent, 0, 101, ethers.ZeroAddress),
+      profiles.connect(owner).configureRoute(routeIdAgent, 0, 101, ethers.ZeroAddress),
     ).to.be.revertedWithCustomError(profiles, "IPCreatorFeeTooHigh");
   });
 

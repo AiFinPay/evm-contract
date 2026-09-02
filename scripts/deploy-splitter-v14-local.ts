@@ -44,18 +44,36 @@ async function main() {
   const usdtAddr = await usdt.getAddress();
   console.log(`  USDT           = ${usdtAddr}`);
 
-  const { routeIds, treasuryBps, ipCreatorBps } = await routeDeploymentConfigV14();
-  const { agent, merchant } = await routeIdsV14();
+  const { routeIds, treasuryBps, ipCreatorBps } = routeDeploymentConfigV14();
+  const { agent, merchant } = routeIdsV14();
+
+  console.log("\nDeploying v1.4 satellite contracts...");
+  console.log(`  Satellite admin = ${deployerAddress}`);
+
+  const TokenListFactory = await ethers.getContractFactory("TokenList");
+  const tokenList = await TokenListFactory.deploy(deployerAddress, [usdcAddr, usdtAddr]);
+  await tokenList.waitForDeployment();
+  const tokenListAddr = await tokenList.getAddress();
+  console.log(`  TokenList      = ${tokenListAddr}`);
+
+  const ProfilesFactory = await ethers.getContractFactory("Profiles");
+  const profiles = await ProfilesFactory.deploy(
+    deployerAddress,
+    routeIds,
+    treasuryBps,
+    ipCreatorBps,
+  );
+  await profiles.waitForDeployment();
+  const profilesAddr = await profiles.getAddress();
+  console.log(`  Profiles       = ${profilesAddr}`);
 
   console.log("\nConstructor args:");
   console.log(`  initialAdmin   = ${deployerAddress}`);
   console.log(`  initialSigner  = ${signerAddress}`);
   console.log(`  initialPauser  = ${deployerAddress}`);
   console.log(`  treasury       = ${deployerAddress}`);
-  console.log(`  stablecoins    = [${usdcAddr}, ${usdtAddr}]`);
-  console.log(`  routeIds       = agent, merchant`);
-  console.log(`  treasuryBps    = [${treasuryBps.join(", ")}]`);
-  console.log(`  ipCreatorBps   = [${ipCreatorBps.join(", ")}]`);
+  console.log(`  tokenList      = ${tokenListAddr}`);
+  console.log(`  profiles       = ${profilesAddr}`);
 
   const factory = await ethers.getContractFactory("B2BSplitterV14");
   const splitter = await factory.deploy({
@@ -63,10 +81,8 @@ async function main() {
     initialSigner: signerAddress,
     initialPauser: deployerAddress,
     treasury: deployerAddress,
-    stablecoins: [usdcAddr, usdtAddr],
-    routeIds,
-    treasuryBps,
-    ipCreatorBps,
+    tokenList: tokenListAddr,
+    profiles: profilesAddr,
   });
 
   console.log(`\nDeploy tx: ${splitter.deploymentTransaction()?.hash}`);
@@ -75,9 +91,7 @@ async function main() {
 
   const runtimeCodeHash = await computeRuntimeCodeHash(ethers, addr);
 
-  const tokenListAddr = await splitter.tokenList();
-  const profilesAddr = await splitter.profiles();
-  const profiles = await ethers.getContractAt("Profiles", profilesAddr);
+  // Satellites are administered directly by the deployer; splitter no longer proxies writes.
 
   const record: Omit<DeploymentRecord, "network" | "chainId" | "timestamp"> &
     Record<string, unknown> = {

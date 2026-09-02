@@ -36,19 +36,37 @@ export async function fixtureV14(): Promise<V14Fixture> {
   const usdt = await MockERC20Factory.deploy("Test USDT", "USDT", 6n);
 
   const B2BSplitterV14Factory = await ethers.getContractFactory("B2BSplitterV14");
+  const TokenListFactory = await ethers.getContractFactory("TokenList");
+  const ProfilesFactory = await ethers.getContractFactory("Profiles");
+
   const routeIdAgent = ethers.keccak256(ethers.toUtf8Bytes(ROUTE_AGENT));
   const routeIdMerchant = ethers.keccak256(ethers.toUtf8Bytes(ROUTE_MERCHANT));
+
+  const tokenList = await TokenListFactory.deploy(await owner.getAddress(), [
+    await usdc.getAddress(),
+    await usdt.getAddress(),
+  ]);
+  await tokenList.waitForDeployment();
+
+  const profiles = await ProfilesFactory.deploy(
+    await owner.getAddress(),
+    [routeIdAgent, routeIdMerchant],
+    [0, 100],
+    [0, 0],
+  );
+  await profiles.waitForDeployment();
 
   const splitter = await B2BSplitterV14Factory.deploy({
     initialAdmin: await owner.getAddress(),
     initialSigner: await signer.getAddress(),
     initialPauser: await owner.getAddress(),
     treasury: await treasury.getAddress(),
-    stablecoins: [await usdc.getAddress(), await usdt.getAddress()],
-    routeIds: [routeIdAgent, routeIdMerchant],
-    treasuryBps: [0, 100],
-    ipCreatorBps: [0, 0],
+    tokenList: await tokenList.getAddress(),
+    profiles: await profiles.getAddress(),
   });
+
+  // Satellites are administered directly by `owner` (test stand-in for governance).
+  // The splitter no longer proxies TokenList/Profiles writes.
 
   return {
     owner,
@@ -59,8 +77,8 @@ export async function fixtureV14(): Promise<V14Fixture> {
     ipCreator,
     attacker,
     splitter,
-    tokenList: await ethers.getContractAt("TokenList", await splitter.tokenList()),
-    profiles: await ethers.getContractAt("Profiles", await splitter.profiles()),
+    tokenList,
+    profiles,
     usdc,
     usdt,
     routeIdAgent,

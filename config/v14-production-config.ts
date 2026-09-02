@@ -2,7 +2,7 @@
 // EVM networks. Stablecoin defaults are conservative: a non-zero default is
 // present only where the issuer's current documentation was verified during
 // the v1.4 production-RC review. Overrides require ALLOW_STABLE_OVERRIDE=true.
-import { ZeroAddress } from "ethers";
+import { ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 
 export interface V14ProductionNetwork {
   name: string;
@@ -11,7 +11,7 @@ export interface V14ProductionNetwork {
   usdt: string;
   usdcSource: string | null;
   usdtSource: string | null;
-};
+}
 
 const CIRCLE_USDC_SOURCE = "Circle USDC contract-address registry, verified 2026-08-27";
 const TETHER_USDT_SOURCE = "Tether supported-protocols registry, verified 2026-08-27";
@@ -139,11 +139,10 @@ export function pauserEnv(chainId: number, defaultAdmin: string): string {
 }
 
 /** Canonical route identifiers shared by contract, SDK, and backend. */
-export async function routeIdsV14(): Promise<{ agent: string; merchant: string }> {
-  const { ethers } = await import("ethers");
+export function routeIdsV14(): { agent: string; merchant: string } {
   return {
-    agent: ethers.keccak256(ethers.toUtf8Bytes("agent-x402")),
-    merchant: ethers.keccak256(ethers.toUtf8Bytes("merchant-aifp1")),
+    agent: keccak256(toUtf8Bytes("agent-x402")),
+    merchant: keccak256(toUtf8Bytes("merchant-aifp1")),
   };
 }
 
@@ -157,8 +156,8 @@ export interface V14RouteDeploymentConfig {
  *  Agent route is fee-free; merchant route carries the platform treasury fee.
  *  IP creator fees are currently unused.
  */
-export async function routeDeploymentConfigV14(): Promise<V14RouteDeploymentConfig> {
-  const { agent, merchant } = await routeIdsV14();
+export function routeDeploymentConfigV14(): V14RouteDeploymentConfig {
+  const { agent, merchant } = routeIdsV14();
   return {
     routeIds: [agent, merchant],
     treasuryBps: [0, 100],

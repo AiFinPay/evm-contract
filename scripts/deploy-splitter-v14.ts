@@ -1,4 +1,6 @@
 import { network } from "hardhat";
+import { ZeroAddress } from "ethers";
+import { config as dotenvConfig } from "dotenv";
 import { DeploymentRecord } from "./lib/types.js";
 import {
   computeRuntimeCodeHash,
@@ -16,82 +18,98 @@ import {
 
 const { ethers, networkName } = await network.create();
 
+const envFile = networkName === "amoy" ? ".env.testnet" : ".env.production";
+dotenvConfig({ path: envFile });
+console.log(`Loaded env file: ${envFile}`);
+
 /**
- * Deploys B2BSplitter v1.4 (signed, multi-route, RBAC) with satellite
- * TokenList and Profiles contracts.
- *
- * Governance is pure AccessControl. The deployer EOA receives ADMIN_ROLE at
- * construction, then is expected to grant ADMIN_ROLE to the TimelockController
- * (deployed via deploy-timelock.ts) and revoke its own role.
- *
- * Required env:
- *   AIFINPAY_SAFE_<chainId>      — Gnosis Safe / TimelockController admin
- *   AIFINPAY_TREASURY_<chainId>  — treasury (defaults to admin)
- *   AIFINPAY_V14_SIGNER          — backend KMS public key for SIGN_OPERATOR_ROLE
- *   AIFINPAY_PAUSER_<chainId>    — optional; defaults to the governance admin (Safe)
+ * Deploys B2BSplitter v1.4 to production networks using explicit governance env.
+ * This script is the strict counterpart to deploy-splitter-v14.ts: it never
+ * falls back to the deployer EOA and aborts if any required env is missing.
  */
-const ZERO = ethers.ZeroAddress;
 
 async function main() {
-  const { chainId } = await getDeployerInfo(ethers, networkName);
+  console.log("Step 1/9: Loading deployer and network info...");
+  const { chainId, address: deployerAddress } = await getDeployerInfo(ethers, networkName);
   const networkCfg = V14_PRODUCTION_NETWORKS[chainId];
-  if (!networkCfg) throw new Error(`No v1.4 production config for chainId ${chainId}.`);
+  if (!networkCfg) throw new Error(`No v1.4 config for chainId ${chainId}.`);
 
+  console.log(`Network: ${networkName} (chainId ${chainId})`);
+  console.log(`Deployer: ${deployerAddress}`);
+
+  console.log("\nStep 2/9: Resolving governance addresses from env...");
   const gov = governanceEnv(chainId);
   const signer = initialSignerEnv();
   const pauser = pauserEnv(chainId, gov.admin);
+  console.log(`  Admin   = ${gov.admin}`);
+  console.log(`  Signer  = ${signer}`);
+  console.log(`  Pauser  = ${pauser}`);
+  console.log(`  Treasury = ${gov.treasury}`);
 
-  const usdc = configuredStableAddress(chainId, "USDC");
-  const usdt = configuredStableAddress(chainId, "USDT");
-
-  // Ensure governance and signer are non-zero.
-  if (gov.admin === ZERO) throw new Error("Admin cannot be address(0).");
-  if (signer === ZERO) throw new Error("Signer cannot be address(0).");
-  if (pauser === ZERO) throw new Error("Pauser cannot be address(0).");
+  console.log("\nStep 3/9: Validating governance addresses...");
+  if (gov.admin === ZeroAddress) throw new Error("Admin cannot be address(0).");
+  if (signer === ZeroAddress) throw new Error("Signer cannot be address(0).");
+  if (pauser === ZeroAddress) throw new Error("Pauser cannot be address(0).");
   if (gov.admin.toLowerCase() === signer.toLowerCase()) {
-    throw new Error("ADMIN and SIGNER must be different addresses (separation of duties).");
+    throw new Error("ADMIN and SIGNER must be different addresses.");
   }
   if (pauser.toLowerCase() === signer.toLowerCase()) {
-    throw new Error("PAUSER and SIGNER must be different addresses (separation of duties).");
+    throw new Error("PAUSER and SIGNER must be different addresses.");
   }
+  console.log("  Governance addresses are valid.");
 
-  const { routeIds, treasuryBps, ipCreatorBps } = await routeDeploymentConfigV14();
-  const stablecoins = [usdc, usdt].filter((t) => t !== ZERO);
-  if (stablecoins.length === 0) {
-    console.log("Warning: no stablecoins configured for this chain; native-only settlement.");
-  }
+  console.log("\nStep 4/9: Resolving route and stablecoin configuration...");
+  const { routeIds, treasuryBps, ipCreatorBps } = routeDeploymentConfigV14();
+  const usdc = configuredStableAddress(chainId, "USDC");
+  const usdt = configuredStableAddress(chainId, "USDT");
+  const stablecoins = [usdc, usdt].filter((t) => t !== ZeroAddress);
+  console.log(`  USDC       = ${usdc}`);
+  console.log(`  USDT       = ${usdt}`);
+  console.log(`  Stablecoins used = [${stablecoins.join(", ")}]`);
+  console.log(`  Routes     = [${routeIds.join(", ")}]`);
+  console.log(`  Treasury bps = [${treasuryBps.join(", ")}]`);
+  console.log(`  IP creator bps = [${ipCreatorBps.join(", ")}]`);
 
-  console.log(`\n${networkCfg.name}`);
-  console.log(`Constructor args:`);
-  console.log(`  initialAdmin = ${gov.admin}`);
-  console.log(`  initialSigner = ${signer}`);
-  console.log(`  initialPauser = ${pauser}`);
-  console.log(`  treasury = ${gov.treasury}`);
-  console.log(`  stablecoins = ${stablecoins.join(", ") || "(none)"}`);
-  console.log(`  routeIds = agent, merchant`);
-  console.log(`  treasuryBps = ${treasuryBps.join(", ")}`);
-  console.log(`  ipCreatorBps = ${ipCreatorBps.join(", ")}`);
+  console.log("\nStep 5/9: Deploying v1.4 satellite contracts...");
+  console.log(`  Satellite admin will be set to governance address: ${gov.admin}`);
 
+  const TokenListFactory = await ethers.getContractFactory("TokenList");
+  const tokenList = await TokenListFactory.deploy(gov.admin, stablecoins);
+  await tokenList.waitForDeployment();
+  const tokenListAddr = await tokenList.getAddress();
+  console.log(`  TokenList  = ${tokenListAddr}`);
+
+  const ProfilesFactory = await ethers.getContractFactory("Profiles");
+  const profiles = await ProfilesFactory.deploy(gov.admin, routeIds, treasuryBps, ipCreatorBps);
+  await profiles.waitForDeployment();
+  const profilesAddr = await profiles.getAddress();
+  console.log(`  Profiles   = ${profilesAddr}`);
+
+  console.log("\nStep 6/9: Deploying B2BSplitterV14...");
   const Factory = await ethers.getContractFactory("B2BSplitterV14");
   const splitter = await Factory.deploy({
     initialAdmin: gov.admin,
     initialSigner: signer,
     initialPauser: pauser,
     treasury: gov.treasury,
-    stablecoins,
-    routeIds,
-    treasuryBps,
-    ipCreatorBps,
+    tokenList: tokenListAddr,
+    profiles: profilesAddr,
   });
 
-  console.log(`\nDeploy tx: ${splitter.deploymentTransaction()?.hash}`);
+  console.log(`  Deploy tx  = ${splitter.deploymentTransaction()?.hash}`);
   await splitter.waitForDeployment();
   const addr = await splitter.getAddress();
+  console.log(`  Splitter   = ${addr}`);
+
+  console.log("\nStep 7/9: Computing runtime code hash...");
   const runtimeCodeHash = await computeRuntimeCodeHash(ethers, addr);
+  console.log(`  Runtime code hash = ${runtimeCodeHash}`);
 
-  const tokenListAddr = await splitter.tokenList();
-  const profilesAddr = await splitter.profiles();
+  console.log(
+    "\nStep 8/9: Satellites are administered directly by governance; no admin transfer to splitter needed.",
+  );
 
+  console.log("\nStep 9/9: Writing deployment record...");
   const record: Omit<DeploymentRecord, "network" | "chainId" | "timestamp"> &
     Record<string, unknown> = {
     network: networkName,
@@ -109,34 +127,20 @@ async function main() {
       usdt,
     },
     runtimeCodeHash,
-    registryEntryStaged: {
-      chainId,
-      version: "1.4",
-      splitter: addr,
-      tokenList: tokenListAddr,
-      profiles: profilesAddr,
-      runtimeCodeHash,
-      treasury: gov.treasury,
-      routes: {
-        agent: { treasuryBps: 0, ipCreatorBps: 0, enabled: true },
-        merchant: { treasuryBps: 100, ipCreatorBps: 0, enabled: true },
-      },
-      enabled: false,
-    },
   };
 
-  writeDeploymentRecord(networkName, chainId, record, "v14-latest");
+  const { latest } = writeDeploymentRecord(
+    networkName,
+    chainId,
+    record,
+    `v14-${networkName}-latest`,
+  );
+  console.log(`  Deployment record written to ${latest}`);
 
-  console.log(`\n✅ B2BSplitterV14 deployed: ${addr}`);
+  console.log(`\n✅ B2BSplitterV14 ${networkName} deployed: ${addr}`);
   console.log(`   tokenList  = ${tokenListAddr}`);
   console.log(`   profiles   = ${profilesAddr}`);
   console.log(`   runtimeCodeHash = ${runtimeCodeHash}`);
-  console.log(`   treasury   = ${await splitter.treasury()}`);
-
-  console.log(`\nPost-deploy governance transfer (run after TimelockController deploy):`);
-  console.log(`   splitter.grantRole(ADMIN_ROLE, timelockController)`);
-  console.log(`   splitter.renounceRole(ADMIN_ROLE, deployer)`);
-  console.log(`   (PAUSER_ROLE is held by ${pauser} and can pause instantly if needed)`);
 }
 
 main().catch((e) => {
