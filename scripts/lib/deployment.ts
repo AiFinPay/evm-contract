@@ -8,6 +8,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Wallet } from "ethers";
 import type { NetworkConnection } from "hardhat/dist/src/types/network";
 import type { DeploymentRecord } from "./types.js";
 
@@ -22,6 +23,24 @@ export interface DeployerInfo {
 }
 
 /**
+ * Derive the deployer address from configured accounts. Falls back to deriving
+ * from env private keys when no signer is connected (common for ledger/keystore
+ * or when the env was loaded after the network was constructed).
+ */
+function resolveDeployerAddress(): string {
+  const prodKey = process.env.PROD_DEPLOYER_KEY?.trim();
+  const devKey = process.env.DEV_DEPLOYER_KEY?.trim();
+  const networkKey = Object.keys(process.env).find((k) => k.endsWith("_DEPLOYER_KEY"));
+  const rawKey = prodKey || devKey || (networkKey ? process.env[networkKey]?.trim() : undefined);
+  if (!rawKey) {
+    throw new Error(
+      "No deployer key found. Set PROD_DEPLOYER_KEY, DEV_DEPLOYER_KEY, or <NETWORK>_DEPLOYER_KEY.",
+    );
+  }
+  return new Wallet(rawKey).address;
+}
+
+/**
  * Return the first signer, native balance, and numeric chainId, plus log the
  * standard deployer header every deployment script prints.
  */
@@ -29,15 +48,16 @@ export async function getDeployerInfo(
   ethers: NetworkContext["ethers"],
   networkName: string,
 ): Promise<DeployerInfo> {
-  const [deployer] = await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  const address = signers.length ? await signers[0].getAddress() : resolveDeployerAddress();
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
-  const balance = await ethers.provider.getBalance(deployer.address);
+  const balance = await ethers.provider.getBalance(address);
 
   console.log(`Network:  ${networkName} (chainId ${chainId})`);
-  console.log(`Deployer: ${deployer.address}`);
+  console.log(`Deployer: ${address}`);
   console.log(`Balance:  ${ethers.formatEther(balance)} native`);
 
-  return { address: deployer.address, balance, chainId };
+  return { address, balance, chainId };
 }
 
 /**

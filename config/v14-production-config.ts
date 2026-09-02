@@ -17,6 +17,14 @@ const CIRCLE_USDC_SOURCE = "Circle USDC contract-address registry, verified 2026
 const TETHER_USDT_SOURCE = "Tether supported-protocols registry, verified 2026-08-27";
 
 export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
+  80002: {
+    name: "Amoy (testnet)",
+    chainId: 80002,
+    usdc: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+    usdt: ZeroAddress, // USDC.e
+    usdcSource: CIRCLE_USDC_SOURCE,
+    usdtSource: null,
+  },
   137: {
     name: "Polygon PoS",
     chainId: 137,
@@ -95,15 +103,7 @@ export function configuredStableAddress(chainId: number, symbol: "USDC" | "USDT"
   const network = V14_PRODUCTION_NETWORKS[chainId];
   if (!network) throw new Error(`Unsupported AiFinPay v1.4 chainId ${chainId}`);
   const canonical = symbol === "USDC" ? network.usdc : network.usdt;
-  const override = process.env[`STABLE_${symbol}_${chainId}`]?.trim();
-  if (!override) return canonical;
-  if (process.env.ALLOW_STABLE_OVERRIDE !== "true") {
-    throw new Error(
-      `${symbol} override supplied for chain ${chainId} but ALLOW_STABLE_OVERRIDE is not true. ` +
-        `An override must be independently verified and explicitly approved.`,
-    );
-  }
-  return override;
+  return canonical;
 }
 
 export function governanceEnv(chainId: number): { admin: string; treasury: string } {

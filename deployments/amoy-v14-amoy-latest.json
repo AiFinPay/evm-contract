@@ -1,0 +1,18 @@
+{
+  "network": "amoy",
+  "chainId": 80002,
+  "timestamp": "2026-09-02T00:42:08.319Z",
+  "splitterVersion": "1.4",
+  "splitter": {
+    "address": "0xBdC126193FADf38A86Cd509e56018a95d5B6eeFA",
+    "admin": "0x00009352dc8a1041A724c01632dc549935e05B98",
+    "signer": "0x0000e81aEf36D89373FBF0012550B10B63dAa873",
+    "pauser": "0x00008a55086A450Dc8D7789312D21ACEa142F45e",
+    "treasury": "0x0000DA1886e173C09A4e04723d8226D84d9c5122",
+    "tokenList": "0xe67E48966a67AaaaDE5A97F6196E66cd5B16Ac3F",
+    "profiles": "0x632082e6b99E567005FA4e87774AC199Df9a81a6",
+    "usdc": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+    "usdt": "0x0000000000000000000000000000000000000000"
+  },
+  "runtimeCodeHash": "0xd4990487312c00916aa218bdcd697bbf1a2729335b6a4fda903517b9d3153a27"
+}

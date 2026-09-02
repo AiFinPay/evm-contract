@@ -1,6 +1,25 @@
-import { network } from "hardhat";
-import { ZeroAddress } from "ethers";
+/**
+ * Deploys B2BSplitter v1.4 to production networks using explicit governance env.
+ * This script never falls back to the deployer EOA and aborts if any required
+ * env is missing.
+ *
+ * Env files:
+ *   - amoy network: .env.testnet
+ *   - all other networks: .env.production
+ */
 import { config as dotenvConfig } from "dotenv";
+import { ZeroAddress } from "ethers";
+
+// Load the correct env file BEFORE importing hardhat, so the network config
+// (accounts, RPC, etc.) picks up the values.
+dotenvConfig({ path: ".env" });
+const networkArgIndex = process.argv.indexOf("--network");
+const selectedNetwork = networkArgIndex >= 0 ? process.argv[networkArgIndex + 1] : "polygon";
+const envFile = selectedNetwork === "amoy" ? ".env.testnet" : ".env.production";
+dotenvConfig({ path: envFile, override: true });
+console.log(`Loaded env file: ${envFile}`);
+
+const { network } = await import("hardhat");
 import { DeploymentRecord } from "./lib/types.js";
 import {
   computeRuntimeCodeHash,
@@ -17,16 +36,6 @@ import {
 } from "../config/v14-production-config.js";
 
 const { ethers, networkName } = await network.create();
-
-const envFile = networkName === "amoy" ? ".env.testnet" : ".env.production";
-dotenvConfig({ path: envFile });
-console.log(`Loaded env file: ${envFile}`);
-
-/**
- * Deploys B2BSplitter v1.4 to production networks using explicit governance env.
- * This script is the strict counterpart to deploy-splitter-v14.ts: it never
- * falls back to the deployer EOA and aborts if any required env is missing.
- */
 
 async function main() {
   console.log("Step 1/9: Loading deployer and network info...");
