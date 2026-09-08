@@ -17,11 +17,7 @@ function findDeploymentRecords(network: string): DeploymentRecord[] {
   }
 
   const records: DeploymentRecord[] = [];
-  const candidates = [
-    `${network}-latest.json`,
-    `${network}-v14-latest.json`,
-    `${network}-v14-production-latest.json`,
-  ];
+  const candidates = [`${network}-v14-latest.json`, `${network}-v14-production-latest.json`];
   for (const file of candidates) {
     const p = path.join(deploymentsDir, file);
     if (fs.existsSync(p)) {
@@ -35,12 +31,10 @@ function readDeployment(network: string): DeploymentRecord {
   const records = findDeploymentRecords(network);
   if (records.length === 0) {
     throw new Error(
-      `No deployment record found for network "${network}". Run deploy or create the file first.`,
+      `No v1.4 deployment record found for network "${network}". Run deploy or create the file first.`,
     );
   }
-  // Prefer the newest v1.4 record if available, otherwise fall back to latest.
-  const v14 = records.find((r) => r.splitterVersion === "1.4" || r.splitterV14);
-  return v14 ?? records[0];
+  return records[0];
 }
 
 async function verifyOne(args: VerifyContractArgs, label: string): Promise<void> {
@@ -58,31 +52,12 @@ async function verifyOne(args: VerifyContractArgs, label: string): Promise<void>
   }
 }
 
-async function verifySplitterV13(record: DeploymentRecord): Promise<void> {
-  const splitter = record.splitter;
-  if (!splitter) {
-    console.log("No v1.3 splitter deployment found; skipping.");
-    return;
-  }
-
-  const { address, owner, treasury, usdc, usdt } = splitter;
-  await verifyOne(
-    {
-      address,
-      constructorArgs: [owner, treasury, [usdc, usdt], 0, 0],
-      contract: "contracts/B2BSplitterV13.sol:B2BSplitterV13",
-    },
-    "B2BSplitterV13",
-  );
-}
-
 async function verifySplitterV14(record: DeploymentRecord): Promise<void> {
-  const v14 =
-    record.splitterV14 ?? (record.splitterVersion === "1.4" ? (record.splitter as any) : undefined);
-  if (!v14) {
+  if (!record.splitterV14) {
     console.log("No v1.4 splitter deployment found; skipping.");
     return;
   }
+  const v14 = record.splitterV14;
 
   const { address, admin, signer, pauser, treasury, usdc, usdt } = v14;
 
@@ -125,7 +100,6 @@ async function main() {
     );
   }
 
-  await verifySplitterV13(record);
   await verifySplitterV14(record);
 
   console.log("\n=== VERIFICATION COMPLETE ===");
