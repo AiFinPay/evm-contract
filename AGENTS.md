@@ -134,6 +134,7 @@ See `docs/TIMELOCK_SETUP.md` for the complete workflow. For v1.4 the TimelockCon
 - `foundry.toml`: separate Foundry build profile (`contracts/`, `foundry-tests/`, `foundry-artifacts/`).
 - `registry/registry.json`: canonical SDK payment targets and governance Safe.
 - `README.md`: canonical deployed addresses for Polygon mainnet.
+- **Do not store configuration values in documentation files** — keep them only in canonical configuration files (e.g., `.env`, `.env.local`, `hardhat.config.ts`, `foundry.toml`, `registry/registry.json`, `config/v14-production-config.ts`, `deployments/<network>-v14-latest.json`). `README.md` may contain human-facing deployed addresses and orientation, not live config. Historical docs that pre-date this rule may still contain stale addresses; treat them as orientation and verify against the canonical files.
 
 ## Security & Governance
 
