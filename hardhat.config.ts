@@ -8,19 +8,20 @@ dotenv.config();
 
 const LEDGER_ACCOUNT = process.env.LEDGER_ACCOUNT ? [process.env.LEDGER_ACCOUNT] : [];
 const DEV_KEY = process.env.DEV_DEPLOYER_KEY ? [process.env.DEV_DEPLOYER_KEY] : [];
-const PROD_KEY = process.env.PROD_DEPLOYER_KEY ? [process.env.PROD_DEPLOYER_KEY] : [];
 
 /**
  * Returns accounts/ledgerAccounts for production networks.
- * Priority:
- * 1. LEDGER_ACCOUNT env (Ledger hardware wallet).
- * 2. PROD_DEPLOYER_KEY (global private key for all mainnets).
- * 3. Network-specific *_DEPLOYER_KEY config variable as last resort.
+ *
+ * Priority matches .env.example:
+ *   1. Ledger hardware wallet (set LEDGER_ACCOUNT).
+ *   2. Hardhat Keystore variables (bunx hardhat keystore set <KEY>).
+ *   3. Environment variables (PROD_DEPLOYER_KEY or <NETWORK>_DEPLOYER_KEY).
  */
 function prodAccounts(networkKey: string): { accounts: string[]; ledgerAccounts?: string[] } {
   if (LEDGER_ACCOUNT.length) return { accounts: [], ledgerAccounts: LEDGER_ACCOUNT };
-  if (PROD_KEY.length) return { accounts: PROD_KEY };
-  return { accounts: [configVariable(`${networkKey}_DEPLOYER_KEY`)] as unknown as string[] };
+  return {
+    accounts: [configVariable(`${networkKey}_DEPLOYER_KEY`)] as unknown as string[],
+  };
 }
 
 export default defineConfig({
@@ -31,9 +32,9 @@ export default defineConfig({
       default: {
         version: "0.8.35",
         settings: {
-          optimizer: { enabled: true, runs: 10000 },
+          optimizer: { enabled: true, runs: 200 },
           viaIR: true,
-          evmVersion: "cancun",
+          evmVersion: "osaka",
         },
       },
       production: {
@@ -41,7 +42,7 @@ export default defineConfig({
         settings: {
           optimizer: { enabled: true, runs: 10000 },
           viaIR: true,
-          evmVersion: "cancun",
+          evmVersion: "osaka",
         },
       },
     },
