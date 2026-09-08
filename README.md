@@ -13,7 +13,7 @@ This repository maintains **B2BSplitterV14** (EIP-712 signed quotes, multi-route
 |----------|---------|
 | B2BSplitterV14 | *(pending production deploy)* |
 | TimelockController | *(pending production deploy)* |
-| Gnosis Safe | `0xFd936f75D9221949f2FEaB54Cd342F7527154eD5` |
+| Gnosis Safe | *(pending production deploy)* |
 
 ---
 

@@ -138,7 +138,7 @@ See `docs/TIMELOCK_SETUP.md` for the complete workflow. For v1.4 the TimelockCon
 ## Security & Governance
 
 - **Timelock**: 48-hour delay on all privileged operations (fees, treasury, pause).
-- **Multisig**: Gnosis Safe is the timelock proposer (`0xFd936f75D9221949f2FEaB54Cd342F7527154eD5`).
+- **Multisig**: Gnosis Safe is the timelock proposer (*(pending production deploy)*).
 - **Fee caps**: hard-coded maximums (treasury 5%, IP creator 1%).
 - **v1.4 RBAC**: `ADMIN_ROLE` (timelock) and `SIGN_OPERATOR_ROLE` (KMS-backed signer) are orthogonal — neither can do the other's job.
 - See `docs/SECURITY_AUDIT.md`, `docs/ARCHITECTURE.md`, and `docs/V14_ARCHITECTURE.md` for full documentation.

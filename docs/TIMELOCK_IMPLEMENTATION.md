@@ -2,11 +2,11 @@
 
 > **STATUS, 2026-08-28 — does not describe the deployed v1.3 splitters.**
 > The eighteen production `B2BSplitterV13` deployments are owned **directly** by
-> the governance Safe `0xFd936f75D9221949f2FEaB54Cd342F7527154eD5` (3-of-5),
+> the governance Safe *(pending production deploy)* (3-of-4),
 > verified on chain by `scripts/verify-registry.mjs`. No `TimelockController`
 > holds ownership of any v1.3 splitter, so the 48-hour delay described below
 > does **not** apply to `pause`, `unpause`, `setTreasury` or
-> `setWhitelistedTokens` on those contracts today: a 3-of-5 Safe transaction
+> `setWhitelistedTokens` on those contracts today: a 3-of-4 Safe transaction
 > executes them immediately. Whether that is the accepted governance model, or
 > ownership moves to a verified timelock, is an open decision (audit of
 > 2026-08-27, "Timelock security claims do not match the deployed ownership
@@ -92,7 +92,7 @@ anything below it.
 ## Protected Functions
 
 None of these is timelock-protected today; all are callable immediately by the
-3-of-5 Safe. Once ownership is transferred, these `onlyOwner` functions would
+3-of-4 Safe. Once ownership is transferred, these `onlyOwner` functions would
 require the 48-hour delay:
 
 ### AiFinPayCore
