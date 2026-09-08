@@ -26,6 +26,7 @@ import {
   getDeployerInfo,
   writeDeploymentRecord,
 } from "./lib/deployment.js";
+import { canonicalSalt, deployViaCreate3, resolveCreate3Factory } from "./lib/create3.js";
 import {
   V14_PRODUCTION_NETWORKS,
   configuredStableAddress,
@@ -38,7 +39,7 @@ import {
 const { ethers, networkName } = await network.create();
 
 async function main() {
-  console.log("Step 1/9: Loading deployer and network info...");
+  console.log("Step 1/6: Loading deployer and network info...");
   const { chainId, address: deployerAddress } = await getDeployerInfo(ethers, networkName);
   const networkCfg = V14_PRODUCTION_NETWORKS[chainId];
   if (!networkCfg) throw new Error(`No v1.4 config for chainId ${chainId}.`);
@@ -46,7 +47,7 @@ async function main() {
   console.log(`Network: ${networkName} (chainId ${chainId})`);
   console.log(`Deployer: ${deployerAddress}`);
 
-  console.log("\nStep 2/9: Resolving governance addresses from env...");
+  console.log("\nStep 2/6: Resolving governance addresses from env...");
   const gov = governanceEnv(chainId);
   const signer = initialSignerEnv();
   const pauser = pauserEnv(chainId, gov.admin);
@@ -55,7 +56,7 @@ async function main() {
   console.log(`  Pauser  = ${pauser}`);
   console.log(`  Treasury = ${gov.treasury}`);
 
-  console.log("\nStep 3/9: Validating governance addresses...");
+  console.log("\nStep 3/6: Validating governance addresses...");
   if (gov.admin === ZeroAddress) throw new Error("Admin cannot be address(0).");
   if (signer === ZeroAddress) throw new Error("Signer cannot be address(0).");
   if (pauser === ZeroAddress) throw new Error("Pauser cannot be address(0).");
@@ -67,7 +68,7 @@ async function main() {
   }
   console.log("  Governance addresses are valid.");
 
-  console.log("\nStep 4/9: Resolving route and stablecoin configuration...");
+  console.log("\nStep 4/6: Resolving route and stablecoin configuration...");
   const { routeIds, treasuryBps, ipCreatorBps } = routeDeploymentConfigV14();
   const usdc = configuredStableAddress(chainId, "USDC");
   const usdt = configuredStableAddress(chainId, "USDT");
@@ -79,46 +80,70 @@ async function main() {
   console.log(`  Treasury bps = [${treasuryBps.join(", ")}]`);
   console.log(`  IP creator bps = [${ipCreatorBps.join(", ")}]`);
 
-  console.log("\nStep 5/9: Deploying v1.4 satellite contracts...");
+  console.log("\nStep 5/6: Resolving CREATE3 factory...");
+  const create3Factory = await resolveCreate3Factory(ethers, networkName);
+  console.log(`  CREATE3Factory = ${create3Factory}`);
+
+  console.log("\nStep 6/6: Deploying v1.4 contracts via CREATE3...");
   console.log(`  Satellite admin will be set to governance address: ${gov.admin}`);
+  console.log("  Deterministic addresses are derived from the deployer + salt; constructor");
+  console.log("  arguments do not affect the deployed address.");
 
-  const TokenListFactory = await ethers.getContractFactory("TokenList");
-  const tokenList = await TokenListFactory.deploy(gov.admin, stablecoins);
-  await tokenList.waitForDeployment();
-  const tokenListAddr = await tokenList.getAddress();
-  console.log(`  TokenList  = ${tokenListAddr}`);
+  const deployerAddress = await (await ethers.getSigners())[0].getAddress();
 
-  const ProfilesFactory = await ethers.getContractFactory("Profiles");
-  const profiles = await ProfilesFactory.deploy(gov.admin, routeIds, treasuryBps, ipCreatorBps);
-  await profiles.waitForDeployment();
-  const profilesAddr = await profiles.getAddress();
-  console.log(`  Profiles   = ${profilesAddr}`);
+  const { address: tokenListAddr, predicted: predictedTokenList } = await deployViaCreate3(
+    ethers,
+    create3Factory,
+    "TokenList",
+    canonicalSalt(deployerAddress, "TokenList", "1.0"),
+    [gov.admin, stablecoins],
+  );
+  console.log(`  TokenList  = ${tokenListAddr} (predicted ${predictedTokenList})`);
 
-  console.log("\nStep 6/9: Deploying B2BSplitterV14...");
-  const Factory = await ethers.getContractFactory("B2BSplitterV14");
-  const splitter = await Factory.deploy({
-    initialAdmin: gov.admin,
-    initialSigner: signer,
-    initialPauser: pauser,
-    treasury: gov.treasury,
-    tokenList: tokenListAddr,
-    profiles: profilesAddr,
-  });
+  const { address: profilesAddr, predicted: predictedProfiles } = await deployViaCreate3(
+    ethers,
+    create3Factory,
+    "Profiles",
+    canonicalSalt(deployerAddress, "Profiles", "1.0"),
+    [gov.admin, routeIds, treasuryBps, ipCreatorBps],
+  );
+  console.log(`  Profiles   = ${profilesAddr} (predicted ${predictedProfiles})`);
 
+  console.log("\n  Deploying B2BSplitterV14...");
+  const splitterArgs = [
+    {
+      initialAdmin: gov.admin,
+      initialSigner: signer,
+      initialPauser: pauser,
+      treasury: gov.treasury,
+      tokenList: tokenListAddr,
+      profiles: profilesAddr,
+    },
+  ];
+  const {
+    address: addr,
+    contract: splitter,
+    predicted: predictedSplitter,
+  } = await deployViaCreate3(
+    ethers,
+    create3Factory,
+    "B2BSplitterV14",
+    canonicalSalt(deployerAddress, "B2BSplitterV14", "1.4"),
+    splitterArgs,
+  );
+
+  console.log(`  Splitter   = ${addr} (predicted ${predictedSplitter})`);
   console.log(`  Deploy tx  = ${splitter.deploymentTransaction()?.hash}`);
-  await splitter.waitForDeployment();
-  const addr = await splitter.getAddress();
-  console.log(`  Splitter   = ${addr}`);
 
-  console.log("\nStep 7/9: Computing runtime code hash...");
+  console.log("\n  Computing runtime code hash...");
   const runtimeCodeHash = await computeRuntimeCodeHash(ethers, addr);
   console.log(`  Runtime code hash = ${runtimeCodeHash}`);
 
   console.log(
-    "\nStep 8/9: Satellites are administered directly by governance; no admin transfer to splitter needed.",
+    "\n  Satellites are administered directly by governance; no admin transfer to splitter needed.",
   );
 
-  console.log("\nStep 9/9: Writing deployment record...");
+  console.log("\n  Writing deployment record...");
   const record: Omit<DeploymentRecord, "network" | "chainId" | "timestamp"> &
     Record<string, unknown> = {
     network: networkName,

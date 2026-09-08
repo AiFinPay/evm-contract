@@ -12,6 +12,7 @@ import { MockERC20 } from "../contracts/mocks/MockERC20.sol";
 ///         protection, and role-based access control.
 contract B2BSplitterV14Test is Test {
     B2BSplitterV14 public splitter;
+    Profiles public profiles;
     MockERC20 public usdc;
 
     uint256 public constant SIGNER_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
@@ -50,7 +51,7 @@ contract B2BSplitterV14Test is Test {
         stablecoins[0] = address(usdc);
 
         TokenList tokenList = new TokenList(admin, stablecoins);
-        Profiles profiles = new Profiles(admin, routeIds, treasuryBps, ipCreatorBps);
+        profiles = new Profiles(admin, routeIds, treasuryBps, ipCreatorBps);
 
         splitter = new B2BSplitterV14(
             B2BSplitterV14.ConstructorParams({
@@ -216,7 +217,7 @@ contract B2BSplitterV14Test is Test {
 
     function test_RejectsDisabledRoute() public {
         vm.prank(admin);
-        splitter.disableRoute(routeIdMerchant);
+        profiles.disableRoute(routeIdMerchant);
 
         B2BSplitterV14.Quote memory quote = _quote(payer, merchant, address(0), 1 ether, 0, routeIdMerchant);
         bytes memory sig = _signQuote(quote);
@@ -241,7 +242,7 @@ contract B2BSplitterV14Test is Test {
 
     function test_QuoteTotal_RevertsForDisabledRoute() public {
         vm.prank(admin);
-        splitter.disableRoute(routeIdMerchant);
+        profiles.disableRoute(routeIdMerchant);
 
         vm.expectRevert();
         splitter.quoteTotal(10_000, routeIdMerchant, address(0));
@@ -273,7 +274,7 @@ contract B2BSplitterV14Test is Test {
     function test_SignerCannotConfigureRoute() public {
         vm.prank(signer);
         vm.expectRevert();
-        splitter.configureRoute(routeIdAgent, 0, 0, address(0));
+        profiles.configureRoute(routeIdAgent, 0, 0, address(0));
     }
 
     function test_RoleSeparation_PreventsConflictingGrants() public {

@@ -5,6 +5,12 @@ import {
   getDeployerInfo,
   writeDeploymentRecord,
 } from "./lib/deployment.js";
+import {
+  canonicalSalt,
+  deployDirect,
+  deployViaCreate3,
+  resolveCreate3Factory,
+} from "./lib/create3.js";
 import { routeDeploymentConfigV14, routeIdsV14 } from "../config/v14-production-config.js";
 
 const { ethers, networkName } = await network.create();
@@ -26,11 +32,11 @@ async function main() {
 
   const { chainId } = await getDeployerInfo(ethers, networkName);
 
-  console.log("\nDeploying local stand-ins...");
-
   const [deployer, signer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
   const signerAddress = await signer.getAddress();
+
+  console.log("\nStep 1/4: Deploying local stand-ins (not via CREATE3)...");
 
   const USDC = await ethers.getContractFactory("MockERC20");
   const usdc = await USDC.deploy("Local USDC", "USDC", 6);
@@ -47,25 +53,32 @@ async function main() {
   const { routeIds, treasuryBps, ipCreatorBps } = routeDeploymentConfigV14();
   const { agent, merchant } = routeIdsV14();
 
-  console.log("\nDeploying v1.4 satellite contracts...");
+  console.log("\nStep 2/4: Resolving CREATE3 factory...");
+  const create3Factory = await resolveCreate3Factory(ethers, networkName);
+  console.log(`  CREATE3Factory = ${create3Factory}`);
+
+  console.log("\nStep 3/4: Deploying v1.4 contracts via CREATE3...");
   console.log(`  Satellite admin = ${deployerAddress}`);
+  console.log("  Deterministic addresses are derived from the deployer + salt; constructor");
+  console.log("  arguments do not affect the deployed address.");
 
-  const TokenListFactory = await ethers.getContractFactory("TokenList");
-  const tokenList = await TokenListFactory.deploy(deployerAddress, [usdcAddr, usdtAddr]);
-  await tokenList.waitForDeployment();
-  const tokenListAddr = await tokenList.getAddress();
-  console.log(`  TokenList      = ${tokenListAddr}`);
-
-  const ProfilesFactory = await ethers.getContractFactory("Profiles");
-  const profiles = await ProfilesFactory.deploy(
-    deployerAddress,
-    routeIds,
-    treasuryBps,
-    ipCreatorBps,
+  const { address: tokenListAddr, predicted: predictedTokenList } = await deployViaCreate3(
+    ethers,
+    create3Factory,
+    "TokenList",
+    canonicalSalt(deployerAddress, "TokenList", "1.0"),
+    [deployerAddress, [usdcAddr, usdtAddr]],
   );
-  await profiles.waitForDeployment();
-  const profilesAddr = await profiles.getAddress();
-  console.log(`  Profiles       = ${profilesAddr}`);
+  console.log(`  TokenList      = ${tokenListAddr} (predicted ${predictedTokenList})`);
+
+  const { address: profilesAddr, predicted: predictedProfiles } = await deployViaCreate3(
+    ethers,
+    create3Factory,
+    "Profiles",
+    canonicalSalt(deployerAddress, "Profiles", "1.0"),
+    [deployerAddress, routeIds, treasuryBps, ipCreatorBps],
+  );
+  console.log(`  Profiles       = ${profilesAddr} (predicted ${predictedProfiles})`);
 
   console.log("\nConstructor args:");
   console.log(`  initialAdmin   = ${deployerAddress}`);
@@ -75,19 +88,29 @@ async function main() {
   console.log(`  tokenList      = ${tokenListAddr}`);
   console.log(`  profiles       = ${profilesAddr}`);
 
-  const factory = await ethers.getContractFactory("B2BSplitterV14");
-  const splitter = await factory.deploy({
-    initialAdmin: deployerAddress,
-    initialSigner: signerAddress,
-    initialPauser: deployerAddress,
-    treasury: deployerAddress,
-    tokenList: tokenListAddr,
-    profiles: profilesAddr,
-  });
-
+  const splitterArgs = [
+    {
+      initialAdmin: deployerAddress,
+      initialSigner: signerAddress,
+      initialPauser: deployerAddress,
+      treasury: deployerAddress,
+      tokenList: tokenListAddr,
+      profiles: profilesAddr,
+    },
+  ];
+  const {
+    address: addr,
+    contract: splitter,
+    predicted: predictedSplitter,
+  } = await deployViaCreate3(
+    ethers,
+    create3Factory,
+    "B2BSplitterV14",
+    canonicalSalt(deployerAddress, "B2BSplitterV14", "1.4"),
+    splitterArgs,
+  );
+  console.log(`  Splitter       = ${addr} (predicted ${predictedSplitter})`);
   console.log(`\nDeploy tx: ${splitter.deploymentTransaction()?.hash}`);
-  await splitter.waitForDeployment();
-  const addr = await splitter.getAddress();
 
   const runtimeCodeHash = await computeRuntimeCodeHash(ethers, addr);
 

@@ -77,43 +77,51 @@ contract TimelockTest is Test {
     function test_TimelockHoldsAdminRole() public view {
         assertTrue(splitter.hasRole(splitter.ADMIN_ROLE(), address(timelock)), "Timelock should hold ADMIN_ROLE");
         assertFalse(splitter.hasRole(splitter.ADMIN_ROLE(), deployer), "Deployer should have renounced ADMIN_ROLE");
+        assertTrue(
+            profiles.hasRole(profiles.ADMIN_ROLE(), address(timelock)),
+            "Timelock should hold Profiles ADMIN_ROLE"
+        );
+        assertFalse(
+            profiles.hasRole(profiles.ADMIN_ROLE(), deployer),
+            "Deployer should have renounced Profiles ADMIN_ROLE"
+        );
         assertEq(timelock.getMinDelay(), MIN_DELAY, "Delay should be 48h");
     }
 
     /// Verify proposer can schedule a v1.4 admin operation.
     function test_ProposerCanSchedule() public {
-        bytes memory data = abi.encodeCall(B2BSplitterV14.configureRoute, (routeIdAgent, 200, 50, address(0)));
+        bytes memory data = abi.encodeCall(Profiles.configureRoute, (routeIdAgent, 200, 50, address(0)));
         bytes32 salt = keccak256("test-salt");
 
         vm.prank(proposer);
-        timelock.schedule(address(splitter), 0, data, bytes32(0), salt, MIN_DELAY);
+        timelock.schedule(address(profiles), 0, data, bytes32(0), salt, MIN_DELAY);
 
-        bytes32 id = timelock.hashOperation(address(splitter), 0, data, bytes32(0), salt);
+        bytes32 id = timelock.hashOperation(address(profiles), 0, data, bytes32(0), salt);
         assertTrue(timelock.isOperation(id), "Operation should be scheduled");
     }
 
     /// Verify attacker cannot schedule operations.
     function test_AttackerCannotSchedule() public {
-        bytes memory data = abi.encodeCall(B2BSplitterV14.configureRoute, (routeIdAgent, 200, 50, address(0)));
+        bytes memory data = abi.encodeCall(Profiles.configureRoute, (routeIdAgent, 200, 50, address(0)));
 
         vm.prank(attacker);
         vm.expectRevert();
-        timelock.schedule(address(splitter), 0, data, bytes32(0), keccak256("salt"), MIN_DELAY);
+        timelock.schedule(address(profiles), 0, data, bytes32(0), keccak256("salt"), MIN_DELAY);
     }
 
     /// Verify operation cannot execute before delay.
     function test_CannotExecuteBeforeDelay() public {
-        bytes memory data = abi.encodeCall(B2BSplitterV14.configureRoute, (routeIdAgent, 200, 50, address(0)));
+        bytes memory data = abi.encodeCall(Profiles.configureRoute, (routeIdAgent, 200, 50, address(0)));
         bytes32 salt = keccak256("test-salt");
 
         vm.prank(proposer);
-        timelock.schedule(address(splitter), 0, data, bytes32(0), salt, MIN_DELAY);
+        timelock.schedule(address(profiles), 0, data, bytes32(0), salt, MIN_DELAY);
 
-        bytes32 id = timelock.hashOperation(address(splitter), 0, data, bytes32(0), salt);
+        bytes32 id = timelock.hashOperation(address(profiles), 0, data, bytes32(0), salt);
 
         vm.prank(executor);
         vm.expectRevert();
-        timelock.execute(address(splitter), 0, data, bytes32(0), salt);
+        timelock.execute(address(profiles), 0, data, bytes32(0), salt);
 
         assertFalse(timelock.isOperationReady(id), "Should not be ready yet");
     }
@@ -121,16 +129,16 @@ contract TimelockTest is Test {
     /// Verify a route configuration can be executed after the delay.
     function test_CanExecuteAfterDelay() public {
         bytes32 newRoute = keccak256(bytes("new-route"));
-        bytes memory data = abi.encodeCall(B2BSplitterV14.configureRoute, (newRoute, 200, 50, address(0)));
+        bytes memory data = abi.encodeCall(Profiles.configureRoute, (newRoute, 200, 50, address(0)));
         bytes32 salt = keccak256("test-salt");
 
         vm.prank(proposer);
-        timelock.schedule(address(splitter), 0, data, bytes32(0), salt, MIN_DELAY);
+        timelock.schedule(address(profiles), 0, data, bytes32(0), salt, MIN_DELAY);
 
         vm.warp(block.timestamp + MIN_DELAY + 1);
 
         vm.prank(executor);
-        timelock.execute(address(splitter), 0, data, bytes32(0), salt);
+        timelock.execute(address(profiles), 0, data, bytes32(0), salt);
 
         IProfiles.RouteProfile memory profile = profiles.getProfile(newRoute);
         assertEq(profile.treasuryBps, 200, "Treasury BPS should be updated");
@@ -139,13 +147,13 @@ contract TimelockTest is Test {
 
     /// Verify proposer can cancel operations.
     function test_ProposerCanCancel() public {
-        bytes memory data = abi.encodeCall(B2BSplitterV14.configureRoute, (routeIdAgent, 200, 50, address(0)));
+        bytes memory data = abi.encodeCall(Profiles.configureRoute, (routeIdAgent, 200, 50, address(0)));
         bytes32 salt = keccak256("test-salt");
 
         vm.prank(proposer);
-        timelock.schedule(address(splitter), 0, data, bytes32(0), salt, MIN_DELAY);
+        timelock.schedule(address(profiles), 0, data, bytes32(0), salt, MIN_DELAY);
 
-        bytes32 id = timelock.hashOperation(address(splitter), 0, data, bytes32(0), salt);
+        bytes32 id = timelock.hashOperation(address(profiles), 0, data, bytes32(0), salt);
 
         vm.prank(proposer);
         timelock.cancel(id);
@@ -156,19 +164,19 @@ contract TimelockTest is Test {
     /// Fee caps are enforced at execution time, not at scheduling time.
     function test_FeeCapsEnforcedDuringExecution() public {
         bytes memory data = abi.encodeCall(
-            B2BSplitterV14.configureRoute,
+            Profiles.configureRoute,
             (routeIdAgent, 600, 0, address(0)) // 600 > MAX_TREASURY_BPS (500)
         );
         bytes32 salt = keccak256("fee-salt");
 
         vm.prank(proposer);
-        timelock.schedule(address(splitter), 0, data, bytes32(0), salt, MIN_DELAY);
+        timelock.schedule(address(profiles), 0, data, bytes32(0), salt, MIN_DELAY);
 
         vm.warp(block.timestamp + MIN_DELAY + 1);
 
         vm.prank(executor);
         vm.expectRevert();
-        timelock.execute(address(splitter), 0, data, bytes32(0), salt);
+        timelock.execute(address(profiles), 0, data, bytes32(0), salt);
     }
 
     /// Verify treasury address change requires timelock.
@@ -229,19 +237,16 @@ contract TimelockTest is Test {
 
     /// Verify multiple operations can be scheduled.
     function test_MultipleOperationsScheduled() public {
-        bytes memory data1 = abi.encodeCall(
-            B2BSplitterV14.configureRoute,
-            (keccak256(bytes("r1")), 200, 50, address(0))
-        );
+        bytes memory data1 = abi.encodeCall(Profiles.configureRoute, (keccak256(bytes("r1")), 200, 50, address(0)));
         bytes memory data2 = abi.encodeCall(B2BSplitterV14.pause, ());
 
         vm.prank(proposer);
-        timelock.schedule(address(splitter), 0, data1, bytes32(0), keccak256("salt1"), MIN_DELAY);
+        timelock.schedule(address(profiles), 0, data1, bytes32(0), keccak256("salt1"), MIN_DELAY);
 
         vm.prank(proposer);
         timelock.schedule(address(splitter), 0, data2, bytes32(0), keccak256("salt2"), MIN_DELAY);
 
-        bytes32 id1 = timelock.hashOperation(address(splitter), 0, data1, bytes32(0), keccak256("salt1"));
+        bytes32 id1 = timelock.hashOperation(address(profiles), 0, data1, bytes32(0), keccak256("salt1"));
         bytes32 id2 = timelock.hashOperation(address(splitter), 0, data2, bytes32(0), keccak256("salt2"));
 
         assertTrue(timelock.isOperation(id1), "First operation scheduled");
