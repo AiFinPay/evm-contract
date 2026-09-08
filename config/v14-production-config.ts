@@ -3,6 +3,7 @@
 // present only where the issuer's current documentation was verified during
 // the v1.4 production-RC review. Overrides require ALLOW_STABLE_OVERRIDE=true.
 import { ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
+import { canonicalSalt } from "../scripts/lib/create3.js";
 
 export interface V14ProductionNetwork {
   name: string;
@@ -11,6 +12,13 @@ export interface V14ProductionNetwork {
   usdt: string;
   usdcSource: string | null;
   usdtSource: string | null;
+  /** Deterministic CREATE3 salts for v1.4 contracts. If null, the deployment scripts
+   * fall back to canonicalSalt(deployer, name, version, "0"). */
+  salts: {
+    TokenList: string | null;
+    Profiles: string | null;
+    B2BSplitterV14: string | null;
+  };
 }
 
 const CIRCLE_USDC_SOURCE = "Circle USDC contract-address registry, verified 2026-08-27";
@@ -24,6 +32,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: ZeroAddress, // USDC.e
     usdcSource: CIRCLE_USDC_SOURCE,
     usdtSource: null,
+    salts: {
+      TokenList: null,
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
   137: {
     name: "Polygon PoS",
@@ -32,6 +45,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC.e
     usdcSource: CIRCLE_USDC_SOURCE,
     usdtSource: null,
+    salts: {
+      TokenList: "0xdbd9fb312eca3311be2cfe899ab8c242c0271ed6009aa07a0daae55f84ed5e1e",
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
   43114: {
     name: "Avalanche C-Chain",
@@ -40,6 +58,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7",
     usdcSource: CIRCLE_USDC_SOURCE,
     usdtSource: TETHER_USDT_SOURCE,
+    salts: {
+      TokenList: null,
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
   42161: {
     name: "Arbitrum One",
@@ -48,6 +71,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: ZeroAddress,
     usdcSource: CIRCLE_USDC_SOURCE,
     usdtSource: null,
+    salts: {
+      TokenList: null,
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
   56: {
     name: "BNB Chain",
@@ -56,6 +84,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: "0x55d398326f99059fF775485246999027B3197955",
     usdcSource: null,
     usdtSource: null,
+    salts: {
+      TokenList: null,
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
   8453: {
     name: "Base",
@@ -64,6 +97,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: ZeroAddress,
     usdcSource: CIRCLE_USDC_SOURCE,
     usdtSource: null,
+    salts: {
+      TokenList: null,
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
   130: {
     name: "Unichain",
@@ -72,6 +110,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: ZeroAddress,
     usdcSource: CIRCLE_USDC_SOURCE,
     usdtSource: null,
+    salts: {
+      TokenList: null,
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
   10: {
     name: "OP Mainnet",
@@ -80,6 +123,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: ZeroAddress,
     usdcSource: CIRCLE_USDC_SOURCE,
     usdtSource: null,
+    salts: {
+      TokenList: null,
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
   677: {
     name: "BOT Chain",
@@ -88,6 +136,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: ZeroAddress,
     usdcSource: null,
     usdtSource: null,
+    salts: {
+      TokenList: null,
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
   1440000: {
     name: "XRPL EVM",
@@ -96,6 +149,11 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     usdt: ZeroAddress,
     usdcSource: null,
     usdtSource: null,
+    salts: {
+      TokenList: null,
+      Profiles: null,
+      B2BSplitterV14: null,
+    },
   },
 };
 
@@ -104,6 +162,22 @@ export function configuredStableAddress(chainId: number, symbol: "USDC" | "USDT"
   if (!network) throw new Error(`Unsupported AiFinPay v1.4 chainId ${chainId}`);
   const canonical = symbol === "USDC" ? network.usdc : network.usdt;
   return canonical;
+}
+
+/** Returns the stored CREATE3 salt or a canonical fallback. */
+export function configuredSalt(
+  chainId: number,
+  contractName: "TokenList" | "Profiles" | "B2BSplitterV14",
+  deployerAddress: string,
+): string {
+  const network = V14_PRODUCTION_NETWORKS[chainId];
+  if (!network) throw new Error(`Unsupported AiFinPay v1.4 chainId ${chainId}`);
+  const version = contractName === "B2BSplitterV14" ? "1.4" : "1.0";
+  const stored = network.salts[contractName];
+  if (stored) {
+    return stored;
+  }
+  return canonicalSalt(deployerAddress, contractName, version, "0");
 }
 
 export function governanceEnv(chainId: number): { admin: string; treasury: string } {

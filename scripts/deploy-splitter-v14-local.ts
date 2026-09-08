@@ -5,13 +5,12 @@ import {
   getDeployerInfo,
   writeDeploymentRecord,
 } from "./lib/deployment.js";
+import { deployDirect, deployViaCreate3, resolveCreate3Factory } from "./lib/create3.js";
 import {
-  canonicalSalt,
-  deployDirect,
-  deployViaCreate3,
-  resolveCreate3Factory,
-} from "./lib/create3.js";
-import { routeDeploymentConfigV14, routeIdsV14 } from "../config/v14-production-config.js";
+  configuredSalt,
+  routeDeploymentConfigV14,
+  routeIdsV14,
+} from "../config/v14-production-config.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -66,7 +65,7 @@ async function main() {
     ethers,
     create3Factory,
     "TokenList",
-    canonicalSalt(deployerAddress, "TokenList", "1.0"),
+    configuredSalt(chainId, "TokenList", deployerAddress),
     [deployerAddress, [usdcAddr, usdtAddr]],
   );
   console.log(`  TokenList      = ${tokenListAddr} (predicted ${predictedTokenList})`);
@@ -75,7 +74,7 @@ async function main() {
     ethers,
     create3Factory,
     "Profiles",
-    canonicalSalt(deployerAddress, "Profiles", "1.0"),
+    configuredSalt(chainId, "Profiles", deployerAddress),
     [deployerAddress, routeIds, treasuryBps, ipCreatorBps],
   );
   console.log(`  Profiles       = ${profilesAddr} (predicted ${predictedProfiles})`);
@@ -106,7 +105,7 @@ async function main() {
     ethers,
     create3Factory,
     "B2BSplitterV14",
-    canonicalSalt(deployerAddress, "B2BSplitterV14", "1.4"),
+    configuredSalt(chainId, "B2BSplitterV14", deployerAddress),
     splitterArgs,
   );
   console.log(`  Splitter       = ${addr} (predicted ${predictedSplitter})`);

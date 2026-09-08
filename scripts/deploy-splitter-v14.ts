@@ -26,9 +26,10 @@ import {
   getDeployerInfo,
   writeDeploymentRecord,
 } from "./lib/deployment.js";
-import { canonicalSalt, deployViaCreate3, resolveCreate3Factory } from "./lib/create3.js";
+import { deployViaCreate3, resolveCreate3Factory } from "./lib/create3.js";
 import {
   V14_PRODUCTION_NETWORKS,
+  configuredSalt,
   configuredStableAddress,
   governanceEnv,
   initialSignerEnv,
@@ -89,13 +90,11 @@ async function main() {
   console.log("  Deterministic addresses are derived from the deployer + salt; constructor");
   console.log("  arguments do not affect the deployed address.");
 
-  const deployerAddress = await (await ethers.getSigners())[0].getAddress();
-
   const { address: tokenListAddr, predicted: predictedTokenList } = await deployViaCreate3(
     ethers,
     create3Factory,
     "TokenList",
-    canonicalSalt(deployerAddress, "TokenList", "1.0"),
+    configuredSalt(chainId, "TokenList", deployerAddress),
     [gov.admin, stablecoins],
   );
   console.log(`  TokenList  = ${tokenListAddr} (predicted ${predictedTokenList})`);
@@ -104,7 +103,7 @@ async function main() {
     ethers,
     create3Factory,
     "Profiles",
-    canonicalSalt(deployerAddress, "Profiles", "1.0"),
+    configuredSalt(chainId, "Profiles", deployerAddress),
     [gov.admin, routeIds, treasuryBps, ipCreatorBps],
   );
   console.log(`  Profiles   = ${profilesAddr} (predicted ${predictedProfiles})`);
@@ -128,7 +127,7 @@ async function main() {
     ethers,
     create3Factory,
     "B2BSplitterV14",
-    canonicalSalt(deployerAddress, "B2BSplitterV14", "1.4"),
+    configuredSalt(chainId, "B2BSplitterV14", deployerAddress),
     splitterArgs,
   );
 
