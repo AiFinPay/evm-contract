@@ -21,17 +21,19 @@ export interface ResolvedWallet {
   key?: string;
 }
 
-const MAINNET_NETWORKS = [
-  "polygon",
-  "avalanche",
-  "arbitrum",
-  "bnb",
-  "base",
-  "unichain",
-  "optimism",
-  "botchain",
-  "xrplevm",
-];
+/** Network name → chainId mapping matching hardhat.config.ts. */
+export const NETWORK_CHAIN_IDS: Record<string, number> = {
+  amoy: 80002,
+  polygon: 137,
+  avalanche: 43114,
+  arbitrum: 42161,
+  bnb: 56,
+  base: 8453,
+  unichain: 130,
+  optimism: 10,
+  botchain: 677,
+  xrplevm: 1440000,
+};
 
 /**
  * Decide whether a network is the Amoy testnet.
@@ -44,7 +46,21 @@ export function isTestnet(networkName: string): boolean {
  * Decide whether a network is a production/mainnet network configured in this repo.
  */
 export function isMainnet(networkName: string): boolean {
-  return MAINNET_NETWORKS.includes(networkName.toLowerCase());
+  const chainId = NETWORK_CHAIN_IDS[networkName.toLowerCase()];
+  return chainId !== undefined && chainId !== 80002;
+}
+
+/**
+ * Return the chainId for a configured network name.
+ */
+export function chainIdForNetwork(networkName: string): number {
+  const id = NETWORK_CHAIN_IDS[networkName.toLowerCase()];
+  if (id === undefined) {
+    throw new Error(
+      `Unknown network "${networkName}". Expected one of: ${Object.keys(NETWORK_CHAIN_IDS).join(", ")}`,
+    );
+  }
+  return id;
 }
 
 /**

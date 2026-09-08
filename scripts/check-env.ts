@@ -12,7 +12,13 @@
 
 import * as dotenv from "dotenv";
 import { isAddress } from "ethers";
-import { isMainnet, isTestnet, resolveWallet, type ResolvedWallet } from "./lib/env-check.js";
+import {
+  chainIdForNetwork,
+  isMainnet,
+  isTestnet,
+  resolveWallet,
+  type ResolvedWallet,
+} from "./lib/env-check.js";
 
 // Load .env first, then the network-specific env file (same precedence as
 // deploy-splitter-v14.ts).
@@ -72,9 +78,11 @@ console.log(status("DEV_DEPLOYER_KEY", env("DEV_DEPLOYER_KEY"), true));
 console.log();
 
 console.log("--- v1.4 governance env variables ---");
-const safeKey = `AIFINPAY_SAFE_${networkName === "amoy" ? "80002" : "???"}`;
-const treasuryKey = `AIFINPAY_TREASURY_${networkName === "amoy" ? "80002" : "???"}`;
-const pauserKey = `AIFINPAY_PAUSER_${networkName === "amoy" ? "80002" : "???"}`;
+const chainId =
+  isMainnet(networkName) || isTestnet(networkName) ? chainIdForNetwork(networkName) : "???";
+const safeKey = `AIFINPAY_SAFE_${chainId}`;
+const treasuryKey = `AIFINPAY_TREASURY_${chainId}`;
+const pauserKey = `AIFINPAY_PAUSER_${chainId}`;
 console.log(status(safeKey, env(safeKey)));
 console.log(status(treasuryKey, env(treasuryKey)));
 console.log(status(pauserKey, env(pauserKey)));
@@ -82,7 +90,17 @@ console.log(status("AIFINPAY_V14_SIGNER", env("AIFINPAY_V14_SIGNER")));
 console.log();
 
 console.log("--- RPC endpoints ---");
-const rpcKey = isTestnet(networkName) ? "AMOY_RPC" : `${networkName.toUpperCase()}_MAINNET_RPC`;
+const rpcKey = isTestnet(networkName)
+  ? "AMOY_RPC"
+  : networkName.toLowerCase() === "botchain"
+    ? "BOTCHAIN_RPC"
+    : networkName.toLowerCase() === "xrplevm"
+      ? "XRPLEVM_RPC"
+      : networkName.toLowerCase() === "optimism"
+        ? "OPTIMISM_RPC"
+        : networkName.toLowerCase() === "unichain"
+          ? "UNICHAIN_RPC"
+          : `${networkName.toUpperCase()}_MAINNET_RPC`;
 const fallback = isTestnet(networkName)
   ? "https://rpc-amoy.polygon.technology"
   : isMainnet(networkName)
