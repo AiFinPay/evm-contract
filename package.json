@@ -18,6 +18,7 @@
     "check:env": "hardhat run scripts/check-env.ts",
     "check:wallet": "hardhat run scripts/check-wallet.ts",
     "check:multisig": "bun scripts/check-multisig.ts",
+    "check:deployment": "hardhat run scripts/check-deployment-v14.ts",
     "init:multisig": "bun scripts/init-safe-multisig.ts",
     "verify": "hardhat run scripts/verify.ts --build-profile production",
     "lint": "solhint 'contracts/**/*.sol'",
