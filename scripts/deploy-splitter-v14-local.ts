@@ -5,9 +5,8 @@ import {
   getDeployerInfo,
   writeDeploymentRecord,
 } from "./lib/deployment.js";
-import { deployDirect, deployViaCreate3, resolveCreate3Factory } from "./lib/create3.js";
+import { deployViaCreate3, resolveCreate3Factory, canonicalSalt } from "./lib/create3.js";
 import {
-  configuredSalt,
   routeDeploymentConfigV14,
   routeIdsV14,
 } from "../config/v14-production-config.js";
@@ -61,20 +60,22 @@ async function main() {
   console.log("  Deterministic addresses are derived from the deployer + salt; constructor");
   console.log("  arguments do not affect the deployed address.");
 
+  const tokenListSalt = canonicalSalt(deployerAddress, "TokenList", "1.0", "0");
   const { address: tokenListAddr, predicted: predictedTokenList } = await deployViaCreate3(
     ethers,
     create3Factory,
     "TokenList",
-    configuredSalt(chainId, "TokenList", deployerAddress),
+    tokenListSalt,
     [deployerAddress, [usdcAddr, usdtAddr]],
   );
   console.log(`  TokenList      = ${tokenListAddr} (predicted ${predictedTokenList})`);
 
+  const profilesSalt = canonicalSalt(deployerAddress, "Profiles", "1.0", "0");
   const { address: profilesAddr, predicted: predictedProfiles } = await deployViaCreate3(
     ethers,
     create3Factory,
     "Profiles",
-    configuredSalt(chainId, "Profiles", deployerAddress),
+    profilesSalt,
     [deployerAddress, routeIds, treasuryBps, ipCreatorBps],
   );
   console.log(`  Profiles       = ${profilesAddr} (predicted ${predictedProfiles})`);
@@ -97,6 +98,7 @@ async function main() {
       profiles: profilesAddr,
     },
   ];
+  const splitterSalt = canonicalSalt(deployerAddress, "B2BSplitterV14", "1.4", "0");
   const {
     address: addr,
     contract: splitter,
@@ -105,7 +107,7 @@ async function main() {
     ethers,
     create3Factory,
     "B2BSplitterV14",
-    configuredSalt(chainId, "B2BSplitterV14", deployerAddress),
+    splitterSalt,
     splitterArgs,
   );
   console.log(`  Splitter       = ${addr} (predicted ${predictedSplitter})`);
@@ -161,6 +163,8 @@ async function main() {
 
   writeDeploymentRecord(networkName, chainId, record, "v14-local-latest");
 
+  const ProfilesContract = await ethers.getContractFactory("Profiles");
+  const profiles = ProfilesContract.attach(profilesAddr);
   const agentProfile = await profiles.getProfile(agent);
   const merchantProfile = await profiles.getProfile(merchant);
 
