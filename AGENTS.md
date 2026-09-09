@@ -2,6 +2,14 @@
 
 Primary instructions: `node_modules/@daochild/agents-config/AGENTS.md` — read in full and follow unless overridden below.
 
+## Scope of work
+
+- **Do only the job asked.** Implement exactly what was requested — nothing more, nothing less.
+- **Do not over-engineer.** No speculative abstractions, no "just in case" parameters, no future-proofing for hypothetical requirements that were not asked for.
+- **Do not add networks, chains, config keys, or hooks unless explicitly requested.** If a task is scoped to one network, file, or contract, keep changes within that scope.
+- **Do not refactor unrelated code.** Touch only what the task requires. If you spot something unrelated, mention it — do not silently change it.
+- **YAGNI is the rule.** Build what is needed now; defer what is not. Ask before introducing a new abstraction, dependency, or config surface.
+
 ## Package manager
 
 - Use **Bun** only. `package-lock.json` was removed; the lockfile is `bun.lock`.
