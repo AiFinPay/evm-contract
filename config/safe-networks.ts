@@ -33,9 +33,11 @@ export const SAFE_V150_PROXY_FACTORY = "0x14F2982D601c9458F93bd70B218933A6f8165e
 /**
  * Safe v1.4.1 canonical Singleton and Proxy Factory addresses.
  * Kept for chains that have not yet shipped Safe v1.5.0 (Amoy, zkEVM, etc.).
+ *
+ * Source: https://github.com/safe-global/safe-deployments/tree/main/src/assets/v1.4.1
  */
-export const SAFE_V141_SINGLETON = "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552";
-export const SAFE_V141_PROXY_FACTORY = "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2";
+export const SAFE_V141_SINGLETON = "0x41675C099F32341bf84BFc5382aF534df5C7461a";
+export const SAFE_V141_PROXY_FACTORY = "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67";
 
 /**
  * AiFinPay supported networks with Safe configuration.
@@ -127,15 +129,6 @@ export const SAFE_CONFIG: Record<number, SafeNetworkConfig> = {
     singleton: SAFE_V150_SINGLETON,
     safeVersion: "1.5.0",
     // XRPL EVM may not have a Safe transaction service yet
-  },
-
-  525: {
-    chainId: 525,
-    chainName: "Robinhood",
-    proxyFactory: SAFE_V141_PROXY_FACTORY,
-    singleton: SAFE_V141_SINGLETON,
-    safeVersion: "1.4.1",
-    // Robinhood chain may not have a Safe transaction service yet
   },
 
   // ─────────────────────────────────────────────────────────────
