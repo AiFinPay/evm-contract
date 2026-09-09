@@ -5,13 +5,17 @@
 import { ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import { canonicalSalt } from "../scripts/lib/create3.js";
 
+export interface Stablecoin {
+  address: string;
+  symbol: string;
+  name: string;
+  source?: string | null;
+}
+
 export interface V14ProductionNetwork {
   name: string;
   chainId: number;
-  usdc: string;
-  usdt: string;
-  usdcSource: string | null;
-  usdtSource: string | null;
+  stablecoins: Stablecoin[];
   /** Deterministic CREATE3 salts for v1.4 contracts. If null, the deployment scripts
    * fall back to canonicalSalt(deployer, name, version, "0"). */
   salts: {
@@ -24,144 +28,115 @@ export interface V14ProductionNetwork {
 const CIRCLE_USDC_SOURCE = "Circle USDC contract-address registry, verified 2026-08-27";
 const TETHER_USDT_SOURCE = "Tether supported-protocols registry, verified 2026-08-27";
 
+const CREATE3_SALTS = {
+  TokenList: "0x8be94b4c2852b83d5f69de83ba79859073143caceb89a1cdda67fb51455c4606",
+  Profiles: "0x03e4e98753532c736568df726806a736af26c4804e3ca72843f800decc23bf40",
+  B2BSplitterV14: "0x67969d2c5e97b90856338f2ba2b9b49218ef88a1d28d16473d596b08b1c4f5d8",
+} as const;
+
 export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
   80002: {
     name: "Amoy (testnet)",
     chainId: 80002,
-    usdc: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
-    usdt: ZeroAddress, // USDC.e
-    usdcSource: CIRCLE_USDC_SOURCE,
-    usdtSource: null,
-    salts: {
-      TokenList: null,
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [
+      { address: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+    ],
+    salts: CREATE3_SALTS,
   },
   137: {
     name: "Polygon PoS",
     chainId: 137,
-    usdc: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-    usdt: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC.e
-    usdcSource: CIRCLE_USDC_SOURCE,
-    usdtSource: null,
-    salts: {
-      TokenList: "0xdbd9fb312eca3311be2cfe899ab8c242c0271ed6009aa07a0daae55f84ed5e1e",
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [
+      { address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+      { address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", symbol: "USDT", name: "USDT", source: TETHER_USDT_SOURCE },
+    ],
+    salts: CREATE3_SALTS,
   },
   43114: {
     name: "Avalanche C-Chain",
     chainId: 43114,
-    usdc: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-    usdt: "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7",
-    usdcSource: CIRCLE_USDC_SOURCE,
-    usdtSource: TETHER_USDT_SOURCE,
-    salts: {
-      TokenList: null,
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [
+      { address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+      { address: "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7", symbol: "USDT", name: "USDT", source: TETHER_USDT_SOURCE },
+    ],
+    salts: CREATE3_SALTS,
   },
   42161: {
     name: "Arbitrum One",
     chainId: 42161,
-    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-    usdt: ZeroAddress,
-    usdcSource: CIRCLE_USDC_SOURCE,
-    usdtSource: null,
-    salts: {
-      TokenList: null,
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [
+      { address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+    ],
+    salts: CREATE3_SALTS,
   },
   56: {
     name: "BNB Chain",
     chainId: 56,
-    usdc: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-    usdt: "0x55d398326f99059fF775485246999027B3197955",
-    usdcSource: null,
-    usdtSource: null,
-    salts: {
-      TokenList: null,
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [
+      { address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", symbol: "USDC", name: "USDC" },
+      { address: "0x55d398326f99059fF775485246999027B3197955", symbol: "USDT", name: "USDT" },
+    ],
+    salts: CREATE3_SALTS,
   },
   8453: {
     name: "Base",
     chainId: 8453,
-    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    usdt: ZeroAddress,
-    usdcSource: CIRCLE_USDC_SOURCE,
-    usdtSource: null,
-    salts: {
-      TokenList: null,
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [
+      { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+    ],
+    salts: CREATE3_SALTS,
   },
   130: {
     name: "Unichain",
     chainId: 130,
-    usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
-    usdt: ZeroAddress,
-    usdcSource: CIRCLE_USDC_SOURCE,
-    usdtSource: null,
-    salts: {
-      TokenList: null,
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [
+      { address: "0x078D782b760474a361dDA0AF3839290b0EF57AD6", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+    ],
+    salts: CREATE3_SALTS,
   },
   10: {
     name: "OP Mainnet",
     chainId: 10,
-    usdc: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
-    usdt: ZeroAddress,
-    usdcSource: CIRCLE_USDC_SOURCE,
-    usdtSource: null,
-    salts: {
-      TokenList: null,
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [
+      { address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+    ],
+    salts: CREATE3_SALTS,
   },
   677: {
     name: "BOT Chain",
     chainId: 677,
-    usdc: ZeroAddress,
-    usdt: ZeroAddress,
-    usdcSource: null,
-    usdtSource: null,
-    salts: {
-      TokenList: null,
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [],
+    salts: CREATE3_SALTS,
   },
   1440000: {
     name: "XRPL EVM",
     chainId: 1440000,
-    usdc: ZeroAddress,
-    usdt: ZeroAddress,
-    usdcSource: null,
-    usdtSource: null,
-    salts: {
-      TokenList: null,
-      Profiles: null,
-      B2BSplitterV14: null,
-    },
+    stablecoins: [],
+    salts: CREATE3_SALTS,
+  },
+  525: {
+    name: "Robinhood",
+    chainId: 525,
+    stablecoins: [
+      { address: "0x5d3a1Ff2b6Bab83b63cd9AD0787074081a52ef34", symbol: "USDE", name: "Ethena USDe" },
+      { address: "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168", symbol: "USDG", name: "Global Dollar" },
+    ],
+    salts: CREATE3_SALTS,
   },
 };
 
-export function configuredStableAddress(chainId: number, symbol: "USDC" | "USDT"): string {
+export function configuredStableAddress(chainId: number, symbol: string): string {
   const network = V14_PRODUCTION_NETWORKS[chainId];
   if (!network) throw new Error(`Unsupported AiFinPay v1.4 chainId ${chainId}`);
-  const canonical = symbol === "USDC" ? network.usdc : network.usdt;
-  return canonical;
+  const stablecoin = network.stablecoins.find((s) => s.symbol === symbol);
+  return stablecoin?.address ?? ZeroAddress;
+}
+
+/** Returns all stablecoins configured for a chain. */
+export function configuredStablecoins(chainId: number): Stablecoin[] {
+  const network = V14_PRODUCTION_NETWORKS[chainId];
+  if (!network) throw new Error(`Unsupported AiFinPay v1.4 chainId ${chainId}`);
+  return network.stablecoins;
 }
 
 /** Returns the stored CREATE3 salt or a canonical fallback. */
