@@ -15,6 +15,8 @@ import { network } from "hardhat";
 import {
   CREATEX_FACTORY_ADDRESS,
   mineSaltForPrefix,
+  mineSaltForPostfix,
+  mineSaltForPrefixAndPostfix,
   predictCreate3Address,
 } from "./lib/create3.js";
 
@@ -31,6 +33,7 @@ const { ethers, networkName } = await network.create();
 const contractName = parseArg("--contract") || "B2BSplitterV14";
 const version = parseArg("--version") || (contractName === "B2BSplitterV14" ? "1.4" : "1.0");
 const prefix = parseArg("--prefix");
+const postfix = parseArg("--postfix");
 const maxAttempts = Number(parseArg("--max") || "1000000");
 const start = Number(parseArg("--start") || "0");
 const factory = parseArg("--factory") || CREATEX_FACTORY_ADDRESS;
@@ -40,9 +43,9 @@ function formatAttempts(_attempts: number): string {
 }
 
 async function main() {
-  if (!prefix) {
+  if (!prefix && !postfix) {
     throw new Error(
-      "Usage: bun run scripts/mine-create3-address.ts --prefix 0xABC [--contract Name] [--deployer 0x...] [--factory 0x...] [--start N] [--max N]",
+      "Usage: bun run scripts/mine-create3-address.ts --prefix 0xABC [--postfix 0xXYZ] [--contract Name] [--deployer 0x...] [--factory 0x...] [--start N] [--max N]",
     );
   }
 
@@ -53,19 +56,46 @@ async function main() {
 
   console.log(`Mining ${contractName} ${version} address via CreateX ${factory}`);
   console.log(`Deployer: ${deployerAddress}`);
-  console.log(`Target prefix: ${prefix.toLowerCase()}`);
+  if (prefix) console.log(`Target prefix: ${prefix.toLowerCase()}`);
+  if (postfix) console.log(`Target postfix: ${postfix.toLowerCase()}`);
   console.log("");
 
   const startTime = Date.now();
-  const result = mineSaltForPrefix(
-    factory,
-    deployerAddress,
-    contractName,
-    version,
-    prefix,
-    start,
-    maxAttempts,
-  );
+  let result: { salt: string; guardedSalt: string; address: string; attempts: number };
+
+  if (prefix && postfix) {
+    result = mineSaltForPrefixAndPostfix(
+      factory,
+      deployerAddress,
+      contractName,
+      version,
+      prefix,
+      postfix,
+      start,
+      maxAttempts,
+    );
+  } else if (prefix) {
+    result = mineSaltForPrefix(
+      factory,
+      deployerAddress,
+      contractName,
+      version,
+      prefix,
+      start,
+      maxAttempts,
+    );
+  } else {
+    result = mineSaltForPostfix(
+      factory,
+      deployerAddress,
+      contractName,
+      version,
+      postfix!,
+      start,
+      maxAttempts,
+    );
+  }
+
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
 
   // Cross-check against on-chain CreateX mock or real factory if available.

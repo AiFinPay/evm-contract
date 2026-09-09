@@ -211,6 +211,82 @@ export function mineSaltForPrefix(
 }
 
 /**
+ * Mine a salt that makes the CreateX-deployed address end with `_postfix`.
+ *
+ * Varies the `extra` field of the canonical salt. Returns the first matching
+ * salt, its guarded form, and the predicted address.
+ */
+export function mineSaltForPostfix(
+  _factoryAddress: string,
+  _deployerAddress: string,
+  _contractName: string,
+  _version: string,
+  _postfix: string,
+  _start = 0,
+  _maxAttempts = 1_000_000,
+): { salt: string; guardedSalt: string; address: string; attempts: number } {
+  const target = _postfix.toLowerCase().replace(/^0x/, "");
+  if (!/^[0-9a-fA-F]+$/.test(target)) throw new Error("Invalid hex postfix");
+
+  const senderBytes32 = "0x" + _deployerAddress.toLowerCase().slice(2).padStart(64, "0");
+  const factory = _factoryAddress.toLowerCase();
+
+  for (let i = _start; i < _start + _maxAttempts; i++) {
+    const salt = canonicalSalt(_deployerAddress, _contractName, _version, String(i));
+    const guarded = keccak256(solidityPacked(["bytes32", "bytes32"], [senderBytes32, salt]));
+    const address = computeCreate3AddressLocal(guarded, factory);
+
+    if (address.toLowerCase().slice(2).endsWith(target)) {
+      return { salt, guardedSalt: guarded, address, attempts: i - _start + 1 };
+    }
+  }
+
+  throw new Error(
+    `Could not find address ending with 0x${_postfix} within ${_maxAttempts} attempts (start ${_start})`,
+  );
+}
+
+/**
+ * Mine a salt that makes the CreateX-deployed address match both `_prefix` and `_postfix`.
+ *
+ * Varies the `extra` field of the canonical salt. Returns the first matching
+ * salt, its guarded form, and the predicted address.
+ */
+export function mineSaltForPrefixAndPostfix(
+  _factoryAddress: string,
+  _deployerAddress: string,
+  _contractName: string,
+  _version: string,
+  _prefix: string,
+  _postfix: string,
+  _start = 0,
+  _maxAttempts = 10_000_000,
+): { salt: string; guardedSalt: string; address: string; attempts: number } {
+  const targetPrefix = _prefix.toLowerCase().replace(/^0x/, "");
+  const targetPostfix = _postfix.toLowerCase().replace(/^0x/, "");
+  if (!/^[0-9a-fA-F]+$/.test(targetPrefix)) throw new Error("Invalid hex prefix");
+  if (!/^[0-9a-fA-F]+$/.test(targetPostfix)) throw new Error("Invalid hex postfix");
+
+  const senderBytes32 = "0x" + _deployerAddress.toLowerCase().slice(2).padStart(64, "0");
+  const factory = _factoryAddress.toLowerCase();
+
+  for (let i = _start; i < _start + _maxAttempts; i++) {
+    const salt = canonicalSalt(_deployerAddress, _contractName, _version, String(i));
+    const guarded = keccak256(solidityPacked(["bytes32", "bytes32"], [senderBytes32, salt]));
+    const address = computeCreate3AddressLocal(guarded, factory);
+    const addrHex = address.toLowerCase().slice(2);
+
+    if (addrHex.startsWith(targetPrefix) && addrHex.endsWith(targetPostfix)) {
+      return { salt, guardedSalt: guarded, address, attempts: i - _start + 1 };
+    }
+  }
+
+  throw new Error(
+    `Could not find address starting with 0x${_prefix} and ending with 0x${_postfix} within ${_maxAttempts} attempts (start ${_start})`,
+  );
+}
+
+/**
  * Off-chain address computation matching CreateX.computeCreate3Address.
  */
 export function computeCreate3AddressLocal(_guardedSalt: string, _factoryAddress: string): string {
