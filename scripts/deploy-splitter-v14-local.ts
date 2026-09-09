@@ -6,10 +6,7 @@ import {
   writeDeploymentRecord,
 } from "./lib/deployment.js";
 import { deployViaCreate3, resolveCreate3Factory, canonicalSalt } from "./lib/create3.js";
-import {
-  routeDeploymentConfigV14,
-  routeIdsV14,
-} from "../config/v14-production-config.js";
+import { routeDeploymentConfigV14, routeIdsV14 } from "../config/v14-production-config.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -103,13 +100,7 @@ async function main() {
     address: addr,
     contract: splitter,
     predicted: predictedSplitter,
-  } = await deployViaCreate3(
-    ethers,
-    create3Factory,
-    "B2BSplitterV14",
-    splitterSalt,
-    splitterArgs,
-  );
+  } = await deployViaCreate3(ethers, create3Factory, "B2BSplitterV14", splitterSalt, splitterArgs);
   console.log(`  Splitter       = ${addr} (predicted ${predictedSplitter})`);
   console.log(`\nDeploy tx: ${splitter.deploymentTransaction()?.hash}`);
 

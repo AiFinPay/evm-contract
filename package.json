@@ -14,6 +14,7 @@
     "deploy": "hardhat run scripts/deploy-splitter-v14.ts --build-profile production",
     "deploy:local": "hardhat run scripts/deploy-splitter-v14-local.ts --build-profile default",
     "deploy:timelock": "hardhat run scripts/deploy-timelock.ts --build-profile production",
+    "deploy:multisig": "bun scripts/deploy-safe-multisig.ts",
     "check:env": "hardhat run scripts/check-env.ts",
     "check:wallet": "hardhat run scripts/check-wallet.ts",
     "verify": "hardhat run scripts/verify.ts --build-profile production",

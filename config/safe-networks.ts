@@ -40,6 +40,21 @@ export const SAFE_V141_SINGLETON = "0x41675C099F32341bf84BFc5382aF534df5C7461a";
 export const SAFE_V141_PROXY_FACTORY = "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67";
 
 /**
+ * Safe v1.3.0 canonical Singleton and Proxy Factory addresses (legacy Gnosis Safe).
+ * Some testnets, including Polygon Amoy, only shipped the v1.3.0 deployment, so these
+ * addresses are kept for explicit cross-checking and manual override deployments.
+ *
+ * Source: https://github.com/safe-global/safe-deployments/tree/main/src/assets/v1.3.0
+ */
+export const SAFE_V130_SINGLETON = "0xd9Db270c1B5E3Bd161E8c8503c55ceabee709552";
+export const SAFE_V130_PROXY_FACTORY = "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2";
+
+/**
+ * Supported Safe versions. Used for explicit `--safe-version` overrides in deploy scripts.
+ */
+export type SafeVersion = "1.3.0" | "1.4.1" | "1.5.0";
+
+/**
  * AiFinPay supported networks with Safe configuration.
  *
  * These are the chains where AiFinPay B2BSplitterV14 is deployed
@@ -147,16 +162,52 @@ export const SAFE_CONFIG: Record<number, SafeNetworkConfig> = {
 
 /**
  * Get Safe config for a specific chain ID.
- * @throws Error if chain is not supported
+ *
+ * When `_version` is omitted, the default Safe version for the chain is used.
+ * When `_version` is provided, the returned config uses the canonical factory
+ * and singleton for that version, while keeping the same chain metadata.
+ *
+ * @throws Error if chain is not supported or the requested version is unknown.
  */
-export function getSafeConfig(chainId: number): SafeNetworkConfig {
+export function getSafeConfig(chainId: number, _version?: SafeVersion): SafeNetworkConfig {
   const config = SAFE_CONFIG[chainId];
   if (!config) {
     throw new Error(
       `Chain ID ${chainId} is not supported. Available chains: ${Object.keys(SAFE_CONFIG).join(", ")}`,
     );
   }
-  return config;
+
+  if (!_version || config.safeVersion === _version) {
+    return config;
+  }
+
+  let proxyFactory: string;
+  let singleton: string;
+  switch (_version) {
+    case "1.3.0":
+      proxyFactory = SAFE_V130_PROXY_FACTORY;
+      singleton = SAFE_V130_SINGLETON;
+      break;
+    case "1.4.1":
+      proxyFactory = SAFE_V141_PROXY_FACTORY;
+      singleton = SAFE_V141_SINGLETON;
+      break;
+    case "1.5.0":
+      proxyFactory = SAFE_V150_PROXY_FACTORY;
+      singleton = SAFE_V150_SINGLETON;
+      break;
+    default:
+      throw new Error(
+        `Unsupported Safe version: ${_version}. Available versions: 1.3.0, 1.4.1, 1.5.0`,
+      );
+  }
+
+  return {
+    ...config,
+    proxyFactory,
+    singleton,
+    safeVersion: _version,
+  };
 }
 
 /**
