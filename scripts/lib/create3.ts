@@ -32,6 +32,33 @@ export const CREATEX_ABI = new Interface([
   "function computeCreate3Address(bytes32,address) pure returns (address)",
 ]);
 
+const CREATEX_ERROR_SELECTORS: Record<string, string> = {
+  "0xc05cee7a": "FailedContractCreation(address)",
+  "0x81e69d9b": "InvalidSalt()",
+  "0xdbb35c9a": "InvalidSaltOrAccessControl()",
+  "0x043c669f": "InvalidDeployer()",
+  "0xc3492b3c": "InvalidInitCode()",
+  "0x11649e84": "SaltDoesNotStartWithSender()",
+  "0x75024ff6": "InvalidSaltValue()",
+  "0x30116425": "DeploymentFailed()",
+};
+
+/**
+ * Decode a CreateX revert into a human-readable message.
+ */
+function decodeCreateXError(_errorData: string): string {
+  const data = _errorData.toLowerCase();
+  const selector = data.slice(0, 10);
+  const signature = CREATEX_ERROR_SELECTORS[selector];
+  if (!signature) return `CreateX revert (unknown selector ${selector})`;
+
+  if (data.length >= 74 && signature.includes("(address)")) {
+    const arg = "0x" + data.slice(34, 74);
+    return `${signature} arg=${arg}`;
+  }
+  return signature;
+}
+
 /**
  * Build a CreateX-compatible guarded salt.
  *
@@ -103,7 +130,56 @@ export async function deployViaCreate3(
 
   const predicted = await predictCreate3Address(_ethers, _factoryAddress, deployerAddress, _salt);
 
-  const tx = await createX.connect(deployer).deployCreate3(_salt, fullBytecode);
+  const deployData = CREATEX_ABI.encodeFunctionData("deployCreate3", [_salt, fullBytecode]);
+
+  // Simulate before sending. If this reverts, do not broadcast — hardware
+  // wallets cannot recover gas from failed mainnet transactions.
+  console.log(`  Simulating ${_contractName} CreateX deployment...`);
+  let estimatedGas: bigint;
+  try {
+    estimatedGas = await _ethers.provider.estimateGas({
+      to: _factoryAddress,
+      data: deployData,
+      from: deployerAddress,
+    });
+  } catch (error: any) {
+    const errorData = error?.data ?? error?.revert?.data ?? error?.error?.data ?? "";
+    const decoded =
+      typeof errorData === "string" && errorData.startsWith("0x")
+        ? decodeCreateXError(errorData)
+        : "";
+    const reason = error?.revert?.reason ?? error?.reason ?? error?.shortMessage ?? error?.message;
+    throw new Error(
+      `${_contractName} CreateX simulation failed: ${reason}${decoded ? ` (${decoded})` : ""}`,
+    );
+  }
+  const envGasLimit = process.env.DEPLOY_GAS_LIMIT
+    ? BigInt(process.env.DEPLOY_GAS_LIMIT)
+    : undefined;
+  const gasLimit = envGasLimit ?? (estimatedGas * 120n) / 100n;
+
+  const feeData = await _ethers.provider.getFeeData();
+  const envMaxFee = process.env.MAX_FEE_PER_GAS ? BigInt(process.env.MAX_FEE_PER_GAS) : undefined;
+  const envMaxPriority = process.env.MAX_PRIORITY_FEE_PER_GAS
+    ? BigInt(process.env.MAX_PRIORITY_FEE_PER_GAS)
+    : undefined;
+  const maxFeePerGas = envMaxFee ?? feeData.maxFeePerGas ?? undefined;
+  const maxPriorityFeePerGas = envMaxPriority ?? feeData.maxPriorityFeePerGas ?? undefined;
+
+  const overrides: { gasLimit: bigint; maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint } = {
+    gasLimit,
+  };
+  if (maxFeePerGas !== undefined) overrides.maxFeePerGas = maxFeePerGas;
+  if (maxPriorityFeePerGas !== undefined) overrides.maxPriorityFeePerGas = maxPriorityFeePerGas;
+
+  console.log(`  Estimated gas: ${estimatedGas}; limit: ${gasLimit}`);
+
+  // Use a raw transaction so the calldata is exactly what was simulated.
+  const tx = await deployer.sendTransaction({
+    to: _factoryAddress,
+    data: deployData,
+    ...overrides,
+  });
   const receipt = await tx.wait();
   if (!receipt || receipt.status !== 1)
     throw new Error(`CreateX deploy of ${_contractName} failed`);

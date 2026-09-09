@@ -188,7 +188,7 @@ export function configuredStablecoins(chainId: number): Stablecoin[] {
   return network.stablecoins;
 }
 
-/** Returns the stored CREATE3 salt or a canonical fallback. */
+/** Returns the stored CREATE3 salt if it is scoped to this deployer, otherwise a canonical fallback. */
 export function configuredSalt(
   chainId: number,
   contractName: "TokenList" | "Profiles" | "B2BSplitterV14",
@@ -198,8 +198,14 @@ export function configuredSalt(
   if (!network) throw new Error(`Unsupported AiFinPay v1.4 chainId ${chainId}`);
   const version = contractName === "B2BSplitterV14" ? "1.4" : "1.0";
   const stored = network.salts[contractName];
-  if (stored) {
+  const deployerPrefix = deployerAddress.toLowerCase().slice(2);
+  if (stored && stored.toLowerCase().startsWith(deployerPrefix)) {
     return stored;
+  }
+  if (stored) {
+    console.warn(
+      `  Warning: stored ${contractName} salt does not match deployer ${deployerAddress}; using canonical salt.`,
+    );
   }
   return canonicalSalt(deployerAddress, contractName, version, "0");
 }

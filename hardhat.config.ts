@@ -4,7 +4,15 @@ import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-et
 import hardhatLedgerPlugin from "@nomicfoundation/hardhat-ledger";
 import hardhatKeystore from "@nomicfoundation/hardhat-keystore";
 
-dotenv.config();
+dotenv.config({ path: ".env" });
+
+// Hardhat loads this config before the deploy script runs, so the script's
+// top-level dotenv override of .env.production/.env.testnet is too late.
+// Load the correct env file here based on the --network CLI argument.
+const networkArgIndex = process.argv.indexOf("--network");
+const selectedNetwork = networkArgIndex >= 0 ? process.argv[networkArgIndex + 1] : "polygon";
+const envFile = selectedNetwork === "amoy" ? ".env.testnet" : ".env.production";
+dotenv.config({ path: envFile, override: true });
 
 const LEDGER_ACCOUNT = process.env.LEDGER_ACCOUNT ? [process.env.LEDGER_ACCOUNT] : [];
 const DEV_KEY = process.env.DEV_DEPLOYER_KEY ? [process.env.DEV_DEPLOYER_KEY] : [];
@@ -14,11 +22,13 @@ const DEV_KEY = process.env.DEV_DEPLOYER_KEY ? [process.env.DEV_DEPLOYER_KEY] : 
  *
  * Priority matches .env.example:
  *   1. Ledger hardware wallet (set LEDGER_ACCOUNT).
- *   2. Hardhat Keystore variables (bunx hardhat keystore set <KEY>).
- *   3. Environment variables (PROD_DEPLOYER_KEY or <NETWORK>_DEPLOYER_KEY).
+ *   2. Environment variables (PROD_DEPLOYER_KEY or <NETWORK>_DEPLOYER_KEY).
+ *   3. Hardhat Keystore variables (bunx hardhat keystore set <KEY>).
  */
 function prodAccounts(networkKey: string): { accounts: string[]; ledgerAccounts?: string[] } {
   if (LEDGER_ACCOUNT.length) return { accounts: [], ledgerAccounts: LEDGER_ACCOUNT };
+  const key = process.env[`${networkKey}_DEPLOYER_KEY`] || process.env.PROD_DEPLOYER_KEY;
+  if (key) return { accounts: [key] };
   return {
     accounts: [configVariable(`${networkKey}_DEPLOYER_KEY`)] as unknown as string[],
   };
@@ -78,9 +88,11 @@ export default defineConfig({
     amoy: {
       type: "http",
       url: process.env.AMOY_RPC || "https://rpc-amoy.polygon.technology",
-      accounts: DEV_KEY,
       chainId: 80002,
       chainType: "l1",
+      ...(LEDGER_ACCOUNT.length
+        ? { accounts: [], ledgerAccounts: LEDGER_ACCOUNT }
+        : { accounts: DEV_KEY }),
     },
     polygon: {
       type: "http",

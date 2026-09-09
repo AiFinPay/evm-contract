@@ -39,7 +39,7 @@ import {
 } from "../config/v14-production-config.js";
 
 // Re-use verify logic so deploy can optionally verify immediately after record write.
-import { runVerifyFromRecord } from "./verify.js";
+import { runVerifyFromRecord } from "./lib/verify.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -200,7 +200,7 @@ async function main() {
   if (process.argv.includes("--verify")) {
     console.log("\n  Running automatic verification (--verify)...");
     try {
-      await runVerifyFromRecord(networkName);
+      await runVerifyFromRecord(networkName, ethers);
     } catch (e) {
       console.error("  Automatic verification failed:", e);
       process.exitCode = 1;
