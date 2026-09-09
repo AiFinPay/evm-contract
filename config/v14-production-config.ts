@@ -34,12 +34,30 @@ const CREATE3_SALTS = {
   B2BSplitterV14: "0x67969d2c5e97b90856338f2ba2b9b49218ef88a1d28d16473d596b08b1c4f5d8",
 } as const;
 
+/**
+ * Multisig Safe owners (3-of-4 consensus) shared by all v1.4 networks.
+ * Used when creating the Gnosis Safe that holds ADMIN_ROLE via the timelock.
+ */
+export const MULTISIG_SAFE_OWNERS = [
+  "0x25A834b6fEC79e9ee6ED04Ef5b97440149C6Cc24", // Iryna
+  "0x2118c57dEBD53f614DDfE464Ff2941BE6646cA82", // Dmitry
+  "0x3C31dd9daCeC5473cC9B660CD69247A20701cF19", // Pasha
+  "0x588A80e94a762C670711ff77CC60a2e65E64F53A", // Pavlo Bolhar
+] as const;
+
+export const MULTISIG_SAFE_THRESHOLD = 3;
+
 export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
   80002: {
     name: "Amoy (testnet)",
     chainId: 80002,
     stablecoins: [
-      { address: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+      {
+        address: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+        symbol: "USDC",
+        name: "USDC",
+        source: CIRCLE_USDC_SOURCE,
+      },
     ],
     salts: CREATE3_SALTS,
   },
@@ -47,8 +65,18 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     name: "Polygon PoS",
     chainId: 137,
     stablecoins: [
-      { address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
-      { address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", symbol: "USDT", name: "USDT", source: TETHER_USDT_SOURCE },
+      {
+        address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+        symbol: "USDC",
+        name: "USDC",
+        source: CIRCLE_USDC_SOURCE,
+      },
+      {
+        address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+        symbol: "USDT",
+        name: "USDT",
+        source: TETHER_USDT_SOURCE,
+      },
     ],
     salts: CREATE3_SALTS,
   },
@@ -56,8 +84,18 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     name: "Avalanche C-Chain",
     chainId: 43114,
     stablecoins: [
-      { address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
-      { address: "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7", symbol: "USDT", name: "USDT", source: TETHER_USDT_SOURCE },
+      {
+        address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        symbol: "USDC",
+        name: "USDC",
+        source: CIRCLE_USDC_SOURCE,
+      },
+      {
+        address: "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7",
+        symbol: "USDT",
+        name: "USDT",
+        source: TETHER_USDT_SOURCE,
+      },
     ],
     salts: CREATE3_SALTS,
   },
@@ -65,7 +103,12 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     name: "Arbitrum One",
     chainId: 42161,
     stablecoins: [
-      { address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+      {
+        address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        symbol: "USDC",
+        name: "USDC",
+        source: CIRCLE_USDC_SOURCE,
+      },
     ],
     salts: CREATE3_SALTS,
   },
@@ -82,7 +125,12 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     name: "Base",
     chainId: 8453,
     stablecoins: [
-      { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+      {
+        address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        symbol: "USDC",
+        name: "USDC",
+        source: CIRCLE_USDC_SOURCE,
+      },
     ],
     salts: CREATE3_SALTS,
   },
@@ -90,7 +138,12 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     name: "Unichain",
     chainId: 130,
     stablecoins: [
-      { address: "0x078D782b760474a361dDA0AF3839290b0EF57AD6", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+      {
+        address: "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        symbol: "USDC",
+        name: "USDC",
+        source: CIRCLE_USDC_SOURCE,
+      },
     ],
     salts: CREATE3_SALTS,
   },
@@ -98,7 +151,12 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     name: "OP Mainnet",
     chainId: 10,
     stablecoins: [
-      { address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", symbol: "USDC", name: "USDC", source: CIRCLE_USDC_SOURCE },
+      {
+        address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+        symbol: "USDC",
+        name: "USDC",
+        source: CIRCLE_USDC_SOURCE,
+      },
     ],
     salts: CREATE3_SALTS,
   },
@@ -112,15 +170,6 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     name: "XRPL EVM",
     chainId: 1440000,
     stablecoins: [],
-    salts: CREATE3_SALTS,
-  },
-  525: {
-    name: "Robinhood",
-    chainId: 525,
-    stablecoins: [
-      { address: "0x5d3a1Ff2b6Bab83b63cd9AD0787074081a52ef34", symbol: "USDE", name: "Ethena USDe" },
-      { address: "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168", symbol: "USDG", name: "Global Dollar" },
-    ],
     salts: CREATE3_SALTS,
   },
 };
