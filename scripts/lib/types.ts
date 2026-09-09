@@ -14,5 +14,7 @@ export interface DeploymentRecord {
   network: string;
   chainId: number;
   timestamp: string;
-  splitterV14?: SplitterV14Deployment;
+  splitterVersion?: string;
+  splitter?: SplitterV14Deployment;
+  runtimeCodeHash?: string;
 }

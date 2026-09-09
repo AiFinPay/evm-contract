@@ -127,3 +127,19 @@ export async function computeRuntimeCodeHash(
   const runtimeCode = await ethers.provider.getCode(address);
   return ethers.keccak256(runtimeCode);
 }
+
+/**
+ * Ensure a contract has runtime code at `_address`. Throws a descriptive error
+ * if the address is empty, which prevents the deploy script from writing a
+ * record or proceeding when a CREATE3 deployment silently lands elsewhere.
+ */
+export async function ensureCodeAt(
+  ethers: NetworkContext["ethers"],
+  address: string,
+  label: string,
+): Promise<void> {
+  const code = await ethers.provider.getCode(address);
+  if (code.length <= 2) {
+    throw new Error(`${label} has no runtime code at ${address}`);
+  }
+}

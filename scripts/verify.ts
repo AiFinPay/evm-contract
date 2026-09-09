@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import hre, { network } from "hardhat";
 import { verifyContract } from "@nomicfoundation/hardhat-verify/verify";
 import type { VerifyContractArgs } from "@nomicfoundation/hardhat-verify/verify";
-import type { DeploymentRecord } from "./lib/types.js";
+import type { DeploymentRecord, SplitterV14Deployment } from "./lib/types.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -17,7 +17,11 @@ function findDeploymentRecords(network: string): DeploymentRecord[] {
   }
 
   const records: DeploymentRecord[] = [];
-  const candidates = [`${network}-v14-latest.json`, `${network}-v14-production-latest.json`];
+  const candidates = [
+    `${network}-v14-latest.json`,
+    `${network}-v14-production-latest.json`,
+    `${network}-latest.json`,
+  ];
   for (const file of candidates) {
     const p = path.join(deploymentsDir, file);
     if (fs.existsSync(p)) {
@@ -52,32 +56,58 @@ async function verifyOne(args: VerifyContractArgs, label: string): Promise<void>
   }
 }
 
-async function verifySplitterV14(record: DeploymentRecord): Promise<void> {
-  if (!record.splitterV14) {
-    console.log("No v1.4 splitter deployment found; skipping.");
-    return;
-  }
-  const v14 = record.splitterV14;
+function routeId(name: string): string {
+  return ethers.keccak256(ethers.toUtf8Bytes(name));
+}
 
-  const { address, admin, signer, pauser, treasury, usdc, usdt } = v14;
+async function verifyTokenList(_splitter: SplitterV14Deployment): Promise<void> {
+  await verifyOne(
+    {
+      address: _splitter.tokenList,
+      constructorArgs: [
+        _splitter.admin,
+        [_splitter.usdc, _splitter.usdt].filter((t) => t !== ethers.ZeroAddress),
+      ],
+      contract: "contracts/TokenList.sol:TokenList",
+    },
+    "TokenList",
+  );
+}
 
+async function verifyProfiles(_splitter: SplitterV14Deployment): Promise<void> {
+  // Profiles constructor args are not stored in the record. We derive the
+  // canonical v1.4 route configuration from the hard-coded bootstrap routes
+  // used during deployment.
+  const routeIds = [routeId("agent-x402"), routeId("merchant-aifp1")];
+  const treasuryBps = [0, 100];
+  const ipCreatorBps = [0, 0];
+
+  await verifyOne(
+    {
+      address: _splitter.profiles,
+      constructorArgs: [_splitter.admin, routeIds, treasuryBps, ipCreatorBps],
+      contract: "contracts/Profiles.sol:Profiles",
+    },
+    "Profiles",
+  );
+}
+
+async function verifySplitterV14(_splitter: SplitterV14Deployment): Promise<void> {
   // v1.4 constructor is a struct: ConstructorParams
   const constructorArgs = [
     {
-      initialAdmin: admin,
-      initialSigner: signer,
-      initialPauser: pauser,
-      treasury,
-      stablecoins: [usdc, usdt].filter((t) => t !== ethers.ZeroAddress),
-      routeIds: [routeId("agent-x402"), routeId("merchant-aifp1")],
-      treasuryBps: [0, 100],
-      ipCreatorBps: [0, 0],
+      initialAdmin: _splitter.admin,
+      initialSigner: _splitter.signer,
+      initialPauser: _splitter.pauser,
+      treasury: _splitter.treasury,
+      tokenList: _splitter.tokenList,
+      profiles: _splitter.profiles,
     },
   ];
 
   await verifyOne(
     {
-      address,
+      address: _splitter.address,
       constructorArgs,
       contract: "contracts/B2BSplitterV14.sol:B2BSplitterV14",
     },
@@ -85,23 +115,49 @@ async function verifySplitterV14(record: DeploymentRecord): Promise<void> {
   );
 }
 
-function routeId(name: string): string {
-  return ethers.keccak256(ethers.toUtf8Bytes(name));
+/**
+ * Verify all v1.4 contracts from a deployment record.
+ *
+ * Order matters: TokenList and Profiles must be verified before B2BSplitterV14
+ * because explorers may need library/dependency bytecode for transitive source
+ * matching. In practice each contract is independent, but we keep satellites
+ * first for consistency.
+ */
+export async function verifyV14Deployment(record: DeploymentRecord): Promise<void> {
+  if (!record.splitter) {
+    throw new Error("No v1.4 splitter deployment found in record.");
+  }
+  const splitter = record.splitter;
+
+  await verifyTokenList(splitter);
+  await verifyProfiles(splitter);
+  await verifySplitterV14(splitter);
 }
 
-async function main() {
+/**
+ * CLI entry: read the latest deployment record for the current network and
+ * verify TokenList, Profiles, and B2BSplitterV14.
+ */
+export async function runVerifyFromRecord(_networkName: string): Promise<void> {
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
-  console.log(`Verifying on ${networkName} (chainId ${chainId})`);
+  console.log(`Verifying on ${_networkName} (chainId ${chainId})`);
 
-  const record = readDeployment(networkName);
+  const record = readDeployment(_networkName);
   if (record.chainId !== chainId) {
     throw new Error(
       `Deployment record chainId (${record.chainId}) does not match current network (${chainId}).`,
     );
   }
 
-  await verifySplitterV14(record);
+  if (record.splitterVersion && record.splitterVersion !== "1.4") {
+    console.warn(`Deployment record splitter version is ${record.splitterVersion}; expected 1.4.`);
+  }
 
+  await verifyV14Deployment(record);
+}
+
+async function main() {
+  await runVerifyFromRecord(networkName);
   console.log("\n=== VERIFICATION COMPLETE ===");
 }
 

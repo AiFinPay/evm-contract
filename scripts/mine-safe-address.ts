@@ -85,7 +85,9 @@ async function main() {
       singletonAddress = config.singleton;
       console.log(`Using Safe config for ${config.chainName} (Chain ID: ${chainId})`);
       if (safeVersion) {
-        console.log(`  Version override: ${safeVersion} (default for chain is ${getSafeConfig(chainId).safeVersion})`);
+        console.log(
+          `  Version override: ${safeVersion} (default for chain is ${getSafeConfig(chainId).safeVersion})`,
+        );
       }
       console.log(`  Proxy Factory: ${factoryAddress}`);
       console.log(`  Singleton:     ${singletonAddress}`);

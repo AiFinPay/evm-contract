@@ -11,7 +11,7 @@
 // For chain-specific deployments (v1.5.0 only) the salt also includes chainId;
 // this module intentionally uses the cross-chain-compatible formula.
 
-import { AbiCoder, ZeroAddress, keccak256, solidityPacked } from "ethers";
+import { AbiCoder, Interface, ZeroAddress, keccak256, solidityPacked } from "ethers";
 
 // Minimal Safe Proxy Factory ABI fragments needed by callers.
 export const SAFE_PROXY_FACTORY_ABI = [
@@ -44,20 +44,29 @@ export const SAFE_SINGLETON_ABI = [
 /**
  * Build the initializer calldata for Safe setup().
  *
- * Encodes the standard setup() call with no modules, no payment token, and
- * no fallback handler. Use a non-zero fallbackHandler if the Safe needs the
- * compatibility fallback handler.
+ * Encodes the standard setup() call with its function selector so the Safe
+ * proxy executes setup() during deployment. Uses no modules, no payment token,
+ * and no fallback handler by default. Pass a non-zero fallbackHandler if the
+ * Safe needs the compatibility fallback handler.
  */
 export function buildSafeInitializer(
   _owners: string[],
   _threshold: number,
   _fallbackHandler: string = ZeroAddress,
 ): string {
-  const coder = AbiCoder.defaultAbiCoder();
-  return coder.encode(
-    ["address[]", "uint256", "address", "bytes", "address", "address", "uint256", "address"],
-    [_owners, _threshold, ZeroAddress, "0x", _fallbackHandler, ZeroAddress, 0, ZeroAddress],
-  );
+  const iface = new Interface([
+    "function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address payable paymentReceiver)",
+  ]);
+  return iface.encodeFunctionData("setup", [
+    _owners,
+    _threshold,
+    ZeroAddress,
+    "0x",
+    _fallbackHandler,
+    ZeroAddress,
+    0,
+    ZeroAddress,
+  ]);
 }
 
 /**

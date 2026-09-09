@@ -23,6 +23,7 @@ const { network } = await import("hardhat");
 import { DeploymentRecord } from "./lib/types.js";
 import {
   computeRuntimeCodeHash,
+  ensureCodeAt,
   getDeployerInfo,
   writeDeploymentRecord,
 } from "./lib/deployment.js";
@@ -36,6 +37,9 @@ import {
   pauserEnv,
   routeDeploymentConfigV14,
 } from "../config/v14-production-config.js";
+
+// Re-use verify logic so deploy can optionally verify immediately after record write.
+import { runVerifyFromRecord } from "./verify.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -97,6 +101,12 @@ async function main() {
     configuredSalt(chainId, "TokenList", deployerAddress),
     [gov.admin, stablecoins],
   );
+  if (tokenListAddr.toLowerCase() !== predictedTokenList.toLowerCase()) {
+    throw new Error(
+      `CREATE3 address mismatch for TokenList: deployed ${tokenListAddr}, predicted ${predictedTokenList}`,
+    );
+  }
+  await ensureCodeAt(ethers, tokenListAddr, "TokenList");
   console.log(`  TokenList  = ${tokenListAddr} (predicted ${predictedTokenList})`);
 
   const { address: profilesAddr, predicted: predictedProfiles } = await deployViaCreate3(
@@ -106,6 +116,12 @@ async function main() {
     configuredSalt(chainId, "Profiles", deployerAddress),
     [gov.admin, routeIds, treasuryBps, ipCreatorBps],
   );
+  if (profilesAddr.toLowerCase() !== predictedProfiles.toLowerCase()) {
+    throw new Error(
+      `CREATE3 address mismatch for Profiles: deployed ${profilesAddr}, predicted ${predictedProfiles}`,
+    );
+  }
+  await ensureCodeAt(ethers, profilesAddr, "Profiles");
   console.log(`  Profiles   = ${profilesAddr} (predicted ${predictedProfiles})`);
 
   console.log("\n  Deploying B2BSplitterV14...");
@@ -130,6 +146,15 @@ async function main() {
     configuredSalt(chainId, "B2BSplitterV14", deployerAddress),
     splitterArgs,
   );
+
+  // Safety check: the CREATE3 deployment must have produced code at the predicted address
+  // and the returned address must match the deterministic prediction.
+  await ensureCodeAt(ethers, addr, "B2BSplitterV14");
+  if (addr.toLowerCase() !== predictedSplitter.toLowerCase()) {
+    throw new Error(
+      `CREATE3 address mismatch for B2BSplitterV14: deployed ${addr}, predicted ${predictedSplitter}`,
+    );
+  }
 
   console.log(`  Splitter   = ${addr} (predicted ${predictedSplitter})`);
   console.log(`  Deploy tx  = ${splitter.deploymentTransaction()?.hash}`);
@@ -169,6 +194,18 @@ async function main() {
     `v14-${networkName}-latest`,
   );
   console.log(`  Deployment record written to ${latest}`);
+
+  // Optional automatic verification. Safe to run on public networks; for local
+  // networks verification is a no-op because no explorer is configured.
+  if (process.argv.includes("--verify")) {
+    console.log("\n  Running automatic verification (--verify)...");
+    try {
+      await runVerifyFromRecord(networkName);
+    } catch (e) {
+      console.error("  Automatic verification failed:", e);
+      process.exitCode = 1;
+    }
+  }
 
   console.log(`\n✅ B2BSplitterV14 ${networkName} deployed: ${addr}`);
   console.log(`   tokenList  = ${tokenListAddr}`);
