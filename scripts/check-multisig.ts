@@ -9,15 +9,17 @@
  * The script reads deployments/<network>-safe-multisig-latest.json, connects to
  * the configured Safe singleton, and prints owner list, threshold, nonce, balances,
  * and transaction service links. It does not send transactions.
+ *
+ * The script uses a direct JsonRpcProvider and does not call hardhat's
+ * network.create(), so it does not require a deployer key and works whether
+ * the configured network uses a Ledger, keystore, or env private key.
  */
 
 import { config as dotenvConfig } from "dotenv";
-import { Contract, Interface } from "ethers";
+import { Contract, Interface, JsonRpcProvider, getAddress } from "ethers";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { network } from "hardhat";
-import { getDeployerInfo } from "./lib/deployment.js";
 
 // Load env files with the same precedence as deploy-safe-multisig.ts.
 dotenvConfig({ path: ".env" });
@@ -27,6 +29,62 @@ const envFile = selectedNetwork === "amoy" ? ".env.testnet" : ".env.production";
 dotenvConfig({ path: envFile, override: true });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const NETWORK_RPC_ENV: Record<string, { envVar: string; chainId: number; fallback: string }> = {
+  amoy: { envVar: "AMOY_RPC", chainId: 80002, fallback: "https://rpc-amoy.polygon.technology" },
+  polygon: {
+    envVar: "POLYGON_MAINNET_RPC",
+    chainId: 137,
+    fallback: "https://polygon-bor-rpc.publicnode.com",
+  },
+  avalanche: {
+    envVar: "AVALANCHE_MAINNET_RPC",
+    chainId: 43114,
+    fallback: "https://api.avax.network/ext/bc/C/rpc",
+  },
+  arbitrum: {
+    envVar: "ARBITRUM_MAINNET_RPC",
+    chainId: 42161,
+    fallback: "https://arb1.arbitrum.io/rpc",
+  },
+  bnb: {
+    envVar: "BNB_MAINNET_RPC",
+    chainId: 56,
+    fallback: "https://bsc-dataseed.binance.org",
+  },
+  base: { envVar: "BASE_MAINNET_RPC", chainId: 8453, fallback: "https://mainnet.base.org" },
+  unichain: {
+    envVar: "UNICHAIN_RPC",
+    chainId: 130,
+    fallback: "https://mainnet.unichain.org",
+  },
+  optimism: {
+    envVar: "OPTIMISM_RPC",
+    chainId: 10,
+    fallback: "https://mainnet.optimism.io",
+  },
+  botchain: {
+    envVar: "BOTCHAIN_RPC",
+    chainId: 677,
+    fallback: "https://rpc.botchain.ai",
+  },
+  xrplevm: {
+    envVar: "XRPLEVM_RPC",
+    chainId: 1440000,
+    fallback: "https://rpc.xrplevm.org",
+  },
+};
+
+function resolveRpcUrl(_networkName: string): { url: string; chainId: number } {
+  const cfg = NETWORK_RPC_ENV[_networkName];
+  if (!cfg) {
+    throw new Error(
+      `Unknown network "${_networkName}". Add it to NETWORK_RPC_ENV in scripts/check-multisig.ts.`,
+    );
+  }
+  const override = process.env[cfg.envVar]?.trim();
+  return { url: override || cfg.fallback, chainId: cfg.chainId };
+}
 
 interface SafeDeploymentRecord {
   network: string;
@@ -50,8 +108,6 @@ const SAFE_SINGLETON_ABI = [
   "function getThreshold() view returns (uint256)",
   "function nonce() view returns (uint256)",
   "function VERSION() view returns (string)",
-  "function getModulesPaginated(address start, uint256 pageSize) view returns (address[] array, address next)",
-  "function isOwner(address owner) view returns (bool)",
 ];
 
 const RPC_MAX_RETRIES = 5;
@@ -92,21 +148,6 @@ async function withRetry<T>(_label: string, _fn: () => Promise<T>): Promise<T> {
   );
 }
 
-/**
- * Log the provider URL if available (only for http networks).
- */
-function logProviderUrl(_ethers: any, _networkName: string): void {
-  try {
-    const provider = _ethers.provider;
-    if (provider && typeof provider.getUrl === "function") {
-      const url = provider.getUrl();
-      console.log(`  RPC endpoint: ${typeof url === "string" ? url : (url?.url ?? "(unknown)")}`);
-    }
-  } catch {
-    // Provider may not expose its URL; ignore.
-  }
-}
-
 function readSafeDeploymentRecord(_networkName: string): SafeDeploymentRecord | null {
   const deploymentsDir = path.join(__dirname, "../deployments");
   const recordPath = path.join(deploymentsDir, `${_networkName}-safe-multisig-latest.json`);
@@ -137,6 +178,14 @@ function explorerLink(_networkName: string, _address: string): string {
   }
 }
 
+function formatEther(wei: bigint): string {
+  const negative = wei < 0n;
+  const abs = negative ? -wei : wei;
+  const whole = abs / 10n ** 18n;
+  const frac = (abs % 10n ** 18n).toString().padStart(18, "0").replace(/0+$/, "");
+  return `${negative ? "-" : ""}${whole.toString()}${frac ? "." + frac : ""}`;
+}
+
 async function main() {
   console.log(`Network: ${selectedNetwork}`);
   console.log(`Loaded env file: ${envFile}\n`);
@@ -163,22 +212,25 @@ async function main() {
     console.log(`  Tx service:    ${record.transactionService}`);
   }
 
-  const { ethers, networkName } = await network.create(selectedNetwork);
-  const { chainId } = await getDeployerInfo(ethers, networkName);
+  const { url: rpcUrl, chainId: expectedChainId } = resolveRpcUrl(selectedNetwork);
+  console.log(`  RPC endpoint:  ${rpcUrl}`);
 
-  logProviderUrl(ethers, networkName);
-
+  const provider = new JsonRpcProvider(rpcUrl, expectedChainId);
+  const networkInfo = await withRetry("getNetwork", () => provider.getNetwork());
+  const chainId = Number(networkInfo.chainId);
   if (chainId !== record.chainId) {
     throw new Error(
       `Chain ID mismatch: deployment record says ${record.chainId}, connected network is ${chainId}.`,
     );
   }
 
+  console.log(`\nNetwork:  ${selectedNetwork} (chainId ${chainId})`);
+
   console.log("\nOn-chain Safe state");
-  console.log(`  Safe address:  ${record.safeAddress}`);
+  console.log(`  Safe address:  ${getAddress(record.safeAddress)}`);
   console.log(`  Explorer:      ${explorerLink(selectedNetwork, record.safeAddress)}`);
 
-  const safe = new Contract(record.safeAddress, SAFE_SINGLETON_ABI, ethers.provider);
+  const safe = new Contract(record.safeAddress, SAFE_SINGLETON_ABI, provider);
 
   let owners: string[] = [];
   let threshold: bigint = 0n;
@@ -207,17 +259,15 @@ async function main() {
   );
   console.log(`  Owners (${owners.length}):`);
   for (const owner of owners) {
-    console.log(`    - ${owner}`);
+    console.log(`    - ${getAddress(owner)}`);
   }
   console.log(`  Threshold:     ${threshold.toString()}`);
   console.log(`  Nonce:         ${nonce.toString()}`);
 
-  const balance = await withRetry("getBalance", () =>
-    ethers.provider.getBalance(record.safeAddress),
-  );
-  console.log(`  Native balance: ${ethers.formatEther(balance)} ETH/MATIC`);
+  const balance = await withRetry("getBalance", () => provider.getBalance(record.safeAddress));
+  console.log(`  Native balance: ${formatEther(balance)} ETH/MATIC`);
 
-  const code = await withRetry("getCode", () => ethers.provider.getCode(record.safeAddress));
+  const code = await withRetry("getCode", () => provider.getCode(record.safeAddress));
   console.log(`  Runtime code:  ${code.length > 2 ? (code.length - 2) / 2 : 0} bytes`);
 
   // Decode the initializer to cross-check against the record.
