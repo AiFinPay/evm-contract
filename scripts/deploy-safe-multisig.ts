@@ -298,7 +298,15 @@ async function main() {
     throw new Error("Safe Proxy Factory transaction failed or produced no receipt.");
   }
 
-  const deployedCode = await ethers.provider.getCode(predictedAddress);
+  // Some RPC providers lag behind the chain head even after tx.wait() returns.
+  // Retry getCode a few times with a short delay before giving up.
+  let deployedCode = "0x";
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    deployedCode = await ethers.provider.getCode(predictedAddress);
+    if (deployedCode !== "0x") break;
+    console.log(`  getCode returned 0x (attempt ${attempt}/5), retrying in 3s...`);
+    await new Promise((r) => setTimeout(r, 3000));
+  }
   if (deployedCode === "0x") {
     throw new Error(
       `No contract code at predicted address ${predictedAddress}. ` +

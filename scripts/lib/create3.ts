@@ -185,7 +185,19 @@ export async function deployViaCreate3(
     throw new Error(`CreateX deploy of ${_contractName} failed`);
 
   const address = predicted;
-  if ((await _ethers.provider.getCode(address)).length <= 2) {
+
+  // Some RPC providers lag behind the chain head even after tx.wait() returns.
+  // Retry getCode a few times with a short delay before giving up.
+  let deployedCode = "0x";
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    deployedCode = await _ethers.provider.getCode(address);
+    if (deployedCode !== "0x" && deployedCode.length > 2) break;
+    console.log(
+      `  getCode returned ${deployedCode} for ${_contractName} (attempt ${attempt}/5), retrying in 3s...`,
+    );
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  if (deployedCode.length <= 2) {
     throw new Error(
       `${_contractName} CreateX deployment succeeded but no runtime code at ${address}`,
     );
