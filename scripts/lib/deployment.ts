@@ -132,14 +132,32 @@ export async function computeRuntimeCodeHash(
  * Ensure a contract has runtime code at `_address`. Throws a descriptive error
  * if the address is empty, which prevents the deploy script from writing a
  * record or proceeding when a CREATE3 deployment silently lands elsewhere.
+ *
+ * Some RPC providers lag behind the chain head even after a transaction is
+ * mined, so we poll `getCode` with a short delay before giving up. Networks
+ * with slower RPC propagation (e.g. Unichain) use a longer, gentler poll.
  */
 export async function ensureCodeAt(
   ethers: NetworkContext["ethers"],
   address: string,
   label: string,
+  networkName: string,
+  maxAttempts?: number,
+  delayMs?: number,
 ): Promise<void> {
-  const code = await ethers.provider.getCode(address);
-  if (code.length <= 2) {
-    throw new Error(`${label} has no runtime code at ${address}`);
+  const isSlowRpc = networkName === "unichain";
+  const attempts = maxAttempts ?? (isSlowRpc ? 30 : 10);
+  const waitMs = delayMs ?? (isSlowRpc ? 5000 : 3000);
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const code = await ethers.provider.getCode(address);
+    if (code.length > 2) {
+      return;
+    }
+    console.log(
+      `  getCode returned 0x for ${label} (attempt ${attempt}/${attempts}), retrying in ${waitMs / 1000}s...`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
   }
+  throw new Error(`${label} has no runtime code at ${address}`);
 }

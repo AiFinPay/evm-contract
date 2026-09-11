@@ -115,10 +115,12 @@ export async function deployViaCreate3(
   _contractName: string,
   _salt: string,
   _args: unknown[],
+  _skipIfExists = false,
 ): Promise<{
   contract: Awaited<ReturnType<ContractFactory["deploy"]>>;
   address: string;
   predicted: string;
+  skipped: boolean;
 }> {
   const createX = await _ethers.getContractAt(CREATEX_FACTORY_NAME, _factoryAddress);
   const deployer = (await _ethers.getSigners())[0];
@@ -129,6 +131,18 @@ export async function deployViaCreate3(
   const fullBytecode = ContractFactory.bytecode + creationCode.slice(2);
 
   const predicted = await predictCreate3Address(_ethers, _factoryAddress, deployerAddress, _salt);
+
+  const existingCode = await _ethers.provider.getCode(predicted);
+  if (existingCode !== "0x" && existingCode.length > 2) {
+    if (_skipIfExists) {
+      console.log(`  ${_contractName} already deployed at ${predicted}; skipping CREATE3 deploy.`);
+      const contract = await _ethers.getContractAt(_contractName, predicted);
+      return { contract, address: predicted, predicted, skipped: true };
+    }
+    throw new Error(
+      `${_contractName} already exists at predicted address ${predicted}; refusing to redeploy`,
+    );
+  }
 
   const deployData = CREATEX_ABI.encodeFunctionData("deployCreate3", [_salt, fullBytecode]);
 
@@ -204,7 +218,7 @@ export async function deployViaCreate3(
   }
 
   const contract = await _ethers.getContractAt(_contractName, address);
-  return { contract, address, predicted };
+  return { contract, address, predicted, skipped: false };
 }
 
 /**

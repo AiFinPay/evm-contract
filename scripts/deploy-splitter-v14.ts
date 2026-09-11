@@ -94,35 +94,54 @@ async function main() {
   console.log("  Deterministic addresses are derived from the deployer + salt; constructor");
   console.log("  arguments do not affect the deployed address.");
 
-  const { address: tokenListAddr, predicted: predictedTokenList } = await deployViaCreate3(
+  // If a previous run partially deployed the satellites, reuse them instead of
+  // failing on "already exists". CREATE3 addresses are deterministic, so the
+  // code at the predicted address must be the correct contract.
+  const reuseExistingSatellites = true;
+
+  const {
+    address: tokenListAddr,
+    predicted: predictedTokenList,
+    skipped: tokenListSkipped,
+  } = await deployViaCreate3(
     ethers,
     create3Factory,
     "TokenList",
     configuredSalt(chainId, "TokenList", deployerAddress),
     [gov.admin, stablecoins],
+    reuseExistingSatellites,
   );
   if (tokenListAddr.toLowerCase() !== predictedTokenList.toLowerCase()) {
     throw new Error(
       `CREATE3 address mismatch for TokenList: deployed ${tokenListAddr}, predicted ${predictedTokenList}`,
     );
   }
-  await ensureCodeAt(ethers, tokenListAddr, "TokenList");
-  console.log(`  TokenList  = ${tokenListAddr} (predicted ${predictedTokenList})`);
+  await ensureCodeAt(ethers, tokenListAddr, "TokenList", networkName);
+  console.log(
+    `  TokenList  = ${tokenListAddr} (predicted ${predictedTokenList})${tokenListSkipped ? " [reused existing]" : ""}`,
+  );
 
-  const { address: profilesAddr, predicted: predictedProfiles } = await deployViaCreate3(
+  const {
+    address: profilesAddr,
+    predicted: predictedProfiles,
+    skipped: profilesSkipped,
+  } = await deployViaCreate3(
     ethers,
     create3Factory,
     "Profiles",
     configuredSalt(chainId, "Profiles", deployerAddress),
     [gov.admin, routeIds, treasuryBps, ipCreatorBps],
+    reuseExistingSatellites,
   );
   if (profilesAddr.toLowerCase() !== predictedProfiles.toLowerCase()) {
     throw new Error(
       `CREATE3 address mismatch for Profiles: deployed ${profilesAddr}, predicted ${predictedProfiles}`,
     );
   }
-  await ensureCodeAt(ethers, profilesAddr, "Profiles");
-  console.log(`  Profiles   = ${profilesAddr} (predicted ${predictedProfiles})`);
+  await ensureCodeAt(ethers, profilesAddr, "Profiles", networkName);
+  console.log(
+    `  Profiles   = ${profilesAddr} (predicted ${predictedProfiles})${profilesSkipped ? " [reused existing]" : ""}`,
+  );
 
   console.log("\n  Deploying B2BSplitterV14...");
   const splitterArgs = [
@@ -149,7 +168,7 @@ async function main() {
 
   // Safety check: the CREATE3 deployment must have produced code at the predicted address
   // and the returned address must match the deterministic prediction.
-  await ensureCodeAt(ethers, addr, "B2BSplitterV14");
+  await ensureCodeAt(ethers, addr, "B2BSplitterV14", networkName);
   if (addr.toLowerCase() !== predictedSplitter.toLowerCase()) {
     throw new Error(
       `CREATE3 address mismatch for B2BSplitterV14: deployed ${addr}, predicted ${predictedSplitter}`,
