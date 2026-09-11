@@ -1,0 +1,18 @@
+{
+  "network": "robinhood",
+  "chainId": 4663,
+  "timestamp": "2026-09-11T13:25:44.613Z",
+  "splitterVersion": "1.4",
+  "splitter": {
+    "address": "0x78bed24B8D3A5eB2cf8D9A0D6A9Da6Bc5d7f32eB",
+    "admin": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "signer": "0x0000e81aEf36D89373FBF0012550B10B63dAa873",
+    "pauser": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "treasury": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "tokenList": "0xbA98C0797707611787B04680E260036573D9D7a1",
+    "profiles": "0x4dcDd923d9c45bd306aA21c4438B3D325f8F783C",
+    "usdc": "0x0000000000000000000000000000000000000000",
+    "usdt": "0x0000000000000000000000000000000000000000"
+  },
+  "runtimeCodeHash": "0x96812eb70224f48c095b240bc0e1d739a7fcb878c3237b5f795629c239d7ef72"
+}
