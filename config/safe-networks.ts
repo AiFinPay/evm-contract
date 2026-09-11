@@ -146,6 +146,15 @@ export const SAFE_CONFIG: Record<number, SafeNetworkConfig> = {
     // XRPL EVM may not have a Safe transaction service yet
   },
 
+  4663: {
+    chainId: 4663,
+    chainName: "Robinhood Chain",
+    proxyFactory: SAFE_V150_PROXY_FACTORY,
+    singleton: SAFE_V150_SINGLETON,
+    safeVersion: "1.5.0",
+    // Safe transaction service URL to be confirmed once Safe publishes it
+  },
+
   // ─────────────────────────────────────────────────────────────
   // TESTNETS
   // ─────────────────────────────────────────────────────────────

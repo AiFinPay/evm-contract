@@ -157,6 +157,13 @@ export default defineConfig({
       chainType: "l1",
       ...prodAccounts("XRPLEVM"),
     },
+    robinhood: {
+      type: "http",
+      url: process.env.ROBINHOOD_RPC || "https://rpc.mainnet.chain.robinhood.com",
+      chainId: 4663,
+      chainType: "op",
+      ...prodAccounts("ROBINHOOD"),
+    },
   },
 
   chainDescriptors: {
@@ -267,6 +274,17 @@ export default defineConfig({
           name: "XRPL EVM Explorer",
           url: "https://explorer.xrplevm.org",
           apiUrl: "https://explorer.xrplevm.org/api",
+        },
+      },
+    },
+    4663: {
+      name: "Robinhood Chain",
+      chainType: "op",
+      blockExplorers: {
+        etherscan: {
+          name: "Robinhood Chain Explorer",
+          url: "https://robinhoodchain.blockscout.com",
+          apiUrl: "https://robinhoodchain.blockscout.com/api",
         },
       },
     },
