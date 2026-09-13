@@ -122,6 +122,10 @@ async function main() {
       treasury: deployerAddress,
       tokenList: tokenListAddr,
       profiles: profilesAddr,
+      stablecoins: [
+        { symbol: "USDC", address: usdcAddr },
+        { symbol: "USDT", address: usdtAddr },
+      ].filter((asset) => asset.address !== ethers.ZeroAddress),
       usdc: usdcAddr,
       usdt: usdtAddr,
     },

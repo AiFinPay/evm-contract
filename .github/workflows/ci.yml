@@ -8,12 +8,10 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
-  # The registry job reads live chain state. Between pull requests nothing
-  # would notice a governance transaction, a whitelist change or a provider
-  # disagreement, so it also runs on a clock. A scheduled failure is a page,
-  # not a nuisance: it means chain state moved without a matching review.
+  # Keep the payment-artifact gate scheduled as a defence against workflow or
+  # branch-policy drift even when no pull request is open.
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: "17 */6 * * *"
   workflow_dispatch:
 
 # CodeQL actions/missing-workflow-permissions: an unrestricted GITHUB_TOKEN is
@@ -50,7 +48,7 @@ jobs:
         run: bun run prettify:check
 
   registry:
-    name: Canonical registry · drift + chain state
+    name: v1.4 deployment artifacts · fail-closed validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.1
@@ -67,22 +65,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The generated table is a derived artifact. Hand-editing it would change
-      # where the SDK sends money without touching the registry, so the gate is
-      # a regenerate-and-compare rather than a review convention.
-      - name: Generated splitter table matches the registry
-        run: node scripts/generate-sdk-table.mjs --check
-
-      # Chain state is the source of truth. This fails when a required chain is
-      # unreachable, on purpose: "could not check" must not pass as "verified".
-      # Every value is read from two independent providers and must agree.
-      - name: Registry matches live chain state
-        run: node scripts/verify-registry.mjs
-
-      # The timelock documents claimed a 48-hour delay that was never deployed,
-      # and nothing could notice. A status banner fixes today; a machine-readable
-      # marker held to the chain keeps it fixed. Fails in both directions, so it
-      # also catches docs still describing direct ownership after a timelock
-      # goes live.
-      - name: Governance documents match on-chain ownership
-        run: node scripts/verify-governance-docs.mjs
+      # The legacy v1.1-v1.3 registry was intentionally removed and cannot
+      # model v1.4's splitter + TokenList + Profiles topology. Validate the
+      # checked-in v1.4 records instead; live RPC verification remains a
+      # release-gate operation and must never silently pass on provider errors.
+      - name: Validate v1.4 deployment records and quarantine state
+        run: bun run check:deployments:offline

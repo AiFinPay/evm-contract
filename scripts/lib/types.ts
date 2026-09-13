@@ -1,3 +1,10 @@
+export interface StablecoinDeployment {
+  symbol: string;
+  address: string;
+  name?: string;
+  source?: string | null;
+}
+
 export interface SplitterV14Deployment {
   address: string;
   admin: string;
@@ -6,8 +13,12 @@ export interface SplitterV14Deployment {
   treasury: string;
   tokenList: string;
   profiles: string;
-  usdc: string;
-  usdt: string;
+  /** Canonical asset list. Symbols are display metadata; addresses are identities. */
+  stablecoins: StablecoinDeployment[];
+  /** @deprecated Compatibility fields for older SDK readers. */
+  usdc?: string;
+  /** @deprecated Compatibility fields for older SDK readers. */
+  usdt?: string;
 }
 
 export interface DeploymentRecord {
@@ -17,4 +28,7 @@ export interface DeploymentRecord {
   splitterVersion?: string;
   splitter?: SplitterV14Deployment;
   runtimeCodeHash?: string;
+  status?: "enabled" | "disabled" | "invalid" | "retired";
+  settlementEnabled?: boolean;
+  disabledReason?: string;
 }

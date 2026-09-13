@@ -32,6 +32,7 @@ import {
   V14_PRODUCTION_NETWORKS,
   configuredSalt,
   configuredStableAddress,
+  configuredStablecoins,
   governanceEnv,
   initialSignerEnv,
   pauserEnv,
@@ -75,11 +76,13 @@ async function main() {
 
   console.log("\nStep 4/6: Resolving route and stablecoin configuration...");
   const { routeIds, treasuryBps, ipCreatorBps } = routeDeploymentConfigV14();
+  const configuredAssets = configuredStablecoins(chainId);
+  const stablecoins = configuredAssets.map((asset) => asset.address);
   const usdc = configuredStableAddress(chainId, "USDC");
   const usdt = configuredStableAddress(chainId, "USDT");
-  const stablecoins = [usdc, usdt].filter((t) => t !== ZeroAddress);
-  console.log(`  USDC       = ${usdc}`);
-  console.log(`  USDT       = ${usdt}`);
+  for (const asset of configuredAssets) {
+    console.log(`  ${asset.symbol.padEnd(10)} = ${asset.address}`);
+  }
   console.log(`  Stablecoins used = [${stablecoins.join(", ")}]`);
   console.log(`  Routes     = [${routeIds.join(", ")}]`);
   console.log(`  Treasury bps = [${treasuryBps.join(", ")}]`);
@@ -120,6 +123,19 @@ async function main() {
   console.log(
     `  TokenList  = ${tokenListAddr} (predicted ${predictedTokenList})${tokenListSkipped ? " [reused existing]" : ""}`,
   );
+  if (tokenListSkipped) {
+    const tokenList = await ethers.getContractAt("TokenList", tokenListAddr);
+    if (!(await tokenList.hasRole(ethers.ZeroHash, gov.admin))) {
+      throw new Error(`Reused TokenList ${tokenListAddr} is not administered by ${gov.admin}.`);
+    }
+    for (const asset of configuredAssets) {
+      if (!(await tokenList.isAllowed(asset.address))) {
+        throw new Error(
+          `Reused TokenList ${tokenListAddr} does not allow ${asset.symbol} (${asset.address}).`,
+        );
+      }
+    }
+  }
 
   const {
     address: profilesAddr,
@@ -142,6 +158,26 @@ async function main() {
   console.log(
     `  Profiles   = ${profilesAddr} (predicted ${predictedProfiles})${profilesSkipped ? " [reused existing]" : ""}`,
   );
+  if (profilesSkipped) {
+    const profiles = await ethers.getContractAt("Profiles", profilesAddr);
+    if (!(await profiles.hasRole(ethers.ZeroHash, gov.admin))) {
+      throw new Error(`Reused Profiles ${profilesAddr} is not administered by ${gov.admin}.`);
+    }
+    for (let index = 0; index < routeIds.length; index += 1) {
+      const routeId = routeIds[index];
+      const profile = await profiles.getProfile(routeId);
+      if (
+        !(await profiles.isEnabled(routeId)) ||
+        profile.treasuryBps !== BigInt(treasuryBps[index]) ||
+        profile.ipCreatorBps !== BigInt(ipCreatorBps[index]) ||
+        profile.routeTreasury !== ZeroAddress
+      ) {
+        throw new Error(
+          `Reused Profiles ${profilesAddr} has unexpected state for route ${routeId}.`,
+        );
+      }
+    }
+  }
 
   console.log("\n  Deploying B2BSplitterV14...");
   const splitterArgs = [
@@ -200,10 +236,14 @@ async function main() {
       treasury: gov.treasury,
       tokenList: tokenListAddr,
       profiles: profilesAddr,
+      stablecoins: configuredAssets,
       usdc,
       usdt,
     },
     runtimeCodeHash,
+    status: "disabled",
+    settlementEnabled: false,
+    disabledReason: "New deployment requires independent verification before settlement",
   };
 
   const { latest } = writeDeploymentRecord(

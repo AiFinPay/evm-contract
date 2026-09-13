@@ -11,8 +11,23 @@
     "treasury": "0x01b80329ff81ce1d22a9e2e8807df5f92414c3c3",
     "tokenList": "0xbA98C0797707611787B04680E260036573D9D7a1",
     "profiles": "0x4dcDd923d9c45bd306aA21c4438B3D325f8F783C",
+    "stablecoins": [
+      {
+        "symbol": "USDC",
+        "name": "USDC",
+        "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+      },
+      {
+        "symbol": "USDC.e",
+        "name": "Bridged USDC",
+        "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+      }
+    ],
     "usdc": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-    "usdt": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+    "usdt": "0x0000000000000000000000000000000000000000"
   },
-  "runtimeCodeHash": "0x974b871ac79082d92a7e3bba89ba52794f7906f99119dfad7959017e5b0bf038"
+  "runtimeCodeHash": "0x974b871ac79082d92a7e3bba89ba52794f7906f99119dfad7959017e5b0bf038",
+  "status": "disabled",
+  "settlementEnabled": false,
+  "disabledReason": "Backend v1.4 verification and end-to-end settlement gate are not complete"
 }

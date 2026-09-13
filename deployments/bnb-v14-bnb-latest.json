@@ -14,5 +14,8 @@
     "usdc": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
     "usdt": "0x55d398326f99059fF775485246999027B3197955"
   },
-  "runtimeCodeHash": "0x8aa8c5999a1a0ee87198e380188faaa9d6df88819b47d68682096cc33db81638"
+  "runtimeCodeHash": "0x8aa8c5999a1a0ee87198e380188faaa9d6df88819b47d68682096cc33db81638",
+  "status": "disabled",
+  "settlementEnabled": false,
+  "disabledReason": "Backend v1.4 receipt verification and end-to-end settlement gate are incomplete"
 }
