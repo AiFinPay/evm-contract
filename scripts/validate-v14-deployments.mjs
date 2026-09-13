@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ZeroAddress } from "ethers";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const deploymentsDir = path.join(root, "deployments");
@@ -20,7 +21,6 @@ const expected = new Set([
   "unichain",
   "xrplevm",
 ]);
-const zeroAddress = "0x0000000000000000000000000000000000000000";
 
 function fail(file, message) {
   throw new Error(`${file}: ${message}`);
@@ -41,7 +41,7 @@ for (const file of files) {
     record.splitter.profiles,
   ];
   for (const address of componentAddresses) {
-    if (!/^0x[0-9a-fA-F]{40}$/.test(address) || address.toLowerCase() === zeroAddress) {
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address) || address.toLowerCase() === ZeroAddress) {
       fail(file, `invalid component address ${address}`);
     }
   }
@@ -72,7 +72,7 @@ for (const file of files) {
     : [
         { symbol: "USDC", address: record.splitter.usdc },
         { symbol: "USDT", address: record.splitter.usdt },
-      ].filter((asset) => asset.address && asset.address.toLowerCase() !== zeroAddress);
+      ].filter((asset) => asset.address && asset.address.toLowerCase() !== ZeroAddress);
   for (const asset of assets) {
     if (!asset.symbol || !/^0x[0-9a-fA-F]{40}$/.test(asset.address)) {
       fail(file, "invalid stablecoin entry");
