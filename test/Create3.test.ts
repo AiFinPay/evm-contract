@@ -44,8 +44,13 @@ describe("CREATE3 deployment", () => {
     const predicted = await predictCreate3Address(ethers, factoryAddress, deployerAddress, salt);
     expect(deployedA).to.equal(predicted);
 
-    await expect(
-      deployViaCreate3(ethers, factoryAddress, "TokenList", salt, [deployerAddress, []]),
-    ).to.be.revertedWith("DEPLOYMENT_FAILED");
+    let duplicateError: unknown;
+    try {
+      await deployViaCreate3(ethers, factoryAddress, "TokenList", salt, [deployerAddress, []]);
+    } catch (error) {
+      duplicateError = error;
+    }
+    expect(duplicateError).to.be.instanceOf(Error);
+    expect((duplicateError as Error).message).to.include("already exists at predicted address");
   });
 });
