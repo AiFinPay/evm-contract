@@ -63,15 +63,15 @@ const NETWORK_RPC_ENV: Record<string, { envVar: string; chainId: number; fallbac
     chainId: 10,
     fallback: "https://mainnet.optimism.io",
   },
-  botchain: {
-    envVar: "BOTCHAIN_RPC",
-    chainId: 677,
-    fallback: "https://rpc.botchain.ai",
-  },
   xrplevm: {
     envVar: "XRPLEVM_RPC",
     chainId: 1440000,
     fallback: "https://rpc.xrplevm.org",
+  },
+  robinhood: {
+    envVar: "ROBINHOOD_RPC",
+    chainId: 4663,
+    fallback: "https://rpc.mainnet.chain.robinhood.com",
   },
 };
 
@@ -173,6 +173,8 @@ function explorerLink(_networkName: string, _address: string): string {
       return `https://basescan.org/address/${_address}`;
     case "optimism":
       return `https://optimistic.etherscan.io/address/${_address}`;
+    case "robinhood":
+      return `https://robinhoodchain.blockscout.com/address/${_address}`;
     default:
       return _address;
   }

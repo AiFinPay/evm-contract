@@ -2,8 +2,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { network } from "hardhat";
-import { isAddress } from "ethers";
+import { ZeroAddress, isAddress, keccak256 } from "ethers";
 import type { DeploymentRecord } from "./lib/types.js";
+import { routeIdsV14 } from "../config/v14-production-config.js";
 
 const { ethers, networkName } = await network.create();
 
@@ -18,6 +19,20 @@ async function hasCode(_address: string, _label: string): Promise<boolean> {
   const ok = code.length > 2;
   console.log(status(ok, `${_label} (${_address}) has runtime code`));
   return ok;
+}
+
+function configuredStablecoins(
+  record: DeploymentRecord,
+): Array<{ symbol: string; address: string }> {
+  const splitter = record.splitter;
+  if (!splitter) return [];
+  if (Array.isArray(splitter.stablecoins)) return splitter.stablecoins;
+
+  // Backwards-compatible reader for records written before the generic asset schema.
+  return [
+    { symbol: "USDC", address: splitter.usdc ?? ZeroAddress },
+    { symbol: "USDT", address: splitter.usdt ?? ZeroAddress },
+  ].filter((asset) => asset.address !== ZeroAddress);
 }
 
 async function main() {
@@ -47,6 +62,10 @@ async function main() {
     );
   }
 
+  if (!record.splitter) {
+    throw new Error("Deployment record does not contain a v1.4 splitter payload.");
+  }
+
   const s = record.splitter;
   let ok = true;
 
@@ -59,6 +78,19 @@ async function main() {
   ok &&= await hasCode(s.tokenList, "TokenList");
   ok &&= await hasCode(s.profiles, "Profiles");
 
+  const runtimeCode = await ethers.provider.getCode(s.address);
+  const actualRuntimeCodeHash = runtimeCode.length > 2 ? keccak256(runtimeCode) : null;
+  const runtimeHashMatches =
+    typeof record.runtimeCodeHash === "string" &&
+    actualRuntimeCodeHash?.toLowerCase() === record.runtimeCodeHash.toLowerCase();
+  console.log(
+    status(
+      runtimeHashMatches,
+      `runtime code hash = ${actualRuntimeCodeHash ?? "no code"} (record: ${record.runtimeCodeHash ?? "missing"})`,
+    ),
+  );
+  ok &&= runtimeHashMatches;
+
   // ── Address validity ──
   console.log("\n--- Address validity ---");
   for (const [label, addr] of Object.entries({
@@ -68,13 +100,23 @@ async function main() {
     treasury: s.treasury,
     tokenList: s.tokenList,
     profiles: s.profiles,
-    usdc: s.usdc,
-    usdt: s.usdt,
+    ...Object.fromEntries(
+      configuredStablecoins(record).map((asset) => [`asset ${asset.symbol}`, asset.address]),
+    ),
   })) {
-    const valid = isAddress(addr);
+    const valid = isAddress(addr) && addr.toLowerCase() !== ZeroAddress;
     console.log(status(valid, `${label}: ${addr}`));
     ok &&= valid;
   }
+
+  const contractAddresses = [s.address, s.tokenList, s.profiles].map((address) =>
+    address.toLowerCase(),
+  );
+  const contractsAreDistinct = new Set(contractAddresses).size === contractAddresses.length;
+  console.log(
+    status(contractsAreDistinct, "splitter, TokenList and Profiles addresses are distinct"),
+  );
+  ok &&= contractsAreDistinct;
 
   // ── B2BSplitterV14 state ──
   console.log("\n--- B2BSplitterV14 ---");
@@ -110,16 +152,23 @@ async function main() {
   ok &&= hasAdmin && hasSigner && hasPauser;
 
   // ── Deployer / admin separation ──
-  const deployerAddress = await (await ethers.getSigners())[0].getAddress();
+  const deployerAddress = process.env.AIFINPAY_DEPLOYER_ADDRESS?.trim();
   const defaultAdminRole = ethers.ZeroHash;
 
-  const splitterDeployerIsAdmin = deployerAddress.toLowerCase() === s.admin.toLowerCase();
-  const splitterDeployerHasAdmin = await splitter.hasRole(adminRole, deployerAddress);
-  if (splitterDeployerIsAdmin || splitterDeployerHasAdmin) {
-    console.warn(
-      `⚠️  Deployer ${deployerAddress} holds ADMIN_ROLE on B2BSplitterV14. ` +
-        `For production governance, ADMIN_ROLE should be transferred to a Safe/Timelock and renounced by the deployer.`,
-    );
+  if (deployerAddress) {
+    if (!isAddress(deployerAddress) || deployerAddress.toLowerCase() === ZeroAddress) {
+      throw new Error("AIFINPAY_DEPLOYER_ADDRESS is not a valid non-zero address.");
+    }
+    const splitterDeployerIsAdmin = deployerAddress.toLowerCase() === s.admin.toLowerCase();
+    const splitterDeployerHasAdmin = await splitter.hasRole(adminRole, deployerAddress);
+    if (splitterDeployerIsAdmin || splitterDeployerHasAdmin) {
+      console.warn(
+        `⚠️  Deployer ${deployerAddress} holds ADMIN_ROLE on B2BSplitterV14. ` +
+          `For production governance, ADMIN_ROLE should be transferred to a Safe/Timelock and renounced by the deployer.`,
+      );
+    }
+  } else {
+    console.log("  Deployer role check skipped (AIFINPAY_DEPLOYER_ADDRESS not set).");
   }
 
   // ── Paused state ──
@@ -132,9 +181,8 @@ async function main() {
   // ── TokenList ──
   console.log("\n--- TokenList ---");
   const tokenListAdminOk = await tokenList.hasRole(defaultAdminRole, s.admin);
-  const tokenListDeployerHasAdmin = await tokenList.hasRole(defaultAdminRole, deployerAddress);
   console.log(status(tokenListAdminOk, `DEFAULT_ADMIN_ROLE granted to ${s.admin}`));
-  if (tokenListDeployerHasAdmin) {
+  if (deployerAddress && (await tokenList.hasRole(defaultAdminRole, deployerAddress))) {
     console.warn(
       `⚠️  Deployer ${deployerAddress} holds DEFAULT_ADMIN_ROLE on TokenList. ` +
         `Transfer admin to the governance Safe and renounce the deployer.`,
@@ -142,21 +190,21 @@ async function main() {
   }
   ok &&= tokenListAdminOk;
 
-  for (const [symbol, addr] of [
-    ["USDC", s.usdc],
-    ["USDT", s.usdt],
-  ]) {
-    const allowed = await tokenList.isAllowed(addr);
-    console.log(status(allowed, `${symbol} (${addr}) is allowed`));
+  const zeroAddressAllowed = await tokenList.isAllowed(ZeroAddress);
+  console.log(status(!zeroAddressAllowed, "address(0) is not allowed"));
+  ok &&= !zeroAddressAllowed;
+
+  for (const { symbol, address } of configuredStablecoins(record)) {
+    const allowed = await tokenList.isAllowed(address);
+    console.log(status(allowed, `${symbol} (${address}) is allowed`));
     ok &&= allowed;
   }
 
   // ── Profiles ──
   console.log("\n--- Profiles ---");
   const profilesAdminOk = await profiles.hasRole(defaultAdminRole, s.admin);
-  const profilesDeployerHasAdmin = await profiles.hasRole(defaultAdminRole, deployerAddress);
   console.log(status(profilesAdminOk, `DEFAULT_ADMIN_ROLE granted to ${s.admin}`));
-  if (profilesDeployerHasAdmin) {
+  if (deployerAddress && (await profiles.hasRole(defaultAdminRole, deployerAddress))) {
     console.warn(
       `⚠️  Deployer ${deployerAddress} holds DEFAULT_ADMIN_ROLE on Profiles. ` +
         `Transfer admin to the governance Safe and renounce the deployer.`,
@@ -166,16 +214,32 @@ async function main() {
 
   const routeIds = await profiles.routeIds();
   console.log(`  Configured routes: ${routeIds.length}`);
+  const expectedRouteIds = routeIdsV14();
+  const expectedProfiles = new Map([
+    [expectedRouteIds.agent.toLowerCase(), { treasuryBps: 0n, ipCreatorBps: 0n }],
+    [expectedRouteIds.merchant.toLowerCase(), { treasuryBps: 100n, ipCreatorBps: 0n }],
+  ]);
+  const exactRouteSet =
+    routeIds.length === expectedProfiles.size &&
+    routeIds.every((routeId: string) => expectedProfiles.has(routeId.toLowerCase()));
+  console.log(status(exactRouteSet, "enabled route set matches agent-x402 + merchant-aifp1"));
+  ok &&= exactRouteSet;
   for (const routeId of routeIds) {
     const profile = await profiles.getProfile(routeId);
     const enabled = await profiles.isEnabled(routeId);
+    const expected = expectedProfiles.get(routeId.toLowerCase());
+    const economicsMatch =
+      expected !== undefined &&
+      profile.treasuryBps === expected.treasuryBps &&
+      profile.ipCreatorBps === expected.ipCreatorBps &&
+      profile.routeTreasury === ZeroAddress;
     console.log(
       status(
-        enabled,
+        enabled && economicsMatch,
         `route ${routeId}: treasuryBps=${profile.treasuryBps}, ipCreatorBps=${profile.ipCreatorBps}, enabled=${enabled}, treasury=${profile.routeTreasury}`,
       ),
     );
-    ok &&= enabled;
+    ok &&= enabled && economicsMatch;
   }
 
   // ── Summary ──

@@ -27,6 +27,8 @@ export interface V14ProductionNetwork {
 
 const CIRCLE_USDC_SOURCE = "Circle USDC contract-address registry, verified 2026-08-27";
 const TETHER_USDT_SOURCE = "Tether supported-protocols registry, verified 2026-08-27";
+const POLYGON_BRIDGED_USDC_SOURCE =
+  "Polygon PoS bridged USDC.e contract, corrected during AIFINP-223 review 2026-09-13";
 
 const CREATE3_SALTS = {
   TokenList: "0x8be94b4c2852b83d5f69de83ba79859073143caceb89a1cdda67fb51455c4606",
@@ -73,9 +75,9 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
       },
       {
         address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-        symbol: "USDT",
-        name: "USDT",
-        source: TETHER_USDT_SOURCE,
+        symbol: "USDC.e",
+        name: "Bridged USDC",
+        source: POLYGON_BRIDGED_USDC_SOURCE,
       },
     ],
     salts: CREATE3_SALTS,
@@ -158,12 +160,6 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
         source: CIRCLE_USDC_SOURCE,
       },
     ],
-    salts: CREATE3_SALTS,
-  },
-  677: {
-    name: "BOT Chain",
-    chainId: 677,
-    stablecoins: [],
     salts: CREATE3_SALTS,
   },
   1440000: {

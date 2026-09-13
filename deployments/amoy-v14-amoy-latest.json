@@ -14,5 +14,7 @@
     "usdc": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
     "usdt": "0x0000000000000000000000000000000000000000"
   },
-  "runtimeCodeHash": "0xd4990487312c00916aa218bdcd697bbf1a2729335b6a4fda903517b9d3153a27"
+  "runtimeCodeHash": "0xd4990487312c00916aa218bdcd697bbf1a2729335b6a4fda903517b9d3153a27",
+  "status": "enabled",
+  "settlementEnabled": true
 }
