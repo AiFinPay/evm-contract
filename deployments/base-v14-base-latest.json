@@ -17,9 +17,7 @@
         "name": "USDC",
         "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
       }
-    ],
-    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    "usdt": "0x0000000000000000000000000000000000000000"
+    ]
   },
   "runtimeCodeHash": "0xc724e02657817177d1394e8d41189dd7f8299bb5cf2da04946572378c935883c",
   "status": "invalid",

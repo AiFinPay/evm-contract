@@ -15,10 +15,6 @@ export interface SplitterV14Deployment {
   profiles: string;
   /** Canonical asset list. Symbols are display metadata; addresses are identities. */
   stablecoins: StablecoinDeployment[];
-  /** @deprecated Compatibility fields for older SDK readers. */
-  usdc?: string;
-  /** @deprecated Compatibility fields for older SDK readers. */
-  usdt?: string;
 }
 
 export interface DeploymentRecord {

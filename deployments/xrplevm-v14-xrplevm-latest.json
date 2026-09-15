@@ -11,8 +11,7 @@
     "treasury": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
     "tokenList": "0xbA98C0797707611787B04680E260036573D9D7a1",
     "profiles": "0x4dcDd923d9c45bd306aA21c4438B3D325f8F783C",
-    "usdc": "0x0000000000000000000000000000000000000000",
-    "usdt": "0x0000000000000000000000000000000000000000"
+    "stablecoins": []
   },
   "runtimeCodeHash": "0xd26862dbc501481675f50924ca013acd5c20aca339f2a1aca818becedf7b5aa0",
   "status": "disabled",

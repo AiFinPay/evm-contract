@@ -11,8 +11,23 @@
     "treasury": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
     "tokenList": "0xbA98C0797707611787B04680E260036573D9D7a1",
     "profiles": "0x4dcDd923d9c45bd306aA21c4438B3D325f8F783C",
-    "usdc": "0x0000000000000000000000000000000000000000",
-    "usdt": "0x0000000000000000000000000000000000000000"
+    "stablecoins": [
+      {
+        "symbol": "USDe",
+        "name": "USDe",
+        "address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "source": "Ethena USDe on Robinhood Chain, verified via on-chain symbol/name"
+      },
+      {
+        "symbol": "USDG",
+        "name": "Global Dollar",
+        "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+        "source": "Paxos Global Dollar on Robinhood Chain, verified via on-chain symbol/name"
+      }
+    ]
   },
-  "runtimeCodeHash": "0x96812eb70224f48c095b240bc0e1d739a7fcb878c3237b5f795629c239d7ef72"
+  "runtimeCodeHash": "0x96812eb70224f48c095b240bc0e1d739a7fcb878c3237b5f795629c239d7ef72",
+  "status": "disabled",
+  "settlementEnabled": false,
+  "disabledReason": "Backend v1.4 verification and end-to-end settlement gate are not complete"
 }

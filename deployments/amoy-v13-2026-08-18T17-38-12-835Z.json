@@ -7,8 +7,13 @@
     "address": "0xBF57D833451eeDE8214A425CF843ABe2F861EF1d",
     "owner": "0xc525ac84289f884cB488A3dd22Bf5Fef32F96102",
     "treasury": "0xc525ac84289f884cB488A3dd22Bf5Fef32F96102",
-    "usdc": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
-    "usdt": "0x9281E8AF71Dd83c2484a8a22a1b820aEA21ebB32"
+    "stablecoins": [
+      {
+        "symbol": "USDC",
+        "name": "USDC",
+        "address": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582"
+      }
+    ]
   },
   "runtimeCodeHash": "0x39260f322cce98a22549f9c984108171f83281e5a7ff4707f59a5b8851a7edca",
   "tokenDecimals": {
@@ -25,5 +30,8 @@
     "treasuryBps": 100,
     "ipCreatorBps": 0,
     "enabled": false
-  }
+  },
+  "status": "disabled",
+  "settlementEnabled": false,
+  "disabledReason": "Backend v1.4 verification and end-to-end settlement gate are not complete"
 }

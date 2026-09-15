@@ -8,7 +8,6 @@
  *   - all other networks: .env.production
  */
 import { config as dotenvConfig } from "dotenv";
-import { ZeroAddress } from "ethers";
 
 // Load the correct env file BEFORE importing hardhat, so the network config
 // (accounts, RPC, etc.) picks up the values.
@@ -31,7 +30,6 @@ import { deployViaCreate3, resolveCreate3Factory } from "./lib/create3.js";
 import {
   V14_PRODUCTION_NETWORKS,
   configuredSalt,
-  configuredStableAddress,
   configuredStablecoins,
   governanceEnv,
   initialSignerEnv,
@@ -78,8 +76,6 @@ async function main() {
   const { routeIds, treasuryBps, ipCreatorBps } = routeDeploymentConfigV14();
   const configuredAssets = configuredStablecoins(chainId);
   const stablecoins = configuredAssets.map((asset) => asset.address);
-  const usdc = configuredStableAddress(chainId, "USDC");
-  const usdt = configuredStableAddress(chainId, "USDT");
   for (const asset of configuredAssets) {
     console.log(`  ${asset.symbol.padEnd(10)} = ${asset.address}`);
   }
@@ -237,8 +233,6 @@ async function main() {
       tokenList: tokenListAddr,
       profiles: profilesAddr,
       stablecoins: configuredAssets,
-      usdc,
-      usdt,
     },
     runtimeCodeHash,
     status: "disabled",

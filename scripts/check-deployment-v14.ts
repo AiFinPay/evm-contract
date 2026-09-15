@@ -26,13 +26,7 @@ function configuredStablecoins(
 ): Array<{ symbol: string; address: string }> {
   const splitter = record.splitter;
   if (!splitter) return [];
-  if (Array.isArray(splitter.stablecoins)) return splitter.stablecoins;
-
-  // Backwards-compatible reader for records written before the generic asset schema.
-  return [
-    { symbol: "USDC", address: splitter.usdc ?? ZeroAddress },
-    { symbol: "USDT", address: splitter.usdt ?? ZeroAddress },
-  ].filter((asset) => asset.address !== ZeroAddress);
+  return splitter.stablecoins || [];
 }
 
 async function main() {
