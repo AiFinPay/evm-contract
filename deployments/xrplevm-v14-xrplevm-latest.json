@@ -14,7 +14,6 @@
     "stablecoins": []
   },
   "runtimeCodeHash": "0xd26862dbc501481675f50924ca013acd5c20aca339f2a1aca818becedf7b5aa0",
-  "status": "disabled",
-  "settlementEnabled": false,
-  "disabledReason": "No stablecoin is configured and backend verification is incomplete"
+  "status": "enabled",
+  "settlementEnabled": true
 }

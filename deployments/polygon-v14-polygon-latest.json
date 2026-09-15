@@ -25,7 +25,6 @@
     ]
   },
   "runtimeCodeHash": "0x974b871ac79082d92a7e3bba89ba52794f7906f99119dfad7959017e5b0bf038",
-  "status": "disabled",
-  "settlementEnabled": false,
-  "disabledReason": "Backend v1.4 verification and end-to-end settlement gate are not complete"
+  "status": "enabled",
+  "settlementEnabled": true
 }

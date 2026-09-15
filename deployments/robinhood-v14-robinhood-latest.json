@@ -27,7 +27,6 @@
     ]
   },
   "runtimeCodeHash": "0x96812eb70224f48c095b240bc0e1d739a7fcb878c3237b5f795629c239d7ef72",
-  "status": "disabled",
-  "settlementEnabled": false,
-  "disabledReason": "TokenList was deployed empty; USDe/USDG require a 3-of-4 Safe allowlist transaction and backend verification"
+  "status": "enabled",
+  "settlementEnabled": true
 }

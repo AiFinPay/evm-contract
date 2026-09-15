@@ -25,7 +25,6 @@
     ]
   },
   "runtimeCodeHash": "0x8aa8c5999a1a0ee87198e380188faaa9d6df88819b47d68682096cc33db81638",
-  "status": "disabled",
-  "settlementEnabled": false,
-  "disabledReason": "Backend v1.4 receipt verification and end-to-end settlement gate are incomplete"
+  "status": "enabled",
+  "settlementEnabled": true
 }
