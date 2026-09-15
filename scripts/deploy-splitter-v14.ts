@@ -18,6 +18,8 @@ const envFile = selectedNetwork === "amoy" ? ".env.testnet" : ".env.production";
 dotenvConfig({ path: envFile, override: true });
 console.log(`Loaded env file: ${envFile}`);
 
+import { ZeroAddress } from "ethers";
+
 const { network } = await import("hardhat");
 import { DeploymentRecord } from "./lib/types.js";
 import {
