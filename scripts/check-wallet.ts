@@ -25,6 +25,11 @@ console.log(`Network: ${networkName}`);
 console.log(`Loaded env file: ${envFile}`);
 console.log();
 
+function maskAddress(address: string): string {
+  if (address.length <= 10) return "(redacted)";
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
 const wallet = await resolveWallet(networkName);
 
 console.log("Resolved wallet:");
@@ -33,7 +38,7 @@ console.log(`  Label  : ${wallet.label}`);
 console.log(`  Key    : ${wallet.key ?? ""}`);
 
 if (wallet.address) {
-  console.log(`  Address: ${wallet.address}`);
+  console.log(`  Address: ${maskAddress(wallet.address)}`);
 } else if (wallet.source === "keystore") {
   console.log("  Address: (not derivable without decrypting the keystore)");
 } else if (wallet.source === "env" && wallet.key) {
@@ -41,7 +46,7 @@ if (wallet.address) {
   const raw = process.env[wallet.key]?.trim();
   if (raw) {
     try {
-      console.log(`  Address: ${new Wallet(raw).address}`);
+      console.log(`  Address: ${maskAddress(new Wallet(raw).address)}`);
     } catch {
       console.log("  Address: (invalid private key)");
     }
