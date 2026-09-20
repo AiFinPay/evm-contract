@@ -75,8 +75,8 @@ export async function fixtureV14(): Promise<V14Fixture> {
         initialSigner: signerAddress,
         initialPauser: ownerAddress,
         treasury: treasuryAddress,
-        tokenList: tokenListAddr,
-        profiles: profilesAddr,
+        TOKEN_LIST: tokenListAddr,
+        PROFILES: profilesAddr,
       },
     ],
   );

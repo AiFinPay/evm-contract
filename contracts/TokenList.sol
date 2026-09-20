@@ -27,7 +27,7 @@ contract TokenList is AccessControl, ITokenList {
 
         uint256 length = _initialTokens.length;
         if (length > 0) {
-            for (uint256 i = 0; i < length; i++) {
+            for (uint256 i = 0; i < length; ++i) {
                 _allowed.set(_initialTokens[i], true);
             }
             emit WhitelistedTokensUpdated(_initialTokens, _filledArray(true, length));
@@ -47,7 +47,7 @@ contract TokenList is AccessControl, ITokenList {
 
     function _filledArray(bool _value, uint256 _length) private pure returns (bool[] memory arr) {
         arr = new bool[](_length);
-        for (uint256 i = 0; i < _length; i++) {
+        for (uint256 i = 0; i < _length; ++i) {
             arr[i] = _value;
         }
     }

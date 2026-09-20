@@ -353,8 +353,8 @@ describe("B2BSplitter v1.4 — RBAC", () => {
         initialSigner: await owner.getAddress(),
         initialPauser: await owner.getAddress(),
         treasury: await owner.getAddress(),
-        tokenList: tokenListAddr,
-        profiles: profilesAddr,
+        TOKEN_LIST: tokenListAddr,
+        PROFILES: profilesAddr,
       }),
     ).to.be.revertedWithCustomError(Factory, "AdminEqualsSigner");
 
@@ -364,8 +364,8 @@ describe("B2BSplitter v1.4 — RBAC", () => {
         initialSigner: await owner.getAddress(),
         initialPauser: ethers.ZeroAddress,
         treasury: await owner.getAddress(),
-        tokenList: tokenListAddr,
-        profiles: profilesAddr,
+        TOKEN_LIST: tokenListAddr,
+        PROFILES: profilesAddr,
       }),
     ).to.be.revertedWithCustomError(Factory, "ZeroPauser");
 
@@ -375,8 +375,8 @@ describe("B2BSplitter v1.4 — RBAC", () => {
         initialSigner: await signer.getAddress(),
         initialPauser: await signer.getAddress(),
         treasury: await owner.getAddress(),
-        tokenList: tokenListAddr,
-        profiles: profilesAddr,
+        TOKEN_LIST: tokenListAddr,
+        PROFILES: profilesAddr,
       }),
     ).to.be.revertedWithCustomError(Factory, "PauserEqualsSigner");
   });

@@ -17,7 +17,7 @@ contract CreateXMock is ICreateX {
     /// @notice Expects the raw salt (with deployer prefix). CreateX guards it.
     function deployCreate3(
         bytes32 _salt,
-        bytes memory _initCode
+        bytes calldata _initCode
     ) external payable override returns (address newContract) {
         return CREATE3.deploy(_guard(_salt), _initCode, msg.value);
     }

@@ -64,13 +64,22 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
     // ── EIP712 type hash ─────────────────────────────────────────────────────────
     // Quote(address payer,address merchant,address token,uint256 grossAmount,
     //         address ipCreator,uint256 validUntil,bytes32 orderIdHash,uint256 nonce,bytes32 routeId)
+    // solhint-disable-next-line gas-small-strings
     bytes32 private constant _QUOTE_TYPEHASH = keccak256(
-        "Quote(address payer,address merchant,address token,uint256 grossAmount,address ipCreator,uint256 validUntil,bytes32 orderIdHash,uint256 nonce,bytes32 routeId)"
+        "Quote(address payer,"
+        "address merchant,"
+        "address token,"
+        "uint256 grossAmount,"
+        "address ipCreator,"
+        "uint256 validUntil,"
+        "bytes32 orderIdHash,"
+        "uint256 nonce,"
+        "bytes32 routeId)"
     );
 
     // ── Satellite contracts ──────────────────────────────────────────────────────
-    ITokenList public immutable tokenList;
-    IProfiles public immutable profiles;
+    ITokenList public immutable TOKEN_LIST;
+    IProfiles public immutable PROFILES;
 
     // ── Treasury state ─────────────────────────────────────────────────────────
     address public treasury;
@@ -101,8 +110,8 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         address initialSigner;
         address initialPauser;
         address treasury;
-        address tokenList;
-        address profiles;
+        address TOKEN_LIST;
+        address PROFILES;
     }
 
     constructor(ConstructorParams memory _params) EIP712(EIP712_NAME, EIP712_VERSION) {
@@ -112,16 +121,16 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         if (_params.initialAdmin == _params.initialSigner) revert AdminEqualsSigner();
         if (_params.initialPauser == _params.initialSigner) revert PauserEqualsSigner();
         if (_params.treasury == address(0)) revert ZeroTreasury();
-        if (_params.tokenList == address(0)) revert ZeroTokenList();
-        if (_params.profiles == address(0)) revert ZeroProfiles();
+        if (_params.TOKEN_LIST == address(0)) revert ZeroTokenList();
+        if (_params.PROFILES == address(0)) revert ZeroProfiles();
 
         _grantRole(ADMIN_ROLE, _params.initialAdmin);
         _grantRole(SIGN_OPERATOR_ROLE, _params.initialSigner);
         _grantRole(PAUSER_ROLE, _params.initialPauser);
 
         treasury = _params.treasury;
-        tokenList = ITokenList(_params.tokenList);
-        profiles = IProfiles(_params.profiles);
+        TOKEN_LIST = ITokenList(_params.TOKEN_LIST);
+        PROFILES = IProfiles(_params.PROFILES);
     }
 
     // ── Settlement functions ───────────────────────────────────────────────────
@@ -158,7 +167,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
 
     function settleStable(Quote calldata _quote, bytes calldata _signature) external nonReentrant whenNotPaused {
         IProfiles.RouteProfile memory profile = _verifyQuote(_quote, _signature);
-        if (_quote.token == address(0) || !tokenList.isAllowed(_quote.token)) revert UnsupportedToken();
+        if (_quote.token == address(0) || !TOKEN_LIST.isAllowed(_quote.token)) revert UnsupportedToken();
 
         (uint256 merchantAmt, uint256 treasuryAmt, uint256 ipAmt) = _splitGross(
             _quote.grossAmount,
@@ -209,7 +218,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         if (_quote.payer == address(0) || _quote.payer != msg.sender) revert InvalidPayer();
         if (_quote.merchant == address(0)) revert ZeroMerchant();
 
-        profile = profiles.getProfile(_quote.routeId);
+        profile = PROFILES.getProfile(_quote.routeId);
         if (!profile.enabled) revert RouteDisabled(_quote.routeId);
 
         if (_quote.nonce != payerNonce[_quote.payer]) revert InvalidNonce();
@@ -286,7 +295,7 @@ contract B2BSplitterV14 is AccessControl, ReentrancyGuardTransient, Pausable, EI
         view
         returns (uint256 merchantAmount, uint256 treasuryAmount, uint256 ipCreatorAmount, uint256 totalAmount)
     {
-        IProfiles.RouteProfile memory profile = profiles.getProfile(_routeId);
+        IProfiles.RouteProfile memory profile = PROFILES.getProfile(_routeId);
         if (!profile.enabled) revert RouteDisabled(_routeId);
         (merchantAmount, treasuryAmount, ipCreatorAmount) = _splitGross(_grossAmount, profile, _ipCreator);
         totalAmount = _grossAmount;

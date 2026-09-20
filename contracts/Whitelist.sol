@@ -23,7 +23,7 @@ library Whitelist {
         bool[] calldata _allowed
     ) internal {
         if (_tokens.length != _allowed.length) revert ArrayLengthMismatch();
-        for (uint256 i = 0; i < _tokens.length; i++) {
+        for (uint256 i = 0; i < _tokens.length; ++i) {
             set(_map, _tokens[i], _allowed[i]);
         }
     }

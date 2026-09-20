@@ -22,9 +22,8 @@ contract MockPyth {
         return 1; // 1 wei
     }
 
-    function updatePriceFeeds(bytes[] calldata) external payable {
-        // no-op
-    }
+    // solhint-disable-next-line no-empty-blocks
+    function updatePriceFeeds(bytes[] calldata) external payable {}
 
     function getPriceNoOlderThan(bytes32, uint256) external view returns (Price memory) {
         return Price({ price: mockPrice, conf: 100_000, expo: mockExpo, publishTime: block.timestamp });

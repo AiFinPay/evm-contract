@@ -28,9 +28,9 @@ contract Profiles is AccessControl, IProfiles {
 
     event RouteConfigured(
         bytes32 indexed routeId,
-        uint16 treasuryBps,
-        uint16 ipCreatorBps,
-        address indexed routeTreasury
+        uint16 indexed treasuryBps,
+        uint16 indexed ipCreatorBps,
+        address routeTreasury
     );
     event RouteStatusChanged(bytes32 indexed routeId, bool indexed enabled);
 
@@ -52,7 +52,7 @@ contract Profiles is AccessControl, IProfiles {
             revert ArrayLengthMismatch();
         }
 
-        for (uint256 i = 0; i < routeCount; i++) {
+        for (uint256 i = 0; i < routeCount; ++i) {
             bytes32 id = _initialRouteIds[i];
             uint16 tBps = _treasuryBps[i];
             uint16 iBps = _ipCreatorBps[i];
