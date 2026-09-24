@@ -281,7 +281,7 @@ export default defineConfig({
       name: "Robinhood Chain",
       chainType: "op",
       blockExplorers: {
-        etherscan: {
+        blockscout: {
           name: "Robinhood Chain Explorer",
           url: "https://robinhoodchain.blockscout.com",
           apiUrl: "https://robinhoodchain.blockscout.com/api",
@@ -296,6 +296,10 @@ export default defineConfig({
         process.env.ETHERSCAN_API_KEY ||
         process.env.POLYGONSCAN_API_KEY ||
         configVariable("ETHERSCAN_API_KEY"),
+    },
+    blockscout: {
+      enabled: true,
+      apiKey: process.env.BLOCKSCOUT_API_KEY || configVariable("BLOCKSCOUT_API_KEY"),
     },
     sourcify: {
       enabled: false,

@@ -17,6 +17,7 @@ function findDeploymentRecords(network: string): DeploymentRecord[] {
 
   const records: DeploymentRecord[] = [];
   const candidates = [
+    `${network}-v14-${network}-latest.json`,
     `${network}-v14-latest.json`,
     `${network}-v14-production-latest.json`,
     `${network}-latest.json`,
@@ -40,13 +41,19 @@ function readDeployment(network: string): DeploymentRecord {
   return records[0];
 }
 
-async function verifyOne(args: VerifyContractArgs, label: string): Promise<void> {
+async function verifyOne(
+  args: VerifyContractArgs,
+  label: string,
+  provider?: string,
+): Promise<void> {
   console.log(`\nVerifying ${label} at ${args.address}...`);
   try {
-    await verifyContract(args, hre);
+    await verifyContract({ ...args, provider: provider as VerifyContractArgs["provider"] }, hre);
     console.log(`✅ ${label} verified.`);
   } catch (error: any) {
     if (error?.message?.includes("already been verified")) {
+      console.log(`ℹ️  ${label} already verified.`);
+    } else if (error?.message?.includes("is already verified")) {
       console.log(`ℹ️  ${label} already verified.`);
     } else {
       console.error(`❌ ${label} verification failed:`, error?.message ?? error);
@@ -62,23 +69,26 @@ function routeId(name: string, ethers: NetworkConnection<"generic">["ethers"]): 
 async function verifyTokenList(
   _splitter: SplitterV14Deployment,
   ethers: NetworkConnection<"generic">["ethers"],
+  provider?: string,
 ): Promise<void> {
+  const initialTokens = _splitter.stablecoins
+    .map((s) => s.address)
+    .filter((a) => a && a !== ethers.ZeroAddress);
   await verifyOne(
     {
       address: _splitter.tokenList,
-      constructorArgs: [
-        _splitter.admin,
-        [_splitter.usdc, _splitter.usdt].filter((t) => t !== ethers.ZeroAddress),
-      ],
+      constructorArgs: [_splitter.admin, initialTokens],
       contract: "contracts/TokenList.sol:TokenList",
     },
     "TokenList",
+    provider,
   );
 }
 
 async function verifyProfiles(
   _splitter: SplitterV14Deployment,
   ethers: NetworkConnection<"generic">["ethers"],
+  provider?: string,
 ): Promise<void> {
   // Profiles constructor args are not stored in the record. We derive the
   // canonical v1.4 route configuration from the hard-coded bootstrap routes
@@ -94,10 +104,14 @@ async function verifyProfiles(
       contract: "contracts/Profiles.sol:Profiles",
     },
     "Profiles",
+    provider,
   );
 }
 
-async function verifySplitterV14(_splitter: SplitterV14Deployment): Promise<void> {
+async function verifySplitterV14(
+  _splitter: SplitterV14Deployment,
+  provider?: string,
+): Promise<void> {
   // v1.4 constructor is a struct: ConstructorParams
   const constructorArgs = [
     {
@@ -117,8 +131,16 @@ async function verifySplitterV14(_splitter: SplitterV14Deployment): Promise<void
       contract: "contracts/B2BSplitterV14.sol:B2BSplitterV14",
     },
     "B2BSplitterV14",
+    provider,
   );
 }
+
+/**
+ * Chain IDs whose explorer is Blockscout (not Etherscan-compatible). For these
+ * networks, hardhat-verify must be told to use the blockscout provider so it
+ * does not fall back to the unified Etherscan v2 API.
+ */
+const BLOCKSCOUT_CHAIN_IDS = new Set<number>([4663]);
 
 /**
  * Verify all v1.4 contracts from a deployment record.
@@ -136,10 +158,11 @@ export async function verifyV14Deployment(
     throw new Error("No v1.4 splitter deployment found in record.");
   }
   const splitter = record.splitter;
+  const provider = BLOCKSCOUT_CHAIN_IDS.has(record.chainId) ? "blockscout" : undefined;
 
-  await verifyTokenList(splitter, ethers);
-  await verifyProfiles(splitter, ethers);
-  await verifySplitterV14(splitter);
+  await verifyTokenList(splitter, ethers, provider);
+  await verifyProfiles(splitter, ethers, provider);
+  await verifySplitterV14(splitter, provider);
 }
 
 /**
