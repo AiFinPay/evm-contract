@@ -1,0 +1,25 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "timestamp": "2026-09-10T22:41:49.000Z",
+  "splitterVersion": "1.4",
+  "splitter": {
+    "address": "0x78bed24B8D3A5eB2cf8D9A0D6A9Da6Bc5d7f32eB",
+    "admin": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "signer": "0x0000e81aEf36D89373FBF0012550B10B63dAa873",
+    "pauser": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "treasury": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "tokenList": "0xbA98C0797707611787B04680E260036573D9D7a1",
+    "profiles": "0x4dcDd923d9c45bd306aA21c4438B3D325f8F783C",
+    "stablecoins": [
+      {
+        "symbol": "USDC",
+        "name": "USDC",
+        "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      }
+    ]
+  },
+  "runtimeCodeHash": "0xf8438af51b0197b13e1f9abe9b5d193d559e1827384db6e3285f65784d693905",
+  "status": "enabled",
+  "settlementEnabled": true
+}

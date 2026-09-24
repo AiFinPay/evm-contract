@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.35;
 
-import {ZeroAddress, ArrayLengthMismatch} from "./errors/Errors.sol";
+import { ZeroAddress, ArrayLengthMismatch } from "./errors/Errors.sol";
 
 /// @title Whitelist — reusable stablecoin allow-list
 /// @notice Generic mapping-based whitelist used by AiFinPayCore and B2BSplitter
@@ -23,7 +23,7 @@ library Whitelist {
         bool[] calldata _allowed
     ) internal {
         if (_tokens.length != _allowed.length) revert ArrayLengthMismatch();
-        for (uint256 i = 0; i < _tokens.length; i++) {
+        for (uint256 i = 0; i < _tokens.length; ++i) {
             set(_map, _tokens[i], _allowed[i]);
         }
     }

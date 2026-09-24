@@ -1,0 +1,25 @@
+{
+  "network": "optimism",
+  "chainId": 10,
+  "timestamp": "2026-09-11T13:22:30.413Z",
+  "splitterVersion": "1.4",
+  "splitter": {
+    "address": "0x78bed24B8D3A5eB2cf8D9A0D6A9Da6Bc5d7f32eB",
+    "admin": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "signer": "0x0000e81aEf36D89373FBF0012550B10B63dAa873",
+    "pauser": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "treasury": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "tokenList": "0xbA98C0797707611787B04680E260036573D9D7a1",
+    "profiles": "0x4dcDd923d9c45bd306aA21c4438B3D325f8F783C",
+    "stablecoins": [
+      {
+        "symbol": "USDC",
+        "name": "USDC",
+        "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"
+      }
+    ]
+  },
+  "runtimeCodeHash": "0x5a2d0ffb996d5655fa483e41d3e5870c6a032fd00bea71c3107f95a4b405e152",
+  "status": "enabled",
+  "settlementEnabled": true
+}

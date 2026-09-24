@@ -11,11 +11,17 @@
   "scripts": {
     "test": "hardhat test mocha",
     "build": "hardhat compile",
-    "deploy": "hardhat run scripts/deploy.ts --network polygon --build-profile production",
-    "deploy:testnet": "hardhat run scripts/deploy.ts --network amoy --build-profile production",
-    "deploy:splitter": "hardhat run scripts/deploy-splitter-v12.ts --network polygon --build-profile production",
-    "deploy:timelock": "hardhat run scripts/deploy-timelock.ts --network polygon",
-    "verify": "hardhat run scripts/verify.ts --network polygon --build-profile production",
+    "deploy": "hardhat run scripts/deploy-splitter-v14.ts --build-profile production",
+    "deploy:local": "hardhat run scripts/deploy-splitter-v14-local.ts --build-profile default",
+    "deploy:timelock": "hardhat run scripts/deploy-timelock.ts --build-profile production",
+    "deploy:multisig": "bun scripts/deploy-safe-multisig.ts",
+    "check:env": "hardhat run scripts/check-env.ts",
+    "check:wallet": "hardhat run scripts/check-wallet.ts",
+    "check:multisig": "bun scripts/check-multisig.ts",
+    "check:deployment": "hardhat run scripts/check-deployment-v14.ts",
+    "check:deployments:offline": "node scripts/validate-v14-deployments.mjs",
+    "init:multisig": "bun scripts/init-safe-multisig.ts",
+    "verify": "hardhat run scripts/verify.ts --build-profile production",
     "lint": "solhint 'contracts/**/*.sol'",
     "prettify": "bun scripts/prettier-write.ts",
     "prettify:check": "bun scripts/prettier-check.ts"
@@ -35,7 +41,8 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@openzeppelin/contracts": "^5.6.1"
+    "@openzeppelin/contracts": "^5.6.1",
+    "@safe-global/safe-deployments": "^1.37.63"
   },
   "devDependencies": {
     "@daochild/agents-config": "^1.2.1",
@@ -47,19 +54,20 @@
     "@types/mocha": "^10.0.10",
     "chai": "^5.3.3",
     "dotenv": "^17.4.2",
-    "ethers": "^6.14.0",
+    "ethers": "^6.17.0",
     "forge-std": "^1.1.2",
     "glob": "^13.0.6",
     "hardhat": "^3.12.0",
     "mocha": "^11.0.0",
     "prettier": "^3.9.6",
     "prettier-plugin-solidity": "^2.4.0",
-    "solhint": "^6.2.3",
+    "solhint": "^6.2.4",
     "typescript": "^5.9.3"
   },
   "overrides": {
     "diff": "^8.0.3",
     "elliptic": "^6.6.1",
-    "serialize-javascript": "^7.0.5"
+    "serialize-javascript": "^7.0.5",
+    "axios": "^1.15.2"
   }
 }

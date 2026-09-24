@@ -14,7 +14,8 @@
         "printWidth": 120,
         "trailingComma": "none",
         "singleQuote": false,
-        "bracketSpacing": false,
+        "bracketSpacing": true,
+        "singleAttributePerLine": true,
         "compiler": "0.8.35"
       }
     }

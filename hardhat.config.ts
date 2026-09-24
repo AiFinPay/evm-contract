@@ -4,28 +4,34 @@ import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-et
 import hardhatLedgerPlugin from "@nomicfoundation/hardhat-ledger";
 import hardhatKeystore from "@nomicfoundation/hardhat-keystore";
 
-dotenv.config();
+dotenv.config({ path: ".env" });
+
+// Hardhat loads this config before the deploy script runs, so the script's
+// top-level dotenv override of .env.production/.env.testnet is too late.
+// Load the correct env file here based on the --network CLI argument.
+const networkArgIndex = process.argv.indexOf("--network");
+const selectedNetwork = networkArgIndex >= 0 ? process.argv[networkArgIndex + 1] : "polygon";
+const envFile = selectedNetwork === "amoy" ? ".env.testnet" : ".env.production";
+dotenv.config({ path: envFile, override: true });
 
 const LEDGER_ACCOUNT = process.env.LEDGER_ACCOUNT ? [process.env.LEDGER_ACCOUNT] : [];
-
 const DEV_KEY = process.env.DEV_DEPLOYER_KEY ? [process.env.DEV_DEPLOYER_KEY] : [];
-const PROD_KEY = process.env.PROD_DEPLOYER_KEY ? [process.env.PROD_DEPLOYER_KEY] : [];
-
-function prodAccount(variableName: string): (string | ReturnType<typeof configVariable>)[] {
-  return PROD_KEY.length ? PROD_KEY : [configVariable(variableName)];
-}
 
 /**
  * Returns accounts/ledgerAccounts for production networks.
- * Priority:
- * 1. PROD_DEPLOYER_KEY (global private key for all mainnets).
- * 2. LEDGER_ACCOUNT env (Ledger hardware wallet).
- * 3. Network-specific *_DEPLOYER_KEY config variable as last resort.
+ *
+ * Priority matches .env.example:
+ *   1. Ledger hardware wallet (set LEDGER_ACCOUNT).
+ *   2. Environment variables (PROD_DEPLOYER_KEY or <NETWORK>_DEPLOYER_KEY).
+ *   3. Hardhat Keystore variables (bunx hardhat keystore set <KEY>).
  */
 function prodAccounts(networkKey: string): { accounts: string[]; ledgerAccounts?: string[] } {
-  if (PROD_KEY.length) return { accounts: PROD_KEY };
   if (LEDGER_ACCOUNT.length) return { accounts: [], ledgerAccounts: LEDGER_ACCOUNT };
-  return { accounts: [configVariable(`${networkKey}_DEPLOYER_KEY`)] as unknown as string[] };
+  const key = process.env[`${networkKey}_DEPLOYER_KEY`] || process.env.PROD_DEPLOYER_KEY;
+  if (key) return { accounts: [key] };
+  return {
+    accounts: [configVariable(`${networkKey}_DEPLOYER_KEY`)] as unknown as string[],
+  };
 }
 
 export default defineConfig({
@@ -36,9 +42,9 @@ export default defineConfig({
       default: {
         version: "0.8.35",
         settings: {
-          optimizer: { enabled: true, runs: 10000 },
+          optimizer: { enabled: true, runs: 200 },
           viaIR: true,
-          evmVersion: "cancun",
+          evmVersion: "osaka",
         },
       },
       production: {
@@ -46,7 +52,7 @@ export default defineConfig({
         settings: {
           optimizer: { enabled: true, runs: 10000 },
           viaIR: true,
-          evmVersion: "cancun",
+          evmVersion: "osaka",
         },
       },
     },
@@ -82,9 +88,11 @@ export default defineConfig({
     amoy: {
       type: "http",
       url: process.env.AMOY_RPC || "https://rpc-amoy.polygon.technology",
-      accounts: DEV_KEY,
       chainId: 80002,
       chainType: "l1",
+      ...(LEDGER_ACCOUNT.length
+        ? { accounts: [], ledgerAccounts: LEDGER_ACCOUNT }
+        : { accounts: DEV_KEY }),
     },
     polygon: {
       type: "http",
@@ -148,6 +156,13 @@ export default defineConfig({
       chainId: 1440000,
       chainType: "l1",
       ...prodAccounts("XRPLEVM"),
+    },
+    robinhood: {
+      type: "http",
+      url: process.env.ROBINHOOD_RPC || "https://rpc.mainnet.chain.robinhood.com",
+      chainId: 4663,
+      chainType: "op",
+      ...prodAccounts("ROBINHOOD"),
     },
   },
 
@@ -262,11 +277,25 @@ export default defineConfig({
         },
       },
     },
+    4663: {
+      name: "Robinhood Chain",
+      chainType: "op",
+      blockExplorers: {
+        etherscan: {
+          name: "Robinhood Chain Explorer",
+          url: "https://robinhoodchain.blockscout.com",
+          apiUrl: "https://robinhoodchain.blockscout.com/api",
+        },
+      },
+    },
   },
 
   verify: {
     etherscan: {
-      apiKey: process.env.ETHERSCAN_API_KEY || process.env.POLYGONSCAN_API_KEY || configVariable("ETHERSCAN_API_KEY"),
+      apiKey:
+        process.env.ETHERSCAN_API_KEY ||
+        process.env.POLYGONSCAN_API_KEY ||
+        configVariable("ETHERSCAN_API_KEY"),
     },
     sourcify: {
       enabled: false,

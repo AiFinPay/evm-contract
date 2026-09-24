@@ -1,0 +1,30 @@
+{
+  "network": "bnb",
+  "chainId": 56,
+  "timestamp": "2026-09-11T12:46:05.514Z",
+  "splitterVersion": "1.4",
+  "splitter": {
+    "address": "0x78bed24B8D3A5eB2cf8D9A0D6A9Da6Bc5d7f32eB",
+    "admin": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "signer": "0x0000e81aEf36D89373FBF0012550B10B63dAa873",
+    "pauser": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "treasury": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "tokenList": "0xbA98C0797707611787B04680E260036573D9D7a1",
+    "profiles": "0x4dcDd923d9c45bd306aA21c4438B3D325f8F783C",
+    "stablecoins": [
+      {
+        "symbol": "USDC",
+        "name": "USDC",
+        "address": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d"
+      },
+      {
+        "symbol": "USDT",
+        "name": "USDT",
+        "address": "0x55d398326f99059fF775485246999027B3197955"
+      }
+    ]
+  },
+  "runtimeCodeHash": "0x8aa8c5999a1a0ee87198e380188faaa9d6df88819b47d68682096cc33db81638",
+  "status": "enabled",
+  "settlementEnabled": true
+}

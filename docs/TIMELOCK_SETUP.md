@@ -2,11 +2,23 @@
 
 ## Overview
 
-A **48-hour timelock** has been implemented for all critical protocol parameters to prevent rug-pull attacks and give the community time to react to malicious proposals.
+<!-- governance-status: direct-safe -->
+
+> **Not deployed.** No `TimelockController` owns any v1.3 splitter; all
+> eighteen are owned directly by the 3-of-5 governance Safe and can be changed
+> with no delay. See
+> [TIMELOCK_IMPLEMENTATION.md](./TIMELOCK_IMPLEMENTATION.md) for the on-chain
+> state and the open governance decision.
+
+A **48-hour timelock** is *proposed* for all critical protocol parameters, to
+prevent rug-pull attacks and give the community time to react to malicious
+proposals. Everything below describes how it would work once deployed.
 
 ## What's Protected
 
 The following operations now require a 48-hour timelock delay:
+
+*(The ✅ marks below mean "would be timelock-protected", not "is protected today".)*
 
 ### AiFinPayCore
 - ✅ `setFees()` - Change treasury/IP creator fee percentages
@@ -31,7 +43,7 @@ The following operations now require a 48-hour timelock delay:
          │ 48h delay
          ↓
 ┌─────────────────┐
-│ TimelockController │ ← New owner of all contracts
+│ TimelockController │ ← ADMIN_ROLE holder of all contracts
 │  (48h delay)    │
 └────────┬────────┘
          │
@@ -53,22 +65,29 @@ export EXECUTOR_ADDRESS=0xExecutorAddress  # Can be same as SAFE
 bun run deploy:timelock --network polygon
 ```
 
-### 2. Transfer Ownership
+### 2. Transfer ADMIN_ROLE
 
-After deployment, transfer ownership of all contracts to the TimelockController:
+For v1.4 contracts there is no `Ownable` owner. After deployment, grant `ADMIN_ROLE` to the TimelockController and revoke it from the deployer EOA:
 
 ```typescript
-// In deploy-timelock.ts, uncomment and update addresses:
-await wrapper.transferMultiple([core, splitter, splitterV13]);
+// In deploy-timelock.ts or a follow-up proposal:
+await splitterV14.grantRole(await splitterV14.ADMIN_ROLE(), timelockController);
+await splitterV14.renounceRole(await splitterV14.ADMIN_ROLE(), deployer);
+```
+
+For legacy `Ownable` contracts (v1.2/v1.3), use `transferMultiple` as before:
+
+```typescript
+await wrapper.transferMultiple([core, splitterV12, splitterV13]);
 ```
 
 ### 3. Verify
 
 ```bash
-# Check new owner
-cast owner $CONTRACT_ADDRESS --rpc-url $RPC_URL
+# Check v1.4 admin
+cast call $CONTRACT_ADDRESS "hasRole(bytes32,address)" $(cast keccak "DEFAULT_ADMIN_ROLE") $TIMELOCK_ADDRESS --rpc-url $RPC_URL
 
-# Should return TimelockController address
+# Should return 0x0000000000000000000000000000000000000000000000000000000000000001
 ```
 
 ## Usage
@@ -112,10 +131,7 @@ cast send $TIMELOCK_ADDRESS \
 
 ## Emergency Pause
 
-The `pause()` function is **also timelocked** to prevent malicious pausing. However:
-
-- ✅ **Recommended**: Use Gnosis Safe with multiple signers as proposer
-- ✅ **Alternative**: Deploy separate `PausableRole` for emergency pause without timelock
+`v1.4` adds a dedicated `PAUSER_ROLE` (held by the Gnosis Safe) that can call `pause()` instantly, while `unpause()` remains `ADMIN_ROLE`-only and timelock-gated. For legacy contracts (`v1.3` and earlier), `pause()` is `onlyOwner` and therefore timelocked when the owner is the TimelockController.
 
 ## Security Benefits
 

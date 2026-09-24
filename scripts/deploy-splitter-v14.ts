@@ -1,0 +1,274 @@
+/**
+ * Deploys B2BSplitter v1.4 to production networks using explicit governance env.
+ * This script never falls back to the deployer EOA and aborts if any required
+ * env is missing.
+ *
+ * Env files:
+ *   - amoy network: .env.testnet
+ *   - all other networks: .env.production
+ */
+import { config as dotenvConfig } from "dotenv";
+
+// Load the correct env file BEFORE importing hardhat, so the network config
+// (accounts, RPC, etc.) picks up the values.
+dotenvConfig({ path: ".env" });
+const networkArgIndex = process.argv.indexOf("--network");
+const selectedNetwork = networkArgIndex >= 0 ? process.argv[networkArgIndex + 1] : "polygon";
+const envFile = selectedNetwork === "amoy" ? ".env.testnet" : ".env.production";
+dotenvConfig({ path: envFile, override: true });
+console.log(`Loaded env file: ${envFile}`);
+
+import { ZeroAddress } from "ethers";
+
+const { network } = await import("hardhat");
+import { DeploymentRecord } from "./lib/types.js";
+import {
+  computeRuntimeCodeHash,
+  ensureCodeAt,
+  getDeployerInfo,
+  writeDeploymentRecord,
+} from "./lib/deployment.js";
+import { deployViaCreate3, resolveCreate3Factory } from "./lib/create3.js";
+import {
+  V14_PRODUCTION_NETWORKS,
+  configuredSalt,
+  configuredStablecoins,
+  governanceEnv,
+  initialSignerEnv,
+  pauserEnv,
+  routeDeploymentConfigV14,
+} from "../config/v14-production-config.js";
+
+// Re-use verify logic so deploy can optionally verify immediately after record write.
+import { runVerifyFromRecord } from "./lib/verify.js";
+
+const { ethers, networkName } = await network.create();
+
+async function main() {
+  console.log("Step 1/6: Loading deployer and network info...");
+  const { chainId, address: deployerAddress } = await getDeployerInfo(ethers, networkName);
+  const networkCfg = V14_PRODUCTION_NETWORKS[chainId];
+  if (!networkCfg) throw new Error(`No v1.4 config for chainId ${chainId}.`);
+
+  console.log(`Network: ${networkName} (chainId ${chainId})`);
+  console.log(`Deployer: ${deployerAddress}`);
+
+  console.log("\nStep 2/6: Resolving governance addresses from env...");
+  const gov = governanceEnv(chainId);
+  const signer = initialSignerEnv();
+  const pauser = pauserEnv(chainId, gov.admin);
+  console.log(`  Admin   = ${gov.admin}`);
+  console.log(`  Signer  = ${signer}`);
+  console.log(`  Pauser  = ${pauser}`);
+  console.log(`  Treasury = ${gov.treasury}`);
+
+  console.log("\nStep 3/6: Validating governance addresses...");
+  if (gov.admin === ZeroAddress) throw new Error("Admin cannot be address(0).");
+  if (signer === ZeroAddress) throw new Error("Signer cannot be address(0).");
+  if (pauser === ZeroAddress) throw new Error("Pauser cannot be address(0).");
+  if (gov.admin.toLowerCase() === signer.toLowerCase()) {
+    throw new Error("ADMIN and SIGNER must be different addresses.");
+  }
+  if (pauser.toLowerCase() === signer.toLowerCase()) {
+    throw new Error("PAUSER and SIGNER must be different addresses.");
+  }
+  console.log("  Governance addresses are valid.");
+
+  console.log("\nStep 4/6: Resolving route and stablecoin configuration...");
+  const { routeIds, treasuryBps, ipCreatorBps } = routeDeploymentConfigV14();
+  const configuredAssets = configuredStablecoins(chainId);
+  const stablecoins = configuredAssets.map((asset) => asset.address);
+  for (const asset of configuredAssets) {
+    console.log(`  ${asset.symbol.padEnd(10)} = ${asset.address}`);
+  }
+  console.log(`  Stablecoins used = [${stablecoins.join(", ")}]`);
+  console.log(`  Routes     = [${routeIds.join(", ")}]`);
+  console.log(`  Treasury bps = [${treasuryBps.join(", ")}]`);
+  console.log(`  IP creator bps = [${ipCreatorBps.join(", ")}]`);
+
+  console.log("\nStep 5/6: Resolving CREATE3 factory...");
+  const create3Factory = await resolveCreate3Factory(ethers, networkName);
+  console.log(`  CREATE3Factory = ${create3Factory}`);
+
+  console.log("\nStep 6/6: Deploying v1.4 contracts via CREATE3...");
+  console.log(`  Satellite admin will be set to governance address: ${gov.admin}`);
+  console.log("  Deterministic addresses are derived from the deployer + salt; constructor");
+  console.log("  arguments do not affect the deployed address.");
+
+  // If a previous run partially deployed the satellites, reuse them instead of
+  // failing on "already exists". CREATE3 addresses are deterministic, so the
+  // code at the predicted address must be the correct contract.
+  const reuseExistingSatellites = true;
+
+  const {
+    address: tokenListAddr,
+    predicted: predictedTokenList,
+    skipped: tokenListSkipped,
+  } = await deployViaCreate3(
+    ethers,
+    create3Factory,
+    "TokenList",
+    configuredSalt(chainId, "TokenList", deployerAddress),
+    [gov.admin, stablecoins],
+    reuseExistingSatellites,
+  );
+  if (tokenListAddr.toLowerCase() !== predictedTokenList.toLowerCase()) {
+    throw new Error(
+      `CREATE3 address mismatch for TokenList: deployed ${tokenListAddr}, predicted ${predictedTokenList}`,
+    );
+  }
+  await ensureCodeAt(ethers, tokenListAddr, "TokenList", networkName);
+  console.log(
+    `  TokenList  = ${tokenListAddr} (predicted ${predictedTokenList})${tokenListSkipped ? " [reused existing]" : ""}`,
+  );
+  if (tokenListSkipped) {
+    const tokenList = await ethers.getContractAt("TokenList", tokenListAddr);
+    if (!(await tokenList.hasRole(ethers.ZeroHash, gov.admin))) {
+      throw new Error(`Reused TokenList ${tokenListAddr} is not administered by ${gov.admin}.`);
+    }
+    for (const asset of configuredAssets) {
+      if (!(await tokenList.isAllowed(asset.address))) {
+        throw new Error(
+          `Reused TokenList ${tokenListAddr} does not allow ${asset.symbol} (${asset.address}).`,
+        );
+      }
+    }
+  }
+
+  const {
+    address: profilesAddr,
+    predicted: predictedProfiles,
+    skipped: profilesSkipped,
+  } = await deployViaCreate3(
+    ethers,
+    create3Factory,
+    "Profiles",
+    configuredSalt(chainId, "Profiles", deployerAddress),
+    [gov.admin, routeIds, treasuryBps, ipCreatorBps],
+    reuseExistingSatellites,
+  );
+  if (profilesAddr.toLowerCase() !== predictedProfiles.toLowerCase()) {
+    throw new Error(
+      `CREATE3 address mismatch for Profiles: deployed ${profilesAddr}, predicted ${predictedProfiles}`,
+    );
+  }
+  await ensureCodeAt(ethers, profilesAddr, "Profiles", networkName);
+  console.log(
+    `  Profiles   = ${profilesAddr} (predicted ${predictedProfiles})${profilesSkipped ? " [reused existing]" : ""}`,
+  );
+  if (profilesSkipped) {
+    const profiles = await ethers.getContractAt("Profiles", profilesAddr);
+    if (!(await profiles.hasRole(ethers.ZeroHash, gov.admin))) {
+      throw new Error(`Reused Profiles ${profilesAddr} is not administered by ${gov.admin}.`);
+    }
+    for (let index = 0; index < routeIds.length; index += 1) {
+      const routeId = routeIds[index];
+      const profile = await profiles.getProfile(routeId);
+      if (
+        !(await profiles.isEnabled(routeId)) ||
+        profile.treasuryBps !== BigInt(treasuryBps[index]) ||
+        profile.ipCreatorBps !== BigInt(ipCreatorBps[index]) ||
+        profile.routeTreasury !== ZeroAddress
+      ) {
+        throw new Error(
+          `Reused Profiles ${profilesAddr} has unexpected state for route ${routeId}.`,
+        );
+      }
+    }
+  }
+
+  console.log("\n  Deploying B2BSplitterV14...");
+  const splitterArgs = [
+    {
+      initialAdmin: gov.admin,
+      initialSigner: signer,
+      initialPauser: pauser,
+      treasury: gov.treasury,
+      tokenList: tokenListAddr,
+      profiles: profilesAddr,
+    },
+  ];
+  const {
+    address: addr,
+    contract: splitter,
+    predicted: predictedSplitter,
+  } = await deployViaCreate3(
+    ethers,
+    create3Factory,
+    "B2BSplitterV14",
+    configuredSalt(chainId, "B2BSplitterV14", deployerAddress),
+    splitterArgs,
+  );
+
+  // Safety check: the CREATE3 deployment must have produced code at the predicted address
+  // and the returned address must match the deterministic prediction.
+  await ensureCodeAt(ethers, addr, "B2BSplitterV14", networkName);
+  if (addr.toLowerCase() !== predictedSplitter.toLowerCase()) {
+    throw new Error(
+      `CREATE3 address mismatch for B2BSplitterV14: deployed ${addr}, predicted ${predictedSplitter}`,
+    );
+  }
+
+  console.log(`  Splitter   = ${addr} (predicted ${predictedSplitter})`);
+  console.log(`  Deploy tx  = ${splitter.deploymentTransaction()?.hash}`);
+
+  console.log("\n  Computing runtime code hash...");
+  const runtimeCodeHash = await computeRuntimeCodeHash(ethers, addr);
+  console.log(`  Runtime code hash = ${runtimeCodeHash}`);
+
+  console.log(
+    "\n  Satellites are administered directly by governance; no admin transfer to splitter needed.",
+  );
+
+  console.log("\n  Writing deployment record...");
+  const record: Omit<DeploymentRecord, "network" | "chainId" | "timestamp"> &
+    Record<string, unknown> = {
+    network: networkName,
+    chainId,
+    splitterVersion: "1.4",
+    splitter: {
+      address: addr,
+      admin: gov.admin,
+      signer,
+      pauser,
+      treasury: gov.treasury,
+      tokenList: tokenListAddr,
+      profiles: profilesAddr,
+      stablecoins: configuredAssets,
+    },
+    runtimeCodeHash,
+    status: "disabled",
+    settlementEnabled: false,
+    disabledReason: "New deployment requires independent verification before settlement",
+  };
+
+  const { latest } = writeDeploymentRecord(
+    networkName,
+    chainId,
+    record,
+    `v14-${networkName}-latest`,
+  );
+  console.log(`  Deployment record written to ${latest}`);
+
+  // Optional automatic verification. Safe to run on public networks; for local
+  // networks verification is a no-op because no explorer is configured.
+  if (process.argv.includes("--verify")) {
+    console.log("\n  Running automatic verification (--verify)...");
+    try {
+      await runVerifyFromRecord(networkName, ethers);
+    } catch (e) {
+      console.error("  Automatic verification failed:", e);
+      process.exitCode = 1;
+    }
+  }
+
+  console.log(`\n✅ B2BSplitterV14 ${networkName} deployed: ${addr}`);
+  console.log(`   tokenList  = ${tokenListAddr}`);
+  console.log(`   profiles   = ${profilesAddr}`);
+  console.log(`   runtimeCodeHash = ${runtimeCodeHash}`);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});

@@ -1,0 +1,30 @@
+{
+  "network": "avalanche",
+  "chainId": 43114,
+  "timestamp": "2026-09-11T12:40:14.412Z",
+  "splitterVersion": "1.4",
+  "splitter": {
+    "address": "0x78bed24B8D3A5eB2cf8D9A0D6A9Da6Bc5d7f32eB",
+    "admin": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "signer": "0x0000e81aEf36D89373FBF0012550B10B63dAa873",
+    "pauser": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "treasury": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "tokenList": "0xbA98C0797707611787B04680E260036573D9D7a1",
+    "profiles": "0x4dcDd923d9c45bd306aA21c4438B3D325f8F783C",
+    "stablecoins": [
+      {
+        "symbol": "USDC",
+        "name": "USDC",
+        "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+      },
+      {
+        "symbol": "USDT",
+        "name": "USDT",
+        "address": "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7"
+      }
+    ]
+  },
+  "runtimeCodeHash": "0x65db1830b1d15400cba35b4ef54dd6c5852d5baa077a732bdc84f7c2218952ef",
+  "status": "enabled",
+  "settlementEnabled": true
+}

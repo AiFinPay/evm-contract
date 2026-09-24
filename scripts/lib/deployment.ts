@@ -8,6 +8,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Wallet } from "ethers";
 import type { NetworkConnection } from "hardhat/dist/src/types/network";
 import type { DeploymentRecord } from "./types.js";
 
@@ -22,22 +23,41 @@ export interface DeployerInfo {
 }
 
 /**
+ * Derive the deployer address from configured accounts. Falls back to deriving
+ * from env private keys when no signer is connected (common for ledger/keystore
+ * or when the env was loaded after the network was constructed).
+ */
+function resolveDeployerAddress(): string {
+  const prodKey = process.env.PROD_DEPLOYER_KEY?.trim();
+  const devKey = process.env.DEV_DEPLOYER_KEY?.trim();
+  const networkKey = Object.keys(process.env).find((k) => k.endsWith("_DEPLOYER_KEY"));
+  const rawKey = prodKey || devKey || (networkKey ? process.env[networkKey]?.trim() : undefined);
+  if (!rawKey) {
+    throw new Error(
+      "No deployer key found. Set PROD_DEPLOYER_KEY, DEV_DEPLOYER_KEY, or <NETWORK>_DEPLOYER_KEY.",
+    );
+  }
+  return new Wallet(rawKey).address;
+}
+
+/**
  * Return the first signer, native balance, and numeric chainId, plus log the
  * standard deployer header every deployment script prints.
  */
 export async function getDeployerInfo(
   ethers: NetworkContext["ethers"],
-  networkName: string
+  networkName: string,
 ): Promise<DeployerInfo> {
-  const [deployer] = await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  const address = signers.length ? await signers[0].getAddress() : resolveDeployerAddress();
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
-  const balance = await ethers.provider.getBalance(deployer.address);
+  const balance = await ethers.provider.getBalance(address);
 
   console.log(`Network:  ${networkName} (chainId ${chainId})`);
-  console.log(`Deployer: ${deployer.address}`);
+  console.log(`Deployer: ${address}`);
   console.log(`Balance:  ${ethers.formatEther(balance)} native`);
 
-  return { address: deployer.address, balance, chainId };
+  return { address, balance, chainId };
 }
 
 /**
@@ -53,7 +73,7 @@ export function writeDeploymentRecord(
   networkName: string,
   chainId: number,
   record: Omit<DeploymentRecord, "network" | "chainId" | "timestamp">,
-  suffix: string = "latest"
+  suffix: string = "latest",
 ): { timestamped: string; latest: string } {
   const timestamp = new Date().toISOString();
   const deploymentsDir = path.join(__dirname, "../../deployments");
@@ -102,8 +122,42 @@ export function readLatestDeploymentRecord(networkName: string): DeploymentRecor
  */
 export async function computeRuntimeCodeHash(
   ethers: NetworkContext["ethers"],
-  address: string
+  address: string,
 ): Promise<string> {
   const runtimeCode = await ethers.provider.getCode(address);
   return ethers.keccak256(runtimeCode);
+}
+
+/**
+ * Ensure a contract has runtime code at `_address`. Throws a descriptive error
+ * if the address is empty, which prevents the deploy script from writing a
+ * record or proceeding when a CREATE3 deployment silently lands elsewhere.
+ *
+ * Some RPC providers lag behind the chain head even after a transaction is
+ * mined, so we poll `getCode` with a short delay before giving up. Networks
+ * with slower RPC propagation (e.g. Unichain) use a longer, gentler poll.
+ */
+export async function ensureCodeAt(
+  ethers: NetworkContext["ethers"],
+  address: string,
+  label: string,
+  networkName: string,
+  maxAttempts?: number,
+  delayMs?: number,
+): Promise<void> {
+  const isSlowRpc = networkName === "unichain";
+  const attempts = maxAttempts ?? (isSlowRpc ? 30 : 10);
+  const waitMs = delayMs ?? (isSlowRpc ? 5000 : 3000);
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const code = await ethers.provider.getCode(address);
+    if (code.length > 2) {
+      return;
+    }
+    console.log(
+      `  getCode returned 0x for ${label} (attempt ${attempt}/${attempts}), retrying in ${waitMs / 1000}s...`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+  throw new Error(`${label} has no runtime code at ${address}`);
 }
