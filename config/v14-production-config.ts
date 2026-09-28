@@ -162,6 +162,19 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     ],
     salts: CREATE3_SALTS,
   },
+  677: {
+    name: "BOT Chain",
+    chainId: 677,
+    stablecoins: [
+      {
+        address: "0xababc7ddc03e501d190c676bf3d92ef0e6e87a3c",
+        symbol: "USDT",
+        name: "Bridged USDT",
+        source: "CoinGecko Bridged USDT (BOT Chain) listing, verified 2026-09-28",
+      },
+    ],
+    salts: CREATE3_SALTS,
+  },
   1440000: {
     name: "XRPL EVM",
     chainId: 1440000,

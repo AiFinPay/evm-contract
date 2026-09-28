@@ -1,0 +1,27 @@
+{
+  "network": "botchain",
+  "chainId": 677,
+  "timestamp": "2026-09-28T11:46:47.370Z",
+  "splitterVersion": "1.4",
+  "splitter": {
+    "address": "0x78bed24B8D3A5eB2cf8D9A0D6A9Da6Bc5d7f32eB",
+    "admin": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "signer": "0x0000e81aEf36D89373FBF0012550B10B63dAa873",
+    "pauser": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "treasury": "0x5AFe07483886DFa0B77C6d60212B6E52D78ac11e",
+    "tokenList": "0xbA98C0797707611787B04680E260036573D9D7a1",
+    "profiles": "0x4dcDd923d9c45bd306aA21c4438B3D325f8F783C",
+    "stablecoins": [
+      {
+        "address": "0xababc7ddc03e501d190c676bf3d92ef0e6e87a3c",
+        "symbol": "USDT",
+        "name": "Bridged USDT",
+        "source": "CoinGecko Bridged USDT (BOT Chain) listing, verified 2026-09-28"
+      }
+    ]
+  },
+  "runtimeCodeHash": "0x3b8b3833842bf0fefac1b02f9e1d4494f74e9338b15d62725739050b347d3f25",
+  "status": "disabled",
+  "settlementEnabled": false,
+  "disabledReason": "New deployment requires independent verification before settlement"
+}
