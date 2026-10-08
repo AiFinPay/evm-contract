@@ -47,16 +47,31 @@ async function verifyOne(
   provider?: string,
 ): Promise<void> {
   console.log(`\nVerifying ${label} at ${args.address}...`);
-  try {
-    await verifyContract({ ...args, provider: provider as VerifyContractArgs["provider"] }, hre);
-    console.log(`✅ ${label} verified.`);
-  } catch (error: any) {
-    if (error?.message?.includes("already been verified")) {
-      console.log(`ℹ️  ${label} already verified.`);
-    } else if (error?.message?.includes("is already verified")) {
-      console.log(`ℹ️  ${label} already verified.`);
-    } else {
-      console.error(`❌ ${label} verification failed:`, error?.message ?? error);
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await verifyContract(
+        { ...args, provider: provider as VerifyContractArgs["provider"] },
+        hre,
+      );
+      console.log(`✅ ${label} verified.`);
+      return;
+    } catch (error: any) {
+      const message = error?.message ?? "";
+      if (message.includes("already been verified") || message.includes("is already verified")) {
+        console.log(`ℹ️  ${label} already verified.`);
+        return;
+      }
+      const isRateLimit = message.includes("429") || message.includes("Too Many Requests");
+      if (isRateLimit && attempt < maxAttempts) {
+        const waitMs = 60_000 + attempt * 30_000;
+        console.log(
+          `  Rate limited on ${label} (attempt ${attempt}/${maxAttempts}); waiting ${waitMs / 1000}s before retry...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        continue;
+      }
+      console.error(`❌ ${label} verification failed:`, message || error);
       throw error;
     }
   }
@@ -119,8 +134,8 @@ async function verifySplitterV14(
       initialSigner: _splitter.signer,
       initialPauser: _splitter.pauser,
       treasury: _splitter.treasury,
-      tokenList: _splitter.tokenList,
-      profiles: _splitter.profiles,
+      TOKEN_LIST: _splitter.tokenList,
+      PROFILES: _splitter.profiles,
     },
   ];
 
@@ -140,7 +155,7 @@ async function verifySplitterV14(
  * networks, hardhat-verify must be told to use the blockscout provider so it
  * does not fall back to the unified Etherscan v2 API.
  */
-const BLOCKSCOUT_CHAIN_IDS = new Set<number>([4663]);
+const BLOCKSCOUT_CHAIN_IDS = new Set<number>([4663, 5042, 5042002]);
 
 /**
  * Verify all v1.4 contracts from a deployment record.

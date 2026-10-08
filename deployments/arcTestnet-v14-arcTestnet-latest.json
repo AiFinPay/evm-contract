@@ -2,7 +2,7 @@
   "network": "arcTestnet",
   "chainId": 5042002,
   "timestamp": "2026-10-08T20:36:15.533Z",
-  "splitterVersion": "1.4",
+  "splitterVersion": "1.4.3",
   "splitter": {
     "address": "0x78bed24B8D3A5eB2cf8D9A0D6A9Da6Bc5d7f32eB",
     "admin": "0xDBD9fB312eca3311Be2cfE899aB8c242C0271Ed6",
