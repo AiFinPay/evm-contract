@@ -29,6 +29,7 @@ const CIRCLE_USDC_SOURCE = "Circle USDC contract-address registry, verified 2026
 const TETHER_USDT_SOURCE = "Tether supported-protocols registry, verified 2026-08-27";
 const POLYGON_BRIDGED_USDC_SOURCE =
   "Polygon PoS bridged USDC.e contract, corrected during AIFINP-223 review 2026-09-13";
+const CIRCLE_EURC_SOURCE = "Circle EURC contract-address registry, verified 2026-10-08";
 
 const CREATE3_SALTS = {
   TokenList: "0x8be94b4c2852b83d5f69de83ba79859073143caceb89a1cdda67fb51455c4606",
@@ -179,6 +180,44 @@ export const V14_PRODUCTION_NETWORKS: Record<number, V14ProductionNetwork> = {
     name: "XRPL EVM",
     chainId: 1440000,
     stablecoins: [],
+    salts: CREATE3_SALTS,
+  },
+  5042: {
+    name: "Arc",
+    chainId: 5042,
+    stablecoins: [
+      {
+        address: "0x3600000000000000000000000000000000000000",
+        symbol: "USDC",
+        name: "USDC",
+        source: CIRCLE_USDC_SOURCE,
+      },
+      {
+        address: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1",
+        symbol: "EURC",
+        name: "EURC",
+        source: CIRCLE_EURC_SOURCE,
+      },
+    ],
+    salts: CREATE3_SALTS,
+  },
+  5042002: {
+    name: "Arc Testnet",
+    chainId: 5042002,
+    stablecoins: [
+      {
+        address: "0x3600000000000000000000000000000000000000",
+        symbol: "USDC",
+        name: "USDC",
+        source: CIRCLE_USDC_SOURCE,
+      },
+      {
+        address: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
+        symbol: "EURC",
+        name: "EURC",
+        source: CIRCLE_EURC_SOURCE,
+      },
+    ],
     salts: CREATE3_SALTS,
   },
   4663: {
