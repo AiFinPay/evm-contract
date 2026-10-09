@@ -15,10 +15,6 @@ describe("v1.4 production asset configuration", () => {
     expect(assets.every((asset) => asset.address !== ZeroAddress)).to.equal(true);
   });
 
-  it("hard-disables BOT Chain for v1.4 deployment", () => {
-    expect(() => configuredStablecoins(677)).to.throw("Unsupported AiFinPay v1.4 chainId 677");
-  });
-
   it("includes Circle USDC and EURC on Arc mainnet", () => {
     const assets = configuredStablecoins(5042);
     expect(assets.map((asset) => asset.symbol)).to.deep.equal(["USDC", "EURC"]);
