@@ -4,7 +4,7 @@
  * env is missing.
  *
  * Env files:
- *   - amoy network: .env.testnet
+ *   - amoy / arcTestnet networks: .env.testnet
  *   - all other networks: .env.production
  */
 import { config as dotenvConfig } from "dotenv";
@@ -14,7 +14,10 @@ import { config as dotenvConfig } from "dotenv";
 dotenvConfig({ path: ".env" });
 const networkArgIndex = process.argv.indexOf("--network");
 const selectedNetwork = networkArgIndex >= 0 ? process.argv[networkArgIndex + 1] : "polygon";
-const envFile = selectedNetwork === "amoy" ? ".env.testnet" : ".env.production";
+const envFile =
+  selectedNetwork === "amoy" || selectedNetwork === "arcTestnet"
+    ? ".env.testnet"
+    : ".env.production";
 dotenvConfig({ path: envFile, override: true });
 console.log(`Loaded env file: ${envFile}`);
 
@@ -184,8 +187,8 @@ async function main() {
       initialSigner: signer,
       initialPauser: pauser,
       treasury: gov.treasury,
-      tokenList: tokenListAddr,
-      profiles: profilesAddr,
+      TOKEN_LIST: tokenListAddr,
+      PROFILES: profilesAddr,
     },
   ];
   const {
