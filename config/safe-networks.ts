@@ -155,6 +155,15 @@ export const SAFE_CONFIG: Record<number, SafeNetworkConfig> = {
     // Safe transaction service URL to be confirmed once Safe publishes it
   },
 
+  5042: {
+    chainId: 5042,
+    chainName: "Arc",
+    proxyFactory: SAFE_V150_PROXY_FACTORY,
+    singleton: SAFE_V150_SINGLETON,
+    safeVersion: "1.5.0",
+    // Safe transaction service URL to be confirmed once Safe publishes it
+  },
+
   // ─────────────────────────────────────────────────────────────
   // TESTNETS
   // ─────────────────────────────────────────────────────────────
