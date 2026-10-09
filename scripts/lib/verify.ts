@@ -50,10 +50,7 @@ async function verifyOne(
   const maxAttempts = 5;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await verifyContract(
-        { ...args, provider: provider as VerifyContractArgs["provider"] },
-        hre,
-      );
+      await verifyContract({ ...args, provider: provider as VerifyContractArgs["provider"] }, hre);
       console.log(`✅ ${label} verified.`);
       return;
     } catch (error: any) {

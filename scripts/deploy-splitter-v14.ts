@@ -15,7 +15,9 @@ dotenvConfig({ path: ".env" });
 const networkArgIndex = process.argv.indexOf("--network");
 const selectedNetwork = networkArgIndex >= 0 ? process.argv[networkArgIndex + 1] : "polygon";
 const envFile =
-  selectedNetwork === "amoy" || selectedNetwork === "arcTestnet" ? ".env.testnet" : ".env.production";
+  selectedNetwork === "amoy" || selectedNetwork === "arcTestnet"
+    ? ".env.testnet"
+    : ".env.production";
 dotenvConfig({ path: envFile, override: true });
 console.log(`Loaded env file: ${envFile}`);
 
