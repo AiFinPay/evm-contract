@@ -11,10 +11,16 @@ dotenv.config({ path: ".env" });
 // Load the correct env file here based on the --network CLI argument.
 const networkArgIndex = process.argv.indexOf("--network");
 const selectedNetwork = networkArgIndex >= 0 ? process.argv[networkArgIndex + 1] : "polygon";
-const envFile = selectedNetwork === "amoy" ? ".env.testnet" : ".env.production";
+const envFile =
+  selectedNetwork === "amoy" || selectedNetwork === "arcTestnet"
+    ? ".env.testnet"
+    : ".env.production";
 dotenv.config({ path: envFile, override: true });
 
 const LEDGER_ACCOUNT = process.env.LEDGER_ACCOUNT ? [process.env.LEDGER_ACCOUNT] : [];
+const ARC_TESTNET_LEDGER_ACCOUNT = process.env.ARC_DEPLOYER_LEDGER_ACCOUNT
+  ? [process.env.ARC_DEPLOYER_LEDGER_ACCOUNT]
+  : [];
 const DEV_KEY = process.env.DEV_DEPLOYER_KEY ? [process.env.DEV_DEPLOYER_KEY] : [];
 
 /**
@@ -164,6 +170,22 @@ export default defineConfig({
       chainType: "op",
       ...prodAccounts("ROBINHOOD"),
     },
+    arc: {
+      type: "http",
+      url: process.env.ARC_RPC || "https://rpc.mainnet.arc.io",
+      chainId: 5042,
+      chainType: "l1",
+      ...prodAccounts("ARC"),
+    },
+    arcTestnet: {
+      type: "http",
+      url: process.env.ARC_RPC || "https://rpc.testnet.arc.io",
+      chainId: 5042002,
+      chainType: "l1",
+      ...(ARC_TESTNET_LEDGER_ACCOUNT.length
+        ? { accounts: [], ledgerAccounts: ARC_TESTNET_LEDGER_ACCOUNT }
+        : { accounts: DEV_KEY }),
+    },
   },
 
   chainDescriptors: {
@@ -281,10 +303,32 @@ export default defineConfig({
       name: "Robinhood Chain",
       chainType: "op",
       blockExplorers: {
-        etherscan: {
+        blockscout: {
           name: "Robinhood Chain Explorer",
           url: "https://robinhoodchain.blockscout.com",
           apiUrl: "https://robinhoodchain.blockscout.com/api",
+        },
+      },
+    },
+    5042: {
+      name: "Arc Mainnet",
+      chainType: "l1",
+      blockExplorers: {
+        etherscan: {
+          name: "Arc Explorer",
+          url: "https://explorer.arc.io",
+          apiUrl: "https://api.etherscan.io/v2/api",
+        },
+      },
+    },
+    5042002: {
+      name: "Arc Testnet",
+      chainType: "l1",
+      blockExplorers: {
+        etherscan: {
+          name: "Arc Testnet Explorer",
+          url: "https://explorer.testnet.arc.io",
+          apiUrl: "https://api.etherscan.io/v2/api",
         },
       },
     },
@@ -296,6 +340,10 @@ export default defineConfig({
         process.env.ETHERSCAN_API_KEY ||
         process.env.POLYGONSCAN_API_KEY ||
         configVariable("ETHERSCAN_API_KEY"),
+    },
+    blockscout: {
+      enabled: true,
+      apiKey: process.env.BLOCKSCOUT_API_KEY || configVariable("BLOCKSCOUT_API_KEY"),
     },
     sourcify: {
       enabled: false,

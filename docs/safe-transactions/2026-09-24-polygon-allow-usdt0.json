@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "chainId": "137",
+  "createdAt": 1790277600000,
+  "meta": {
+    "name": "Allow USDT0 on the Polygon v1.4 TokenList",
+    "description": "TokenList 0xbA98C0797707611787B04680E260036573D9D7a1: setAllowed([USDT0 0xc2132D05D31c914a87C6611C10748AEb04B58e8F], [true]). Execute from Safe 0x01b80329ff81ce1d22a9e2e8807df5f92414c3c3 (3-of-4, DEFAULT_ADMIN_ROLE on TokenList).",
+    "txBuilderVersion": "1.18.0",
+    "createdFromSafeAddress": "0x01b80329ff81ce1d22a9e2e8807df5f92414c3c3",
+    "createdFromOwnerAddress": ""
+  },
+  "transactions": [
+    {
+      "to": "0xbA98C0797707611787B04680E260036573D9D7a1",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address[]",
+            "name": "_tokens",
+            "type": "address[]"
+          },
+          {
+            "internalType": "bool[]",
+            "name": "_allowedFlags",
+            "type": "bool[]"
+          }
+        ],
+        "name": "setAllowed",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "_tokens": "[0xc2132D05D31c914a87C6611C10748AEb04B58e8F]",
+        "_allowedFlags": "[true]"
+      }
+    }
+  ]
+}
