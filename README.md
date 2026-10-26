@@ -11,9 +11,11 @@ This repository maintains **B2BSplitterV14** (EIP-712 signed quotes, multi-route
 
 | Contract | Address |
 |----------|---------|
-| B2BSplitterV14 | *(pending production deploy)* |
-| TimelockController | *(pending production deploy)* |
-| Gnosis Safe | *(pending production deploy)* |
+| B2BSplitterV14 | `0x78bed24B8D3A5eB2cf8D9A0D6A9Da6Bc5d7f32eB` |
+| TimelockController | No Polygon deployment record |
+| Gnosis Safe | `0x01b80329ff81ce1d22a9e2e8807df5f92414c3c3` |
+
+The Polygon v1.4 deployment record lists the Safe as the splitter's admin and marks settlement enabled. That record does not establish that a TimelockController currently holds admin roles or that a paid end-to-end settlement has been verified. Check on-chain state and route-specific operational evidence before making readiness claims.
 
 ---
 
@@ -33,9 +35,7 @@ No custodial holding. No manual forwarding. Settled on-chain in ~2 seconds.
 
 ## Prerequisites
 
-- Node.js 22.13.0+ (Hardhat 3 requirement)
-- Bun (package manager)
-- Hardhat 3
+- Node.js/Bun
 
 ```bash
 bun install
@@ -76,7 +76,7 @@ bun run deploy
 bun run deploy --network amoy
 ```
 
-Records the splitter in `deployments/<network>-v14-latest.json`. Full production bootstrap (timelock + multisig + KMS signer) is in `docs/V14_DEPLOYMENT_CHECKLIST.md`.
+Records the splitter in `deployments/<network>-v14-<network>-latest.json`. Full production bootstrap (timelock + multisig + KMS signer) is in `docs/V14_DEPLOYMENT_CHECKLIST.md`.
 
 Required environment variables in `.env`:
 - Testnets: `DEV_DEPLOYER_KEY`
@@ -112,12 +112,6 @@ Current splitter-only contract. Receives an EIP-712 signed quote and atomically 
 
 ### TimelockWrapper
 Production governance helper. Deploys an OpenZeppelin `TimelockController` and wires it as the `ADMIN_ROLE` holder of `B2BSplitterV14`.
-
----
-
-## Audit
-
-- **v1.4:** Pending re-audit. Tracked in `docs/V14_MIGRATION.md` Phase 5.
 
 ---
 
