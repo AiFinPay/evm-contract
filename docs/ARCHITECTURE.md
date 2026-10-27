@@ -1,7 +1,7 @@
 # AiFinPay EVM Contracts — Architecture
 
 > **Version:** v1.4 (splitter-only, EIP-712 signed quotes, multi-route, RBAC)  
-> **Legacy status:** `AiFinPayCore v5.3`, `AgentPassport`, `MSECCOToken`, and the v1.3 single-route splitters have been removed from the active codebase. Historical deployment records remain in `deployments/` and `registry/`.  
+> **Active contracts:** `B2BSplitterV14`, `Profiles`, `TokenList`, and `TimelockWrapper`.
 > **Canonical configuration:** `hardhat.config.ts`, `foundry.toml`, `registry/registry.json`, `config/v14-production-config.ts`, and the per-chain deployment JSON files under `deployments/`. This document contains no live configuration values.
 
 ---
@@ -39,7 +39,7 @@ The exact economics are selected at settlement time by the `routeId` carried in 
 | `B2BSplitterV14` | Core router | Verifies EIP-712 quotes, enforces replay protection, pausability, and RBAC; atomically splits native or ERC-20 payments |
 | `Profiles` | Satellite | Per-route economics: `treasuryBps`, `ipCreatorBps`, `enabled`, optional `routeTreasury` override |
 | `TokenList` | Satellite | Stablecoin allow-list read at settlement time |
-| `TimelockWrapper` | Bootstrap helper | Deploys an OpenZeppelin `TimelockController` and wires it as `ADMIN_ROLE` holder of v1.4 targets (or transfers `Ownable` ownership for legacy targets) |
+| `TimelockWrapper` | Bootstrap helper | Deploys an OpenZeppelin `TimelockController` and provides helpers for transferring admin roles to it |
 
 ### Removed contracts
 
@@ -159,7 +159,7 @@ Settlement flow:
 
 | Role | Holder | Powers |
 |------|--------|--------|
-| `DEFAULT_ADMIN_ROLE` (alias `ADMIN_ROLE`) | `TimelockController` in production | Grant/revoke roles, unpause, set treasury, manage whitelist, configure/disable/enable routes |
+| `DEFAULT_ADMIN_ROLE` (alias `ADMIN_ROLE`) | `TimelockController` after role transfer; see deployment records for current holder | Grant/revoke roles, unpause, set treasury, manage whitelist, configure/disable/enable routes |
 | `SIGN_OPERATOR_ROLE` | Backend KMS-backed signer | Sign quotes only — no admin or pause powers |
 | `PAUSER_ROLE` | Gnosis Safe | Call `pause()` instantly — cannot unpause |
 
@@ -180,7 +180,7 @@ The same v1.4 contract build is deployed to every supported EVM chain. Per-chain
 - `hardhat.config.ts` — RPC and verification config.
 - `config/v14-production-config.ts` — stablecoin addresses and governance environment variables per chain.
 - `registry/registry.json` — pinned deployment addresses, runtime code hash, fee profiles, and `settlementEnabled` flag.
-- `deployments/<network>-v14-latest.json` — the actual deployment record for each network.
+- `deployments/<network>-v14-<network>-latest.json` — the actual deployment record for each network.
 
 The SDK uses `registry/generated/splitter-table.json` (produced by `scripts/generate-sdk-table.mjs`) as its canonical routing table.
 
@@ -195,7 +195,7 @@ The SDK uses `registry/generated/splitter-table.json` (produced by `scripts/gene
 | `ReentrancyGuardTransient` | Both settlement functions |
 | `Pausable` | Settlement only; admin actions remain possible while paused |
 | `AccessControl` | `B2BSplitterV14`, `Profiles`, `TokenList` |
-| 48-hour timelock | All `ADMIN_ROLE` actions in production |
+| 48-hour timelock | `ADMIN_ROLE` actions only after the controller receives the target role |
 | EIP-712 domain binding | `chainId` and `verifyingContract` prevent cross-chain and cross-contract replay |
 | Per-payer monotonic nonce | Prevents replay, pre-emption, and predictable-ID DoS |
 
@@ -210,6 +210,6 @@ Live configuration and deployed addresses are **not** stored in this document. U
 - `config/v14-production-config.ts` — chain-level stablecoin defaults and governance environment variables.
 - `registry/registry.json` — canonical SDK routing targets and governance Safe.
 - `README.md` — human-facing deployed addresses for Polygon mainnet (orientation only).
-- `deployments/<network>-v14-latest.json` — actual deployment records per network.
+- `deployments/<network>-v14-<network>-latest.json` — actual deployment records per network.
 
 Do not copy configuration values into documentation files. Keep them only in the files above so changes remain auditable and mechanically verifiable.

@@ -1,29 +1,10 @@
 #!/usr/bin/env node
 /**
- * Governance documentation must match on-chain reality.
+ * Checks that governance documentation matches on-chain ownership.
  *
- * The v1.3 security audit (P0 #3) found docs/TIMELOCK_IMPLEMENTATION.md
- * asserting that a 48-hour timelock protected every critical operation, while
- * on-chain all 18 v1.3 route splitters were owned directly by a 3-of-5 Safe
- * that could change treasury or whitelist immediately. The document was not
- * lying on purpose — it described a plan, and nobody re-read it after the plan
- * stalled. A reader had no way to tell the difference.
- *
- * A prose correction fixes today and rots again the moment the timelock is
- * actually deployed (or the ownership model changes again). So the docs now
- * carry a machine-readable marker:
- *
- *     <!-- governance-status: direct-safe -->   or   <!-- governance-status: timelock -->
- *
- * and this script holds that marker to the chain. It fails when the two
- * disagree in EITHER direction: docs promising a timelock that does not exist,
- * and docs still describing direct ownership after a timelock goes live. The
- * chain is the source of truth; the marker is a claim about it; CI is what
- * keeps a claim from outliving the fact.
- *
- * Fails closed. An unreachable RPC is a non-zero exit, never a skip — the same
- * rule verify-registry.mjs follows, and for the same reason: "we could not
- * check" must never read like "we checked and it was fine".
+ * A status marker is valid only when every eligible owner on every configured
+ * chain matches it. RPC failures are errors; an unavailable check is not a
+ * successful verification.
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -204,8 +185,8 @@ if (claimed && observedKinds.size > 0) {
       fail(
         `governance documents claim "${claimed}" but the chain says "${actual}".\n` +
           (claimed === 'timelock'
-            ? '    The docs promise a delay that does not exist. This is audit finding EVM-HIGH-001 /\n    v1.3 P0 #3 — fix the docs, or deploy the timelock and transfer ownership.'
-            : '    A timelock appears to be live. Update the governance-status markers and the prose\n    in the governance docs to describe it, then re-run.'),
+            ? '    The documented delay is not enforced by the current owner. Correct the claim or complete the role transfer.'
+            : '    A timelock controls the current owner. Update the governance-status markers and prose.'),
       );
     }
   }
