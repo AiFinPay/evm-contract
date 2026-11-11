@@ -67,7 +67,7 @@ export AMOY_RPC=https://...
 # 1. Deploy v1.4 with deployer as ADMIN_ROLE
 bun run deploy --network amoy
 
-# 2. Record the splitter address from deployments/amoy-v14-latest.json
+# 2. Record the splitter address from deployments/amoy-v14-amoy-latest.json
 export SPLITTER_V14=0x...
 
 # 3. Verify source
@@ -86,23 +86,24 @@ Run a paid end-to-end settlement on both routes before mainnet deploy.
 ### 4.1 Deploy B2BSplitterV14
 
 ```bash
-bun run deploy:v14
+bun run deploy
 ```
 
 The deploy script:
 - Uses `PROD_DEPLOYER_KEY` as the deployer.
 - Reads the canonical `CREATE3_FACTORY_<chainId>` from env (default:
   `0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed`) and deploys through CreateX.
-- Sets the deployer EOA as initial `ADMIN_ROLE`.
+- Sets `AIFINPAY_SAFE_137` as the initial admin and treasury unless a separate treasury is configured.
 - Sets `AIFINPAY_V14_SIGNER` as initial `SIGN_OPERATOR_ROLE`.
 - Sets `AIFINPAY_PAUSER_137` (defaults to `AIFINPAY_SAFE_137`) as initial `PAUSER_ROLE`.
-- Sets `AIFINPAY_TREASURY_137` as the global treasury.
 - Deploys `TokenList` and `Profiles` satellites via CreateX CREATE3 with
   deterministic, deployer-scoped salts.
 - Deploys `B2BSplitterV14` via CreateX CREATE3 with a deterministic salt.
 - Configures `agent-x402` (`0/0`) and `merchant-aifp1` (`100/0`) routes at construction.
 - Predicts and prints each deployed address before/after the deploy transaction.
-- Writes the record to `deployments/polygon-v14-production-latest.json`.
+- Writes the record to `deployments/polygon-v14-polygon-latest.json`.
+
+The deployment script records new deployments with settlement disabled. Deployment alone does not establish production readiness.
 
 **Address determinism:** Using the same deployer EOA + CreateX salt on any chain
 produces the same contract address, independent of constructor arguments. The
@@ -111,7 +112,7 @@ configured EOA can land at the predicted address.
 
 Record:
 ```bash
-export SPLITTER_V14=$(jq -r '.splitter.address' deployments/polygon-v14-production-latest.json)
+export SPLITTER_V14=$(jq -r '.splitter.address' deployments/polygon-v14-polygon-latest.json)
 ```
 
 ### 4.2 Verify source
@@ -138,50 +139,49 @@ export WRAPPER=$(jq -r '.timelock.wrapper' deployments/polygon-timelock-latest.j
 
 ## 5. Transfer governance to TimelockController
 
-The deployer EOA currently holds `ADMIN_ROLE`. Choose one of the following paths.
+The Polygon v1.4 deployment record lists the Safe as the initial admin. To move privileged administration to the TimelockController, complete one of the following paths for `B2BSplitterV14`, `TokenList`, and `Profiles`.
 
 ### Path A — two Safe proposals (manual, always available)
 
-#### Proposal A — grant ADMIN_ROLE to TimelockController
+#### Proposal A — grant `DEFAULT_ADMIN_ROLE` to TimelockController
 
-Target: `SPLITTER_V14`  
+Target: each v1.4 admin-controlled contract
 Function: `grantRole(bytes32 role, address account)`  
 Role: `0x0000000000000000000000000000000000000000000000000000000000000000` (`DEFAULT_ADMIN_ROLE`)  
 Account: `TIMELOCK`
 
-#### Proposal B — revoke ADMIN_ROLE from deployer
+#### Proposal B — revoke `DEFAULT_ADMIN_ROLE` from the Safe
 
-Target: `SPLITTER_V14`  
+Target: each v1.4 admin-controlled contract
 Function: `revokeRole(bytes32 role, address account)`  
 Role: `0x0000000000000000000000000000000000000000000000000000000000000000`  
-Account: deployer EOA address
+Account: Safe address
 
-Schedule and execute both through the Safe → TimelockController flow.
+Submit these calls through the Safe. Verify the TimelockController has the role before revoking the Safe's role.
 
-### Path B — TimelockWrapper helper (single Safe proposal)
+### Path B — TimelockWrapper helper
 
-If the wrapper is granted `ADMIN_ROLE` first, the Safe can call the wrapper helpers directly:
+For each target, the Safe can grant `DEFAULT_ADMIN_ROLE` to the wrapper, then call the wrapper helpers:
 
-1. Deployer EOA grants `ADMIN_ROLE` to `WRAPPER`.
-2. Safe calls `wrapper.grantRoleToTimelock(SPLITTER_V14, ADMIN_ROLE)`.
-3. Safe calls `wrapper.renounceRoleOnTarget(SPLITTER_V14, ADMIN_ROLE)`.
-4. Safe calls `wrapper.destroy()` to renounce the wrapper's optional TimelockController admin role.
+1. Safe calls `grantRole(DEFAULT_ADMIN_ROLE, WRAPPER)` on the target.
+2. Safe calls `wrapper.grantRoleToTimelock(target, DEFAULT_ADMIN_ROLE)`.
+3. Safe calls `wrapper.renounceRoleOnTarget(target, DEFAULT_ADMIN_ROLE)`.
+4. Safe calls `revokeRole(DEFAULT_ADMIN_ROLE, SAFE)` on the target.
+5. After all targets are wired, Safe calls `wrapper.destroy()` to renounce the wrapper's optional TimelockController admin role.
 
 After either path:
 
 ```bash
-# Confirm TimelockController is admin
+# For each target, confirm TimelockController is admin and Safe is not.
 cast call $SPLITTER_V14 "hasRole(bytes32,address)" \
   0x0000000000000000000000000000000000000000000000000000000000000000 \
   $TIMELOCK --rpc-url $POLYGON_MAINNET_RPC
-
-# Confirm deployer is no longer admin
 cast call $SPLITTER_V14 "hasRole(bytes32,address)" \
   0x0000000000000000000000000000000000000000000000000000000000000000 \
-  $DEPLOYER --rpc-url $POLYGON_MAINNET_RPC
+  $SAFE_ADDRESS --rpc-url $POLYGON_MAINNET_RPC
 ```
 
-Expected: `true` for TimelockController, `false` for deployer.
+Expected: `true` for TimelockController, `false` for the Safe. Repeat for `TokenList` and `Profiles`.
 
 ---
 
@@ -210,8 +210,7 @@ Expected: `true`.
 | Treasury is the Safe | `treasury()` | `AIFINPAY_TREASURY_137` |
 | Routes configured | `profiles.getProfile(routeId("agent-x402"))` | enabled, treasuryBps=0, ipCreatorBps=0 |
 | Routes configured | `profiles.getProfile(routeId("merchant-aifp1"))` | enabled, treasuryBps=100, ipCreatorBps=0 |
-| Stablecoins whitelisted | `tokenList.isAllowed(USDC)` | `true` |
-| Stablecoins whitelisted | `tokenList.isAllowed(USDT)` | `true` |
+| Configured stablecoins whitelisted | `tokenList.isAllowed(address)` for each asset in the deployment record | `true` |
 | Contract verified | Block explorer | green checkmark |
 
 ---
@@ -221,7 +220,7 @@ Expected: `true`.
 After mainnet deploy and verification:
 
 1. Add the v1.4 entry to `registry/registry.json` under `splitters`.
-2. Run `bun run verify-registry` or `node scripts/verify-registry.mjs --pin` to pin runtime code hash and ownership.
+2. Run `node scripts/verify-registry.mjs --pin` to pin runtime code hash and ownership.
 3. Run `node scripts/generate-sdk-table.mjs` to update `registry/generated/splitter-table.json`.
 4. Do **not** set `settlementEnabled: true` until a paid end-to-end settlement has succeeded on each route.
 
@@ -248,7 +247,7 @@ If a critical issue is found after deploy:
 2. All settlements revert `EnforcedPause()`. Existing routes stop processing.
 3. Alternatively, the Safe can schedule `disableRoute(routeId)` via TimelockController for the affected route only.
 4. Investigate on a mainnet fork; fix, audit, deploy v1.4.1 if needed.
-5. SDK points back to v1.3 endpoints while v1.4 is paused.
+5. Keep the affected route disabled until a reviewed replacement deployment is available.
 
 See `V14_MIGRATION.md` §9 for full rollback strategy.
 

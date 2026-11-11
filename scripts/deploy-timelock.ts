@@ -55,11 +55,7 @@ async function main() {
   console.log("\n✅ TimelockWrapper deployed:", wrapperAddress);
   console.log("✅ TimelockController deployed:", timelockAddress);
 
-  // Legacy Ownable targets:
-  // await wrapper.transferToTimelock(Ownable.attach(CORE_ADDRESS));
-  // RBAC v1.4+ targets:
-  // await wrapper.grantRoleToTimelock(IAccessControl.attach(SPLITTER_V14), ADMIN_ROLE);
-  // await wrapper.renounceRoleOnTarget(IAccessControl.attach(SPLITTER_V14), ADMIN_ROLE);
+  // Deployment does not transfer admin roles on target contracts.
 
   // Record deployment
   const timestamp = new Date().toISOString();
@@ -84,11 +80,10 @@ async function main() {
   fs.writeFileSync(path.join(deploymentsDir, `${networkName}-timelock-${safeTs}.json`), payload);
   fs.writeFileSync(path.join(deploymentsDir, `${networkName}-timelock-latest.json`), payload);
 
-  console.log("\n⏰ Timelock is now active!");
-  console.log("All privileged operations require", MIN_DELAY / 3600, "hour delay");
-  console.log("Proposer (Safe) can schedule operations");
-  console.log("Executor can execute scheduled operations");
-  console.log("Call wrapper.destroy() after wiring to renounce its admin role");
+  console.log("\nTimelock contracts deployed; target admin roles have not been transferred.");
+  console.log(
+    "ADMIN_ROLE operations are delayed only after each target's admin role is transferred.",
+  );
 }
 
 main()

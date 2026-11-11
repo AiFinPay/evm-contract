@@ -1,185 +1,57 @@
 # Timelock Setup Guide
 
-## Overview
-
 <!-- governance-status: direct-safe -->
 
-> **Not deployed.** No `TimelockController` owns any v1.3 splitter; all
-> eighteen are owned directly by the 3-of-5 governance Safe and can be changed
-> with no delay. See
-> [TIMELOCK_IMPLEMENTATION.md](./TIMELOCK_IMPLEMENTATION.md) for the on-chain
-> state and the open governance decision.
+This guide covers deploying a `TimelockController` and transferring v1.4 admin roles to it. A Polygon v1.4 deployment record lists the Gnosis Safe as the splitter admin; the repository contains no Polygon timelock deployment record. Confirm current on-chain state before scheduling governance changes.
 
-A **48-hour timelock** is *proposed* for all critical protocol parameters, to
-prevent rug-pull attacks and give the community time to react to malicious
-proposals. Everything below describes how it would work once deployed.
+## Deploy the timelock
 
-## What's Protected
-
-The following operations now require a 48-hour timelock delay:
-
-*(The ✅ marks below mean "would be timelock-protected", not "is protected today".)*
-
-### AiFinPayCore
-- ✅ `setFees()` - Change treasury/IP creator fee percentages
-- ✅ `setTreasury()` - Change treasury address
-- ✅ `setArpFees()` - Change referral tier percentages
-- ✅ `setManifestoHash()` - Change agreement hash
-- ✅ `pause()` / `unpause()` - Emergency pause
-
-### B2BSplitter / B2BSplitterV13
-- ✅ `setSplit()` - Change fee split percentages
-- ✅ `setTreasury()` - Change treasury address
-- ✅ `pause()` / `unpause()` - Emergency pause
-
-## Architecture
-
-```
-┌─────────────────┐
-│  Gnosis Safe    │ ← Proposer (schedules operations)
-│  (Multisig)     │
-└────────┬────────┘
-         │
-         │ 48h delay
-         ↓
-┌─────────────────┐
-│ TimelockController │ ← ADMIN_ROLE holder of all contracts
-│  (48h delay)    │
-└────────┬────────┘
-         │
-         │ After delay
-         ↓
-┌─────────────────┐
-│   Executor      │ ← Executes scheduled operations
-│  (Can be Safe)  │
-└─────────────────┘
-```
-
-## Deployment
-
-### 1. Deploy Timelock
+Set the deployer, Safe proposer, and executor:
 
 ```bash
-export SAFE_ADDRESS=0xYourSafeAddress
-export EXECUTOR_ADDRESS=0xExecutorAddress  # Can be same as SAFE
+export PROD_DEPLOYER_KEY=0x...
+export SAFE_ADDRESS=0xYourGnosisSafeAddress
+export EXECUTOR_ADDRESS=$SAFE_ADDRESS
 bun run deploy:timelock --network polygon
 ```
 
-### 2. Transfer ADMIN_ROLE
-
-For v1.4 contracts there is no `Ownable` owner. After deployment, grant `ADMIN_ROLE` to the TimelockController and revoke it from the deployer EOA:
-
-```typescript
-// In deploy-timelock.ts or a follow-up proposal:
-await splitterV14.grantRole(await splitterV14.ADMIN_ROLE(), timelockController);
-await splitterV14.renounceRole(await splitterV14.ADMIN_ROLE(), deployer);
-```
-
-For legacy `Ownable` contracts (v1.2/v1.3), use `transferMultiple` as before:
-
-```typescript
-await wrapper.transferMultiple([core, splitterV12, splitterV13]);
-```
-
-### 3. Verify
+The script deploys `TimelockWrapper` and its `TimelockController`, configured with a 48-hour minimum delay, then records both addresses in `deployments/polygon-timelock-latest.json`. It does not transfer any target roles. The controller does not govern a contract until that contract's admin role is transferred.
 
 ```bash
-# Check v1.4 admin
-cast call $CONTRACT_ADDRESS "hasRole(bytes32,address)" $(cast keccak "DEFAULT_ADMIN_ROLE") $TIMELOCK_ADDRESS --rpc-url $RPC_URL
-
-# Should return 0x0000000000000000000000000000000000000000000000000000000000000001
+export TIMELOCK=$(jq -r '.timelock.controller' deployments/polygon-timelock-latest.json)
+export WRAPPER=$(jq -r '.timelock.wrapper' deployments/polygon-timelock-latest.json)
 ```
 
-## Usage
+## Transfer v1.4 admin roles
 
-### Schedule an Operation (Safe)
+The v1.4 targets are `B2BSplitterV14`, `TokenList`, and `Profiles`. For each target, use the Safe to:
+
+1. Grant `DEFAULT_ADMIN_ROLE` to the TimelockController.
+2. Confirm the TimelockController has the role.
+3. Revoke `DEFAULT_ADMIN_ROLE` from the Safe.
+
+Alternatively, grant the wrapper `DEFAULT_ADMIN_ROLE` on each target, then use the Safe proposer to call `grantRoleToTimelock(target, DEFAULT_ADMIN_ROLE)` and `renounceRoleOnTarget(target, DEFAULT_ADMIN_ROLE)`. After all targets are wired, call `wrapper.destroy()` to renounce the wrapper's optional TimelockController admin role. Revoke the Safe's admin role from every target after confirming the controller has it.
+
+Keep `PAUSER_ROLE` assigned to the designated pauser if immediate emergency pausing is required. It is separate from `DEFAULT_ADMIN_ROLE`.
+
+## Verify
+
+For each target, verify that the TimelockController has `DEFAULT_ADMIN_ROLE` and that the Safe and wrapper do not. Also confirm the controller's minimum delay is at least `172800` seconds:
 
 ```bash
-# Example: Change treasury fee to 2%
-cast send $TIMELOCK_ADDRESS \
-  "schedule(address,uint256,bytes,bytes32,bytes32,uint256)" \
-  $CONTRACT_ADDRESS \
-  0 \
-  $(cast calldata "setSplit(uint256,uint256)" 200 0) \
-  0x0...0 \
-  0x0...0 \
-  $(date -d "+48 hours" +%s) \
-  --private-key $SAFE_KEY
+cast call $TIMELOCK "getMinDelay()" --rpc-url $POLYGON_MAINNET_RPC
+cast call $SPLITTER_V14 "hasRole(bytes32,address)" \
+  0x0000000000000000000000000000000000000000000000000000000000000000 \
+  $TIMELOCK --rpc-url $POLYGON_MAINNET_RPC
+cast call $SPLITTER_V14 "hasRole(bytes32,address)" \
+  0x0000000000000000000000000000000000000000000000000000000000000000 \
+  $SAFE_ADDRESS --rpc-url $POLYGON_MAINNET_RPC
 ```
 
-### Execute an Operation (Executor)
-
-```bash
-cast send $TIMELOCK_ADDRESS \
-  "execute(address,uint256,bytes,bytes32,bytes32)" \
-  $CONTRACT_ADDRESS \
-  0 \
-  $(cast calldata "setSplit(uint256,uint256)" 200 0) \
-  0x0...0 \
-  0x0...0 \
-  --private-key $EXECUTOR_KEY
-```
-
-### Cancel an Operation (Safe)
-
-```bash
-cast send $TIMELOCK_ADDRESS \
-  "cancel(bytes32)" \
-  $OPERATION_ID \
-  --private-key $SAFE_KEY
-```
-
-## Emergency Pause
-
-`v1.4` adds a dedicated `PAUSER_ROLE` (held by the Gnosis Safe) that can call `pause()` instantly, while `unpause()` remains `ADMIN_ROLE`-only and timelock-gated. For legacy contracts (`v1.3` and earlier), `pause()` is `onlyOwner` and therefore timelocked when the owner is the TimelockController.
-
-## Security Benefits
-
-1. **48h Reaction Window** - Community can monitor scheduled operations
-2. **Multisig Integration** - Works with Gnosis Safe for multi-sig approval
-3. **Transparent** - All operations visible on-chain before execution
-4. **Non-Custodial** - No single point of failure
-
-## Monitoring
-
-Set up alerts for:
-- `CallScheduled` events on TimelockController
-- `CallExecuted` events
-- Any `onlyOwner` function calls
-
-**Recommended Tools:**
-- Tenderly alerts
-- OpenZeppelin Defender
-- Custom webhook on `CallScheduled` event
-
-## Migration Checklist
-
-- [ ] Deploy TimelockController via TimelockWrapper
-- [ ] Transfer ownership of AiFinPayCore
-- [ ] Transfer ownership of B2BSplitter
-- [ ] Transfer ownership of B2BSplitterV13
-- [ ] Verify ownership on all contracts
-- [ ] Test scheduling a simple operation
-- [ ] Set up monitoring alerts
-- [ ] Document process for team
-- [ ] Announce to community
-
-## Troubleshooting
-
-**Q: Operation failed with "Insufficient delay"**  
-A: Ensure timestamp is at least 48 hours in the future
-
-**Q: "Caller is not proposer"**  
-A: Only the Safe (proposer) can schedule operations
-
-**Q: "Operation is not ready"**  
-A: Wait until the scheduled time has passed
-
-**Q: "Operation has already been executed"**  
-A: Each operation can only be executed once
+Repeat the role checks for `TokenList` and `Profiles`. Confirm signer and pauser roles, route profiles, and token allow-list state against the deployment record. Update deployment metadata only after the corresponding on-chain and route-specific checks have succeeded. Deploying a controller alone is not evidence that admin actions are timelocked.
 
 ## References
 
-- [OpenZeppelin TimelockController Docs](https://docs.openzeppelin.com/contracts/4.x/api/governance#TimelockController)
-- [Gnosis Safe Integration Guide](https://docs.safe.global/advanced/smart-account-timelock)
-- [Audit Recommendation EVM-HIGH-001](./SECURITY_AUDIT.md)
+- `contracts/TimelockWrapper.sol` — wrapper role-transfer behavior.
+- `docs/V14_DEPLOYMENT_CHECKLIST.md` — deployment and post-deployment checks.
+- `scripts/verify-governance-docs.mjs` — checks governance markers against configured on-chain owners.

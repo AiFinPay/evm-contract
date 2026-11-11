@@ -16,10 +16,10 @@ Primary instructions: `node_modules/@daochild/agents-config/AGENTS.md` — read 
 - Setup: `bun install`
 - Required Node version: `22.13.0+` (Hardhat 3 requirement).
 
-## Migration status
+## Protocol scope
 
-- **v1.4 (splitter-only, EIP-712, multi-route, RBAC) is the current protocol version.** Legacy Core/Passport/mSECCO contracts and the v1.3 splitter have been removed from the repository; historical deployment records remain in `deployments/` and `registry/`.
-- **Current phase (V14_MIGRATION.md):** Phase 6 complete — only `B2BSplitterV14`, `TokenList`, `Profiles`, and `TimelockWrapper` remain under active development.
+- The active protocol is the splitter-only v1.4 design with EIP-712 signed quotes, multi-route settlement, and RBAC.
+- Active contracts: `B2BSplitterV14`, `TokenList`, `Profiles`, and `TimelockWrapper`.
 
 ## Day-to-day commands
 
@@ -73,7 +73,7 @@ No separate typecheck step; Hardhat/TypeScript compilation is exercised during `
 - **Foundry**: `forge test` (math + timelock invariants in `foundry-tests/`).
 - **Single test**: `bun test --grep "test name"` or `forge test --match-test testName`.
 - **Gas reports**: `forge test --gas-report`.
-- Fixtures are in `test/fixtures.ts`: `fixtureV14()` deploys `B2BSplitterV14`, `MockERC20`, `TokenList`, and `Profiles`. Legacy v5.3/v1.2 contracts and their tests were removed in Phase 6.
+- Fixtures are in `test/fixtures.ts`: `fixtureV14()` deploys `B2BSplitterV14`, `MockERC20`, `TokenList`, and `Profiles`.
 - See `docs/TESTING_GUIDE.md` for full testing documentation.
 
 ## Code style (enforced)
@@ -109,7 +109,7 @@ bun run deploy              # polygon mainnet
 bun run deploy --network amoy # amoy testnet
 ```
 
-Records the v1.4 splitter in `deployments/<network>-v14-latest.json`; see `docs/V14_DEPLOYMENT_CHECKLIST.md` for the full production bootstrap.
+Records the v1.4 splitter in `deployments/<network>-v14-<network>-latest.json`; see `docs/V14_DEPLOYMENT_CHECKLIST.md` for the full production bootstrap.
 
 ### Verify
 
@@ -118,7 +118,7 @@ bun run verify --network polygon
 bun run verify --network amoy
 ```
 
-Reads `deployments/<network>-v14-latest.json` and source-verifies the recorded v1.4 contracts.
+Reads the latest deployment record for the selected network and source-verifies the recorded contracts.
 
 ### Timelock (production governance)
 
@@ -141,13 +141,13 @@ See `docs/TIMELOCK_SETUP.md` for the complete workflow. For v1.4 the TimelockCon
 - `hardhat.config.ts`: authoritative network/verification/compiler config.
 - `foundry.toml`: separate Foundry build profile (`contracts/`, `foundry-tests/`, `foundry-artifacts/`).
 - `registry/registry.json`: canonical SDK payment targets and governance Safe.
-- `README.md`: canonical deployed addresses for Polygon mainnet.
-- **Do not store configuration values in documentation files** — keep them only in canonical configuration files (e.g., `.env`, `.env.local`, `hardhat.config.ts`, `foundry.toml`, `registry/registry.json`, `config/v14-production-config.ts`, `deployments/<network>-v14-latest.json`). `README.md` may contain human-facing deployed addresses and orientation, not live config. Historical docs that pre-date this rule may still contain stale addresses; treat them as orientation and verify against the canonical files.
+- `README.md`: human-facing deployed addresses for Polygon mainnet.
+- **Do not store configuration values in documentation files** — keep them only in canonical configuration files (e.g., `.env`, `.env.local`, `hardhat.config.ts`, `foundry.toml`, `registry/registry.json`, `config/v14-production-config.ts`, `deployments/<network>-v14-<network>-latest.json`). `README.md` may contain human-facing deployed addresses and orientation, not live config.
 
 ## Security & Governance
 
-- **Timelock**: 48-hour delay on all privileged operations (fees, treasury, pause).
-- **Multisig**: Gnosis Safe is the timelock proposer (*(pending production deploy)*).
+- **Timelock**: `TimelockWrapper` deploys a controller with a minimum 48-hour delay. `ADMIN_ROLE` operations are delayed only after the controller receives the target contracts' admin roles; `PAUSER_ROLE` can pause immediately.
+- **Polygon governance record**: the v1.4 deployment lists the Gnosis Safe as the splitter's admin. Verify on-chain role assignments before describing governance as timelock-protected.
 - **Fee caps**: hard-coded maximums (treasury 5%, IP creator 1%).
 - **v1.4 RBAC**: `ADMIN_ROLE` (timelock) and `SIGN_OPERATOR_ROLE` (KMS-backed signer) are orthogonal — neither can do the other's job.
 - See `docs/SECURITY_AUDIT.md`, `docs/ARCHITECTURE.md`, and `docs/V14_ARCHITECTURE.md` for full documentation.

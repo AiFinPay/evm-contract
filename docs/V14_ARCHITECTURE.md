@@ -1,9 +1,7 @@
 # B2BSplitter v1.4 — Splitter-Only Architecture
 
-**Status:** implemented
 **Replaces:** `B2BSplitterV13`, `AiFinPayCore v5.3`, `MSECCOToken`, `AgentPassport`
 **Audience:** engineering, audit, SDK, backend
-**Last updated:** 2026-08-31
 
 ---
 
@@ -45,13 +43,13 @@ The v1.3 splitter-only deployment model has a third problem: a single deployment
 | Contract | Status |
 |---|---|
 | `B2BSplitterV14` | **New.** Splitter-only with EIP-712 quote signature, two-role RBAC, multi-route profile |
-| `TokenList` | **New.** Standalone stablecoin allow-list satellite, deployed by `B2BSplitterV14` constructor |
-| `Profiles` | **New.** Standalone per-route economics storage, deployed by `B2BSplitterV14` constructor |
+| `TokenList` | **New.** Standalone stablecoin allow-list satellite deployed alongside `B2BSplitterV14` |
+| `Profiles` | **New.** Standalone per-route economics storage deployed alongside `B2BSplitterV14` |
 | `Whitelist` | Reused library inside `TokenList` |
 | `MockERC20` | Test-only; reused |
 | `MockReverter` | Test-only; reused |
 | `MockPyth` | Test-only; **drop** (no oracle integration in v1.4) |
-| `TimelockWrapper` | **Reused and retained.** Bootstrap helper that deploys a 48-hour `TimelockController` and transfers `Ownable` ownership of legacy contracts. For v1.4 it is used only to deploy the `TimelockController` (see `scripts/deploy-timelock.ts`) — `B2BSplitterV14` itself is not `Ownable`, so `transferToTimelock`/`transferMultiple` are not used on it. Instead, the deployer EOA grants `ADMIN_ROLE` to the `TimelockController` via `grantRole`. `TimelockWrapper` self-destructs after deployment. Foundry tests in `TimelockTest.t.sol` are kept and rewritten to target v1.4 admin functions (`configureRoute`, `grantSignerRole`) instead of the removed v1.2 `setSplit`. |
+| `TimelockWrapper` | Deploys a `TimelockController` and provides helpers for transferring v1.4 admin roles. The deploy script does not transfer target roles. `destroy()` renounces the wrapper's optional controller-admin role; the wrapper code remains deployed. |
 | `TimelockController` (OZ) | Used as-is from OpenZeppelin for governance |
 
 ### 2.3 Removed runtime errors
@@ -117,11 +115,11 @@ The contract inherits OpenZeppelin's `AccessControl` and adds two custom roles. 
 
 | Role | ID | Where | Powers |
 |---|---|---|---|
-| `DEFAULT_ADMIN_ROLE` (= `ADMIN_ROLE` alias) | `bytes32(0)` | TimelockController (which itself is owned by a Gnosis Safe) | Grant/revoke `ADMIN_ROLE`, `SIGN_OPERATOR_ROLE`, and `PAUSER_ROLE`; unpause; set treasury; manage stablecoin whitelist; configure/disable routes; renounce role (in emergency) |
+| `DEFAULT_ADMIN_ROLE` (= `ADMIN_ROLE` alias) | `bytes32(0)` | TimelockController after role transfer; see deployment records for current holder | Grant/revoke roles, unpause, set treasury, manage stablecoin whitelist, configure/disable routes |
 | `SIGN_OPERATOR_ROLE` | `keccak256("SIGN_OPERATOR_ROLE")` | Backend hot key (separate from admin, held in KMS) | Sign quotes only — no admin functions, no pause, no role management |
 | `PAUSER_ROLE` | `keccak256("PAUSER_ROLE")` | Gnosis Safe (proposer multisig) | Pause settlements instantly. Cannot unpause (unpause is `ADMIN_ROLE`-only / timelock-gated) |
 
-`ADMIN_ROLE` (held by `TimelockController`) and `SIGN_OPERATOR_ROLE` (held by the backend KMS key) are **deliberately orthogonal**:
+`ADMIN_ROLE` and `SIGN_OPERATOR_ROLE` are **deliberately orthogonal**:
 
 - A compromised admin **cannot forge quotes** (admin has no signing key).
 - A compromised signer **cannot drain funds, pause, change treasury, or change routes** (signer has no admin or pauser powers).
@@ -429,12 +427,11 @@ function grantSignerRole(address) external onlyRole(ADMIN_ROLE)
 function revokeSignerRole(address) external onlyRole(ADMIN_ROLE)
 ```
 
-There is **no** `Ownable`/`Ownable2Step` in v1.4. Governance is pure `AccessControl`. ADMIN transfer is performed by granting `ADMIN_ROLE` to the new governor and (optionally) revoking it from the old one. The TimelockController becomes `ADMIN_ROLE` holder in production.
+There is **no** `Ownable`/`Ownable2Step` in v1.4. Governance is pure `AccessControl`. Admin transfer is performed by granting `DEFAULT_ADMIN_ROLE` to the new governor and revoking it from the old one. A TimelockController enforces its delay only after it receives the target's admin role.
 
-All ADMIN actions are gated by the timelock + multisig governance layer:
+`scripts/deploy-splitter-v14.ts` sets the initial admin from `AIFINPAY_SAFE_<chainId>`. `scripts/deploy-timelock.ts` deploys the wrapper and controller but does not transfer target roles. Follow `docs/TIMELOCK_SETUP.md` to wire each v1.4 target.
 
-- On testnet: deployer EOA is `ADMIN_ROLE`.
-- On production: the deploy script runs `scripts/deploy-timelock.ts`, which deploys `TimelockWrapper` (which deploys a `TimelockController` with 48-hour delay). Then `B2BSplitterV14` is deployed with the deployer EOA as `ADMIN_ROLE`. The Safe schedules `TimelockController` proposals to (a) `grantRole(DEFAULT_ADMIN_ROLE, timelock)` on `B2BSplitterV14` and (b) `revokeRole(DEFAULT_ADMIN_ROLE, deployer)` from `B2BSplitterV14`. After the 48-hour delay governance becomes Safe → `TimelockController` → splitter. The `SIGN_OPERATOR_ROLE` is granted in a separate proposal. `TimelockWrapper` self-destructs after the bootstrap; `B2BSplitterV14` holds the canonical admin address via `getRoleAdmin` / `hasRole`.
+`PAUSER_ROLE` remains separate and can pause immediately. If the TimelockController is assigned `DEFAULT_ADMIN_ROLE`, other admin operations are subject to its configured delay.
 
 ### 7.2 Signer rotation
 
@@ -546,33 +543,18 @@ Full risk matrix in `V14_BACKEND_RISK_CLOSURE.md`.
 
 ---
 
-## 12. Implementation Status
+## 12. Deployment State
 
-This architecture is now implemented. The migration status is tracked in `V14_MIGRATION.md`:
-
-- ✅ `B2BSplitterV14.sol`, `TokenList.sol`, `Profiles.sol`, interfaces, and errors implemented.
-- ✅ Hardhat unit tests for native, stable, signature, RBAC, and route management.
-- ✅ Deploy scripts (`deploy-splitter-v14.ts`, `deploy-splitter-v14-production.ts`) and production config (`v14-production-config.ts`).
-- ✅ `TimelockWrapper.sol` retained as the bootstrap helper for `TimelockController`.
-- ⏳ Foundry invariant tests for `_splitGross`, ECDSA, `consumedNonce` monotonicity, RBAC separation.
-- ⏳ Independent re-audit and `AUDIT_B2BSplitTERV14.md`.
-- ⏳ SDK/backend integration to compute EIP-712 digest and submit `settleNative` / `settleStable`.
+This document describes protocol behavior, not deployment readiness. Use the canonical per-network deployment records and live on-chain checks to establish deployed addresses, role assignments, and route state.
 
 ---
 
-## 13. Decisions / Open Questions
-
-Resolved decisions are recorded here; remaining open work is tracked in `V14_FUTURE.md`.
+## 13. Protocol Decisions
 
 1. ✅ `routeTreasury` (per-route treasury override) **kept** for forward compatibility; default `address(0)` = use global treasury.
 2. ✅ `payerNonce` is **globally monotonic per payer**, not per-route.
 3. ✅ `consumedNonce(payer, nonce)` is a **public mapping** (free with `mapping` declaration).
-4. ✅ `configureRoute` is gated by `ADMIN_ROLE` only; in production `ADMIN_ROLE` is the `TimelockController`, so the 48-hour delay applies automatically.
-5. ✅ Historical `SIGN_OPERATOR_ROLE` members are tracked via `RoleGranted` / `RoleRevoked` events only; no on-chain list.
-6. ⏳ Profile-bound digest (freeze economics at signing time) — deferred to v1.4.x. See `V14_FUTURE.md`.
-7. ⏳ Governance recovery after lost `ADMIN_ROLE` — deferred to v1.4.x. See `V14_FUTURE.md`.
-8. ⏳ Storage pruning / TTL for `consumedNonce` — deferred. See `V14_FUTURE.md`.
+4. `configureRoute` is gated by `ADMIN_ROLE`; the 48-hour delay applies only when a `TimelockController` holds that role.
+5. Granted and revoked signer roles are represented by `RoleGranted` and `RoleRevoked` events; no on-chain list is maintained.
 
 ---
-
-— End of design spec —
